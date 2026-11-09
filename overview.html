@@ -1,0 +1,802 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Emotion-Aware ASR Overview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #fbfbf9;
+    --surface: #ffffff;
+    --ink: #1c1f23;
+    --muted: #6a6f76;
+    --line: #e6e4df;
+    --teal: #0f766e;
+    --teal-soft: #e7f4f2;
+    --amber: #b45309;
+    --amber-soft: #fdf3e6;
+    --violet: #6d28d9;
+    --violet-soft: #f1ebfd;
+    --rose: #be123c;
+    --rose-soft: #fdecef;
+    --slate-soft: #f2f2ef;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.7 "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 56px 16px 96px; }
+  header.hero { margin-bottom: 40px; }
+  .kicker { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--teal); font-weight: 600; }
+  h1 { font-size: clamp(30px, 5vw, 42px); line-height: 1.15; margin: 8px 0 14px; font-weight: 700; letter-spacing: -.02em; }
+  h2 { font-size: 24px; margin: 72px 0 8px; letter-spacing: -.01em; }
+  h2 .num { color: var(--muted); font-weight: 500; margin-right: 8px; }
+  h3 { font-size: 18px; margin: 36px 0 6px; }
+  p { margin: 10px 0; }
+  .lead { font-size: 18px; color: #3b4047; }
+  .muted { color: var(--muted); }
+  a { color: var(--teal); text-decoration: none; border-bottom: 1px solid #b9dcd7; }
+  a:hover { border-bottom-color: var(--teal); }
+  code, .mono { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 13.5px; }
+  code { background: var(--slate-soft); padding: 1px 6px; border-radius: 5px; }
+
+  nav.toc { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+  nav.toc a { border: 1px solid var(--line); background: var(--surface); padding: 4px 12px; border-radius: 999px; font-size: 14px; color: var(--ink); }
+  nav.toc a:hover { border-color: var(--teal); color: var(--teal); }
+
+  figure { margin: 24px 0; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+  figure svg { width: 100%; height: auto; display: block; }
+  figcaption { font-size: 14px; color: var(--muted); margin-top: 10px; }
+
+  .callout { border-left: 3px solid var(--teal); background: var(--teal-soft); padding: 12px 16px; border-radius: 0 10px 10px 0; margin: 18px 0; }
+  .callout.amber { border-color: var(--amber); background: var(--amber-soft); }
+
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin: 18px 0; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .card h4 { margin: 0 0 4px; font-size: 15.5px; }
+  .card p { margin: 0; font-size: 14.5px; color: #43484f; }
+  .tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; margin-bottom: 6px; }
+  .t-teal { background: var(--teal-soft); color: var(--teal); }
+  .t-amber { background: var(--amber-soft); color: var(--amber); }
+  .t-violet { background: var(--violet-soft); color: var(--violet); }
+  .t-rose { background: var(--rose-soft); color: var(--rose); }
+
+  .table-wrap { overflow-x: auto; margin: 16px 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 600; color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .04em; }
+  tr:last-child td { border-bottom: none; }
+
+  ol.refs { padding-left: 20px; font-size: 14.5px; }
+  ol.refs li { margin: 6px 0; }
+  .refgroup { font-weight: 600; margin-top: 22px; font-size: 15px; }
+
+  .dir { border: 1px solid var(--line); background: var(--surface); border-radius: 14px; padding: 16px 18px; margin: 14px 0; }
+  .dir h4 { margin: 0; font-size: 16.5px; }
+  .dir .meta { font-size: 13px; color: var(--muted); margin: 2px 0 8px; }
+  .dir.pick { border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-soft); }
+
+  footer { margin-top: 80px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 18px; }
+
+  /* SVG shared styles */
+  .box { fill: #fff; stroke: #cfccc5; stroke-width: 1.2; }
+  .b-teal { fill: var(--teal-soft); stroke: var(--teal); }
+  .b-amber { fill: var(--amber-soft); stroke: var(--amber); }
+  .b-violet { fill: var(--violet-soft); stroke: var(--violet); }
+  .b-rose { fill: var(--rose-soft); stroke: var(--rose); }
+  .b-slate { fill: var(--slate-soft); stroke: #bdbab3; }
+  .lbl { font: 600 13px "Be Vietnam Pro", sans-serif; fill: var(--ink); }
+  .sub { font: 400 11.5px "Be Vietnam Pro", sans-serif; fill: var(--muted); }
+  .mono-s { font: 500 11.5px "JetBrains Mono", monospace; fill: var(--ink); }
+  .arrow { stroke: #8a8780; stroke-width: 1.4; fill: none; }
+  .arrow-t { stroke: var(--teal); stroke-width: 1.6; fill: none; }
+  .arrow-a { stroke: var(--amber); stroke-width: 1.6; fill: none; }
+  .arrow-r { stroke: var(--rose); stroke-width: 1.6; fill: none; stroke-dasharray: 5 4; }
+  .wave { stroke: var(--ink); stroke-width: 1.5; fill: none; }
+
+  @media (max-width: 560px) {
+    main { padding-top: 32px; }
+    h2 { margin-top: 56px; }
+    figure { padding: 10px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8a8780"/></marker>
+    <marker id="ah-t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0f766e"/></marker>
+    <marker id="ah-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b45309"/></marker>
+    <marker id="ah-r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#be123c"/></marker>
+  </defs>
+</svg>
+
+<header class="hero">
+  <div class="kicker">Voice Processing · Tổng quan đề tài</div>
+  <h1>Emotion-Aware Speech Recognition</h1>
+  <p class="lead">Nhận dạng tiếng nói không chỉ nghe <em>người ta nói gì</em>, mà còn hiểu <em>người ta nói với cảm xúc nào</em>. Trang này cho bạn bức tranh tổng thể: bài toán là gì, người ta đã làm gì, cách làm tốt nhất hiện nay, và vài hướng phù hợp cho một bài cuối kì.</p>
+  <nav class="toc">
+    <a href="#bai-toan">1. Bài toán</a>
+    <a href="#tai-sao">2. Vì sao khó</a>
+    <a href="#lich-su">3. Đã làm gì</a>
+    <a href="#kien-truc">4. Các kiến trúc</a>
+    <a href="#phat-hien">5. Bài học chính</a>
+    <a href="#sota">6. Tốt nhất hiện nay</a>
+    <a href="#du-lieu">7. Dữ liệu &amp; metric</a>
+    <a href="#huong">8. Hướng bạn có thể làm</a>
+    <a href="#tham-khao">9. Tài liệu</a>
+  </nav>
+</header>
+
+<!-- 1 -->
+<section id="bai-toan">
+<h2><span class="num">01</span>Bài toán là gì</h2>
+<p>Một hệ ASR bình thường nhận âm thanh và trả về chữ. Nhưng cùng một câu "Ừ, được thôi" có thể là đồng ý vui vẻ, có thể là cam chịu, có thể là đang bực. Phần ý nghĩa đó nằm trong <strong>ngữ điệu, cao độ, tốc độ, năng lượng</strong> của giọng nói, và bị mất sạch khi chỉ còn lại chữ.</p>
+<p><strong>Emotion-aware ASR</strong> là các hệ thống giữ lại thông tin này: vừa chép lời, vừa biết cảm xúc, hoặc dùng hiểu biết về cảm xúc để chép lời chính xác hơn.</p>
+
+<figure>
+<svg viewBox="0 0 760 250" role="img" aria-label="So sánh ASR thường và ASR có nhận biết cảm xúc">
+  <!-- waveform -->
+  <g transform="translate(20,95)">
+    <rect class="box b-slate" x="0" y="0" width="120" height="60" rx="10"/>
+    <path class="wave" d="M10,30 L18,30 L22,14 L27,46 L32,8 L37,52 L42,20 L47,40 L52,12 L57,48 L62,24 L67,36 L72,18 L77,42 L82,28 L88,32 L96,26 L104,30 L110,30"/>
+    <text class="sub" x="60" y="78" text-anchor="middle">giọng nói (đang bực)</text>
+  </g>
+  <!-- top path: plain ASR -->
+  <path class="arrow" d="M140,115 C180,115 190,55 230,55" marker-end="url(#ah)"/>
+  <rect class="box" x="232" y="30" width="150" height="50" rx="10"/>
+  <text class="lbl" x="307" y="52" text-anchor="middle">ASR thường</text>
+  <text class="sub" x="307" y="68" text-anchor="middle">chỉ quan tâm nội dung</text>
+  <path class="arrow" d="M382,55 L440,55" marker-end="url(#ah)"/>
+  <rect class="box" x="442" y="30" width="298" height="50" rx="10"/>
+  <text class="mono-s" x="458" y="60">"ừ được thôi"</text>
+  <text class="sub" x="600" y="60">mất sắc thái</text>
+
+  <!-- bottom path: emotion-aware -->
+  <path class="arrow-t" d="M140,135 C180,135 190,195 230,195" marker-end="url(#ah-t)"/>
+  <rect class="box b-teal" x="232" y="170" width="150" height="50" rx="10"/>
+  <text class="lbl" x="307" y="192" text-anchor="middle">Emotion-aware ASR</text>
+  <text class="sub" x="307" y="208" text-anchor="middle">nội dung + cảm xúc</text>
+  <path class="arrow-t" d="M382,195 L440,195" marker-end="url(#ah-t)"/>
+  <rect class="box b-teal" x="442" y="170" width="298" height="50" rx="10"/>
+  <rect x="456" y="183" width="66" height="24" rx="12" fill="#fdecef" stroke="#be123c"/>
+  <text class="mono-s" x="489" y="199" text-anchor="middle" style="fill:#be123c">angry</text>
+  <text class="mono-s" x="534" y="199">"ừ được thôi"</text>
+  <text class="sub" x="650" y="199">+ độ tin cậy</text>
+</svg>
+<figcaption>Cùng một đoạn âm thanh, hệ thống có nhận biết cảm xúc trả về thêm một lớp thông tin mà chữ không chứa.</figcaption>
+</figure>
+
+<p>Trong các paper, "emotion-aware ASR" thực ra là một <em>cụm</em> bài toán liên quan, không phải một task duy nhất. Có thể chia làm bốn nhóm:</p>
+<div class="grid">
+  <div class="card"><span class="tag t-amber">A · Robust ASR</span><h4>ASR bền với giọng cảm xúc</h4><p>Giọng hét, khóc, cười làm ASR sai nhiều hơn. Mục tiêu: giảm WER trên giọng có cảm xúc.</p></div>
+  <div class="card"><span class="tag t-teal">B · Joint</span><h4>ASR + SER trong một model</h4><p>Chép lời và nhận diện cảm xúc cùng lúc, hai task giúp nhau học tốt hơn.</p></div>
+  <div class="card"><span class="tag t-rose">C · SER từ ASR</span><h4>Đoán cảm xúc dựa trên transcript</h4><p>Dùng chữ (có lỗi) + âm thanh để đoán cảm xúc. Câu hỏi: lỗi ASR ảnh hưởng thế nào?</p></div>
+  <div class="card"><span class="tag t-violet">D · Audio-LLM</span><h4>Hiểu và giải thích</h4><p>Model ngôn ngữ lớn nghe được, trả về lời, cảm xúc, và lý do vì sao nó nghĩ vậy.</p></div>
+</div>
+</section>
+
+<!-- 2 -->
+<section id="tai-sao">
+<h2><span class="num">02</span>Vì sao đây là bài toán thú vị (và khó)</h2>
+<p>Điểm hay nhất của chủ đề này là ASR và cảm xúc <strong>ảnh hưởng lẫn nhau theo cả hai chiều</strong>. Đây cũng là câu chuyện xuyên suốt của gần như mọi paper.</p>
+
+<figure>
+<svg viewBox="0 0 760 270" role="img" aria-label="Tác động qua lại giữa ASR và nhận diện cảm xúc">
+  <rect class="box b-amber" x="60" y="95" width="200" height="80" rx="40"/>
+  <text class="lbl" x="160" y="131" text-anchor="middle">ASR</text>
+  <text class="sub" x="160" y="150" text-anchor="middle">"nói gì"</text>
+
+  <rect class="box b-teal" x="500" y="95" width="200" height="80" rx="40"/>
+  <text class="lbl" x="600" y="131" text-anchor="middle">SER</text>
+  <text class="sub" x="600" y="150" text-anchor="middle">"cảm xúc gì"</text>
+
+  <path class="arrow-t" d="M262,112 C340,40 420,40 498,112" marker-end="url(#ah-t)"/>
+  <text class="lbl" x="380" y="40" text-anchor="middle" style="fill:#0f766e">transcript giúp SER</text>
+  <text class="sub" x="380" y="57" text-anchor="middle">từ ngữ mang cảm xúc: "tuyệt vời", "chán quá"</text>
+
+  <path class="arrow-r" d="M262,140 L498,140" marker-end="url(#ah-r)"/>
+  <text class="sub" x="380" y="132" text-anchor="middle" style="fill:#be123c">nhưng lỗi ASR làm SER sai theo</text>
+
+  <path class="arrow-a" d="M498,160 C420,232 340,232 262,160" marker-end="url(#ah-a)"/>
+  <text class="lbl" x="380" y="232" text-anchor="middle" style="fill:#b45309">cảm xúc mạnh làm ASR sai nhiều hơn</text>
+  <text class="sub" x="380" y="250" text-anchor="middle">giọng thay đổi cao độ, tốc độ, phát âm méo</text>
+</svg>
+<figcaption>Vòng tác động qua lại: muốn làm tốt một phía, thường phải tính đến phía kia.</figcaption>
+</figure>
+
+<p>Một số lý do khiến bài toán khó:</p>
+<ul>
+  <li><strong>Dữ liệu ít và "diễn".</strong> Dataset có cả transcript lẫn nhãn cảm xúc rất hiếm, phần lớn do diễn viên đọc, khác giọng ngoài đời.</li>
+  <li><strong>Nhãn cảm xúc mơ hồ.</strong> Hai người nghe cùng một câu có thể gán hai cảm xúc khác nhau.</li>
+  <li><strong>Hai task "muốn" những thứ khác nhau.</strong> ASR muốn bỏ qua sự khác biệt giọng để nhận ra chữ; SER lại cần chính sự khác biệt đó. Train chung dễ "giành giật" nhau.</li>
+  <li><strong>Lời nói và giọng có thể mâu thuẫn.</strong> "Tôi ổn mà" nói bằng giọng sắp khóc: nhìn chữ thì sai, nghe giọng mới đúng.</li>
+</ul>
+</section>
+
+<!-- 3 -->
+<section id="lich-su">
+<h2><span class="num">03</span>Người ta đã làm gì</h2>
+<p>Có thể kể lại lịch sử ngắn gọn qua bốn giai đoạn. Mỗi giai đoạn gắn với một loại "xương sống" mới của xử lý tiếng nói.</p>
+
+<figure>
+<svg viewBox="0 0 760 330" role="img" aria-label="Dòng thời gian nghiên cứu emotion-aware ASR">
+  <line x1="30" y1="60" x2="740" y2="60" stroke="#cfccc5" stroke-width="2"/>
+  <!-- era bands -->
+  <g>
+    <rect x="30" y="30" width="160" height="22" rx="11" class="b-slate" stroke-width="1"/>
+    <text class="sub" x="110" y="45" text-anchor="middle">trước 2020 · pipeline</text>
+    <rect x="196" y="30" width="190" height="22" rx="11" class="b-amber" stroke-width="1"/>
+    <text class="sub" x="291" y="45" text-anchor="middle" style="fill:#b45309">2020-2023 · SSL + multi-task</text>
+    <rect x="392" y="30" width="160" height="22" rx="11" class="b-teal" stroke-width="1"/>
+    <text class="sub" x="472" y="45" text-anchor="middle" style="fill:#0f766e">2023-2024 · foundation</text>
+    <rect x="558" y="30" width="182" height="22" rx="11" class="b-violet" stroke-width="1"/>
+    <text class="sub" x="649" y="45" text-anchor="middle" style="fill:#6d28d9">2024-2026 · LLM</text>
+  </g>
+  <!-- events -->
+  <g font-family="Be Vietnam Pro">
+    <circle cx="110" cy="60" r="5" fill="#8a8780"/>
+    <line x1="110" y1="66" x2="110" y2="96" stroke="#e6e4df"/>
+    <text class="lbl" x="110" y="112" text-anchor="middle">Cascade</text>
+    <text class="sub" x="110" y="128" text-anchor="middle">ASR → text → SER</text>
+    <text class="sub" x="110" y="143" text-anchor="middle">MFCC, LSTM</text>
+
+    <circle cx="230" cy="60" r="5" fill="#b45309"/>
+    <line x1="230" y1="66" x2="230" y2="176" stroke="#e6e4df"/>
+    <text class="lbl" x="230" y="192" text-anchor="middle">2020 · Feng et al.</text>
+    <text class="sub" x="230" y="208" text-anchor="middle">SER + ASR end-to-end</text>
+
+    <circle cx="300" cy="60" r="5" fill="#b45309"/>
+    <line x1="300" y1="66" x2="300" y2="96" stroke="#e6e4df"/>
+    <text class="lbl" x="300" y="112" text-anchor="middle">2021 · wav2vec2 MTL</text>
+    <text class="sub" x="300" y="128" text-anchor="middle">CTC làm task phụ</text>
+
+    <circle cx="360" cy="60" r="5" fill="#b45309"/>
+    <line x1="360" y1="66" x2="360" y2="246" stroke="#e6e4df"/>
+    <text class="lbl" x="360" y="262" text-anchor="middle">2022-23 · Fuse ASR,</text>
+    <text class="sub" x="360" y="278" text-anchor="middle">two-stage, chống nhiễu</text>
+
+    <circle cx="430" cy="60" r="5" fill="#0f766e"/>
+    <line x1="430" y1="66" x2="430" y2="176" stroke="#e6e4df"/>
+    <text class="lbl" x="430" y="192" text-anchor="middle">2023 · Whisper</text>
+    <text class="sub" x="430" y="208" text-anchor="middle">đo lỗi ASR theo cảm xúc</text>
+
+    <circle cx="500" cy="60" r="5" fill="#0f766e"/>
+    <line x1="500" y1="66" x2="500" y2="96" stroke="#e6e4df"/>
+    <text class="lbl" x="500" y="112" text-anchor="middle">emotion2vec</text>
+    <text class="sub" x="500" y="128" text-anchor="middle">SenseVoice · EmoBox</text>
+
+    <circle cx="600" cy="60" r="5" fill="#6d28d9"/>
+    <line x1="600" y1="66" x2="600" y2="246" stroke="#e6e4df"/>
+    <text class="lbl" x="600" y="262" text-anchor="middle">LLM sửa lỗi ASR</text>
+    <text class="sub" x="600" y="278" text-anchor="middle">GenSEC, R3</text>
+
+    <circle cx="690" cy="60" r="5" fill="#6d28d9"/>
+    <line x1="690" y1="66" x2="690" y2="176" stroke="#e6e4df"/>
+    <text class="lbl" x="690" y="192" text-anchor="middle">Audio-LLM</text>
+    <text class="sub" x="690" y="208" text-anchor="middle">emotion reasoning, RL</text>
+    <text class="sub" x="690" y="223" text-anchor="middle">VLSP 2025 (tiếng Việt)</text>
+  </g>
+</svg>
+<figcaption>Bốn giai đoạn. Tên paper cụ thể có ở mục 9 và trong <code>papers.md</code>.</figcaption>
+</figure>
+
+<h3>Giai đoạn 1 · Pipeline rời rạc</h3>
+<p>Ban đầu ASR và SER là hai hệ thống riêng. Người ta chạy ASR ra chữ, đưa chữ vào một model phân loại cảm xúc, có thể cộng thêm đặc trưng âm học (MFCC, pitch, energy). Đơn giản, nhưng lỗi ASR truyền thẳng xuống SER và hai bên không học được gì từ nhau.</p>
+
+<h3>Giai đoạn 2 · Self-supervised và multi-task</h3>
+<p>Khi có <strong>wav2vec 2.0, HuBERT, WavLM</strong> (các model học biểu diễn tiếng nói từ dữ liệu không nhãn), cách phổ biến là dùng chung một encoder, gắn hai "đầu": một đầu chép lời (thường bằng CTC), một đầu phân loại cảm xúc. Phát hiện quan trọng: thêm ASR làm task phụ giúp SER tốt lên rõ rệt, vì encoder buộc phải hiểu nội dung lời nói. Nhưng cũng phát hiện ra hai task có thể "giẫm chân" nhau, dẫn tới các cách train hai giai đoạn.</p>
+
+<h3>Giai đoạn 3 · Foundation model</h3>
+<p><strong>Whisper</strong> làm ASR rất mạnh, nên câu hỏi chuyển thành: "ASR mạnh như vậy thì còn sai ở đâu với giọng cảm xúc, và lỗi đó ảnh hưởng SER bao nhiêu?". Song song, xuất hiện model chuyên cho cảm xúc như <strong>emotion2vec</strong>, và model "một cho tất cả" như <strong>SenseVoice</strong>, vừa chép lời vừa trả về nhãn cảm xúc và sự kiện âm thanh (cười, vỗ tay).</p>
+
+<h3>Giai đoạn 4 · LLM</h3>
+<p>Hai cách dùng LLM: (1) cho LLM đọc các phiên bản transcript của ASR để <em>sửa lỗi</em> rồi đoán cảm xúc; (2) <strong>Audio-LLM</strong> nghe trực tiếp, trả lời bằng ngôn ngữ tự nhiên, thậm chí giải thích lý do (emotion reasoning). Năm 2025, VLSP cũng có shared task kết hợp ASR + SER cho tiếng Việt.</p>
+</section>
+
+<!-- 4 -->
+<section id="kien-truc">
+<h2><span class="num">04</span>Các kiến trúc chính</h2>
+<p>Gần như mọi hệ thống đều rơi vào một trong năm "khuôn" dưới đây. Hiểu được năm khuôn này là đọc paper nào cũng định vị được nhanh.</p>
+
+<h3>4.1 Cascade + fusion</h3>
+<p>Chạy ASR riêng, lấy transcript đưa vào một model ngôn ngữ (BERT, RoBERTa). Song song, một nhánh âm học lấy đặc trưng giọng. Hai nhánh gộp lại ở bước <em>fusion</em> rồi mới phân loại. Biến thể hay là <strong>gated fusion</strong>: model tự học khi nào tin chữ, khi nào tin giọng (ví dụ khi ASR thiếu tự tin thì nghiêng về giọng).</p>
+<figure>
+<svg viewBox="0 0 760 250" role="img" aria-label="Kiến trúc cascade với hai nhánh và fusion">
+  <rect class="box b-slate" x="16" y="95" width="90" height="56" rx="10"/>
+  <text class="lbl" x="61" y="120" text-anchor="middle">Audio</text>
+  <text class="sub" x="61" y="137" text-anchor="middle">waveform</text>
+
+  <!-- text branch -->
+  <path class="arrow" d="M106,112 C130,112 130,60 154,60" marker-end="url(#ah)"/>
+  <rect class="box b-amber" x="156" y="35" width="120" height="50" rx="10"/>
+  <text class="lbl" x="216" y="57" text-anchor="middle">ASR</text>
+  <text class="sub" x="216" y="73" text-anchor="middle">Whisper, …</text>
+  <path class="arrow" d="M276,60 L304,60" marker-end="url(#ah)"/>
+  <rect class="box" x="306" y="35" width="110" height="50" rx="10"/>
+  <text class="mono-s" x="361" y="57" text-anchor="middle">transcript</text>
+  <text class="sub" x="361" y="73" text-anchor="middle">có lỗi</text>
+  <path class="arrow" d="M416,60 L444,60" marker-end="url(#ah)"/>
+  <rect class="box" x="446" y="35" width="120" height="50" rx="10"/>
+  <text class="lbl" x="506" y="57" text-anchor="middle">Text encoder</text>
+  <text class="sub" x="506" y="73" text-anchor="middle">BERT / RoBERTa</text>
+
+  <!-- acoustic branch -->
+  <path class="arrow" d="M106,134 C130,134 130,188 154,188" marker-end="url(#ah)"/>
+  <rect class="box b-teal" x="156" y="163" width="410" height="50" rx="10"/>
+  <text class="lbl" x="361" y="185" text-anchor="middle">Acoustic encoder</text>
+  <text class="sub" x="361" y="201" text-anchor="middle">WavLM / emotion2vec: ngữ điệu, cao độ, năng lượng</text>
+
+  <!-- fusion -->
+  <path class="arrow" d="M566,60 C590,60 590,112 612,112" marker-end="url(#ah)"/>
+  <path class="arrow" d="M566,188 C590,188 590,136 612,136" marker-end="url(#ah)"/>
+  <rect class="box b-violet" x="614" y="96" width="70" height="56" rx="10"/>
+  <text class="lbl" x="649" y="120" text-anchor="middle">Fusion</text>
+  <text class="sub" x="649" y="137" text-anchor="middle">gate</text>
+  <path class="arrow" d="M684,124 L704,124" marker-end="url(#ah)"/>
+  <text class="mono-s" x="706" y="128">emo</text>
+  <text class="sub" x="361" y="238" text-anchor="middle">Ưu: dễ ghép các model có sẵn. Nhược: lỗi ASR lan xuống, hai nhánh không train cùng nhau.</text>
+</svg>
+<figcaption>Khuôn phổ biến nhất trong thực tế và trong các challenge (VLSP 2025: Whisper + emotion2vec).</figcaption>
+</figure>
+
+<h3>4.2 Multi-task: một encoder, hai đầu</h3>
+<p>Một encoder tiếng nói pretrained được dùng chung. Đầu ASR học chép lời bằng CTC (gióng từng khung âm thanh với ký tự). Đầu SER gộp toàn bộ khung lại thành một vector rồi phân loại. Loss tổng là tổng có trọng số của hai loss. Đây là khuôn "kinh điển" của joint ASR-SER.</p>
+<figure>
+<svg viewBox="0 0 760 280" role="img" aria-label="Kiến trúc multi-task với encoder dùng chung và hai head">
+  <rect class="box b-slate" x="16" y="110" width="90" height="56" rx="10"/>
+  <text class="lbl" x="61" y="135" text-anchor="middle">Audio</text>
+  <text class="sub" x="61" y="152" text-anchor="middle">16 kHz</text>
+  <path class="arrow" d="M106,138 L144,138" marker-end="url(#ah)"/>
+
+  <rect class="box b-teal" x="146" y="60" width="190" height="156" rx="12"/>
+  <text class="lbl" x="241" y="84" text-anchor="middle">Shared encoder</text>
+  <text class="sub" x="241" y="100" text-anchor="middle">wav2vec2 · HuBERT · WavLM</text>
+  <text class="sub" x="241" y="114" text-anchor="middle">hoặc Whisper encoder</text>
+  <!-- layer stack -->
+  <g>
+    <rect x="166" y="126" width="150" height="14" rx="4" fill="#fff" stroke="#0f766e" stroke-opacity=".5"/>
+    <rect x="166" y="144" width="150" height="14" rx="4" fill="#fff" stroke="#0f766e" stroke-opacity=".5"/>
+    <rect x="166" y="162" width="150" height="14" rx="4" fill="#fff" stroke="#0f766e" stroke-opacity=".5"/>
+    <rect x="166" y="180" width="150" height="14" rx="4" fill="#fff" stroke="#0f766e" stroke-opacity=".5"/>
+    <text class="sub" x="241" y="208" text-anchor="middle">transformer layers</text>
+  </g>
+
+  <!-- frame features -->
+  <path class="arrow" d="M336,110 C370,110 370,70 404,70" marker-end="url(#ah)"/>
+  <path class="arrow" d="M336,166 C370,166 370,206 404,206" marker-end="url(#ah)"/>
+  <text class="sub" x="372" y="142" text-anchor="middle">frame</text>
+  <text class="sub" x="372" y="156" text-anchor="middle">features</text>
+
+  <!-- ASR head -->
+  <rect class="box b-amber" x="406" y="45" width="150" height="50" rx="10"/>
+  <text class="lbl" x="481" y="67" text-anchor="middle">ASR head</text>
+  <text class="sub" x="481" y="83" text-anchor="middle">linear + CTC</text>
+  <path class="arrow" d="M556,70 L588,70" marker-end="url(#ah)"/>
+  <text class="mono-s" x="594" y="66">"ừ được thôi"</text>
+  <text class="sub" x="594" y="84">L_asr (CTC)</text>
+
+  <!-- SER head -->
+  <rect class="box b-rose" x="406" y="181" width="150" height="50" rx="10"/>
+  <text class="lbl" x="481" y="203" text-anchor="middle">SER head</text>
+  <text class="sub" x="481" y="219" text-anchor="middle">pooling + MLP</text>
+  <path class="arrow" d="M556,206 L588,206" marker-end="url(#ah)"/>
+  <text class="mono-s" x="594" y="202">angry 0.71</text>
+  <text class="sub" x="594" y="220">L_ser (cross-entropy)</text>
+
+  <rect x="406" y="120" width="330" height="36" rx="18" fill="#fff" stroke="#cfccc5" stroke-dasharray="4 3"/>
+  <text class="mono-s" x="571" y="143" text-anchor="middle">L = L_ser + λ · L_asr</text>
+  <text class="sub" x="380" y="262" text-anchor="middle">λ quyết định "ưu tiên task nào". Chọn λ là một trong những thí nghiệm đáng làm nhất.</text>
+</svg>
+<figcaption>Khuôn joint kinh điển (Cai et al. 2021, MMER 2023 và nhiều paper khác).</figcaption>
+</figure>
+
+<div class="callout amber">
+<strong>Vấn đề "giẫm chân":</strong> khi train cả hai cùng lúc, gradient của ASR và SER có thể kéo encoder về hai hướng ngược nhau, làm cả hai kém đi. Cách xử lý phổ biến là <strong>train hai giai đoạn</strong>: fine-tune encoder cho ASR trước để nó "hiểu lời nói", rồi mới fine-tune cho cảm xúc.
+</div>
+<figure>
+<svg viewBox="0 0 760 140" role="img" aria-label="Fine-tune hai giai đoạn">
+  <rect class="box b-slate" x="16" y="45" width="150" height="50" rx="10"/>
+  <text class="lbl" x="91" y="67" text-anchor="middle">SSL pretrained</text>
+  <text class="sub" x="91" y="83" text-anchor="middle">không nhãn</text>
+  <path class="arrow" d="M166,70 L216,70" marker-end="url(#ah)"/>
+  <rect class="box b-amber" x="218" y="45" width="200" height="50" rx="10"/>
+  <text class="lbl" x="318" y="67" text-anchor="middle">Stage 1 · fine-tune ASR</text>
+  <text class="sub" x="318" y="83" text-anchor="middle">học thông tin ngôn ngữ</text>
+  <path class="arrow" d="M418,70 L468,70" marker-end="url(#ah)"/>
+  <rect class="box b-rose" x="470" y="45" width="200" height="50" rx="10"/>
+  <text class="lbl" x="570" y="67" text-anchor="middle">Stage 2 · fine-tune SER</text>
+  <text class="sub" x="570" y="83" text-anchor="middle">(có thể giữ CTC nhỏ)</text>
+  <path class="arrow" d="M670,70 L720,70" marker-end="url(#ah)"/>
+  <text class="lbl" x="724" y="75">✓</text>
+  <text class="sub" x="380" y="125" text-anchor="middle">Gao et al. (Interspeech 2023): cách này tránh xung đột gradient, UA ~76% trên IEMOCAP.</text>
+</svg>
+</figure>
+
+<h3>4.3 Joint có fusion output của ASR</h3>
+<p>Một bước xa hơn khuôn 4.2: không chỉ chia sẻ encoder, mà lấy cả <em>hidden state</em> lẫn <em>chữ</em> do nhánh ASR sinh ra, cho "nói chuyện" với đặc trưng âm học qua cơ chế attention, rồi mới đoán cảm xúc. Cả hệ thống được train cùng nhau nên nhánh ASR học cách sinh ra thông tin có ích cho cảm xúc.</p>
+<figure>
+<svg viewBox="0 0 760 220" role="img" aria-label="Joint ASR SER với co-attention trên output ASR">
+  <rect class="box b-slate" x="16" y="82" width="80" height="50" rx="10"/>
+  <text class="lbl" x="56" y="111" text-anchor="middle">Audio</text>
+  <path class="arrow" d="M96,107 L126,107" marker-end="url(#ah)"/>
+  <rect class="box b-teal" x="128" y="72" width="130" height="70" rx="10"/>
+  <text class="lbl" x="193" y="102" text-anchor="middle">Encoder</text>
+  <text class="sub" x="193" y="120" text-anchor="middle">acoustic</text>
+
+  <path class="arrow" d="M258,90 C282,90 282,45 306,45" marker-end="url(#ah)"/>
+  <rect class="box b-amber" x="308" y="20" width="140" height="50" rx="10"/>
+  <text class="lbl" x="378" y="42" text-anchor="middle">ASR decoder</text>
+  <text class="sub" x="378" y="58" text-anchor="middle">hidden + text</text>
+
+  <path class="arrow" d="M258,125 C282,125 282,170 306,170" marker-end="url(#ah)"/>
+  <rect class="box" x="308" y="145" width="140" height="50" rx="10"/>
+  <text class="lbl" x="378" y="167" text-anchor="middle">Acoustic feats</text>
+  <text class="sub" x="378" y="183" text-anchor="middle">prosody</text>
+
+  <path class="arrow" d="M448,45 C472,45 472,92 496,92" marker-end="url(#ah)"/>
+  <path class="arrow" d="M448,170 C472,170 472,124 496,124" marker-end="url(#ah)"/>
+  <rect class="box b-violet" x="498" y="72" width="140" height="70" rx="10"/>
+  <text class="lbl" x="568" y="100" text-anchor="middle">Co-attention</text>
+  <text class="sub" x="568" y="118" text-anchor="middle">chữ ↔ giọng</text>
+  <path class="arrow" d="M638,107 L668,107" marker-end="url(#ah)"/>
+  <rect class="box b-rose" x="670" y="82" width="76" height="50" rx="10"/>
+  <text class="lbl" x="708" y="111" text-anchor="middle">emotion</text>
+  <path class="arrow-a" d="M448,30 L500,30" marker-end="url(#ah-a)"/>
+  <text class="sub" x="506" y="34">transcript (cũng là output)</text>
+</svg>
+<figcaption>Li, Bell, Lai (ICASSP 2022): "Fusing ASR Outputs in Joint Training for SER".</figcaption>
+</figure>
+
+<h3>4.4 Unified model: cảm xúc là một token</h3>
+<p>Thay vì gắn thêm head, người ta cho model sinh luôn nhãn cảm xúc như một phần của output. <strong>SenseVoice</strong> làm việc này: thêm vài "câu hỏi" dạng embedding vào đầu chuỗi (ngôn ngữ gì? cảm xúc gì? có sự kiện âm thanh gì?), và model trả lời ngay tại các vị trí đó, rồi tiếp tục chép lời. Kết quả là một chuỗi kiểu <code>&lt;vi&gt;&lt;ANGRY&gt;&lt;Speech&gt; ừ được thôi</code>. Ý tưởng tương tự có thể áp dụng cho Whisper bằng cách thêm token cảm xúc vào decoder.</p>
+<figure>
+<svg viewBox="0 0 760 250" role="img" aria-label="Kiến trúc kiểu SenseVoice với token task ở đầu chuỗi">
+  <!-- input sequence -->
+  <text class="sub" x="16" y="30">input của encoder</text>
+  <g>
+    <rect x="16" y="40" width="54" height="34" rx="8" class="b-violet" stroke-width="1.2"/><text class="mono-s" x="43" y="62" text-anchor="middle">LID</text>
+    <rect x="74" y="40" width="54" height="34" rx="8" class="b-rose" stroke-width="1.2"/><text class="mono-s" x="101" y="62" text-anchor="middle">SER</text>
+    <rect x="132" y="40" width="54" height="34" rx="8" class="b-amber" stroke-width="1.2"/><text class="mono-s" x="159" y="62" text-anchor="middle">AED</text>
+    <rect x="190" y="40" width="54" height="34" rx="8" class="b-slate" stroke-width="1.2"/><text class="mono-s" x="217" y="62" text-anchor="middle">ITN</text>
+    <rect x="252" y="40" width="40" height="34" rx="8" class="box"/>
+    <rect x="296" y="40" width="40" height="34" rx="8" class="box"/>
+    <rect x="340" y="40" width="40" height="34" rx="8" class="box"/>
+    <rect x="384" y="40" width="40" height="34" rx="8" class="box"/>
+    <text class="sub" x="440" y="62">… các khung âm thanh (fbank)</text>
+  </g>
+  <path class="arrow" d="M220,80 L220,104" marker-end="url(#ah)"/>
+  <rect class="box b-teal" x="16" y="106" width="610" height="46" rx="10"/>
+  <text class="lbl" x="321" y="127" text-anchor="middle">Encoder non-autoregressive (SAN-M), train bằng CTC</text>
+  <text class="sub" x="321" y="143" text-anchor="middle">trả lời tất cả "câu hỏi" và chép lời trong một lần chạy, nên rất nhanh</text>
+  <path class="arrow" d="M220,152 L220,176" marker-end="url(#ah)"/>
+  <text class="sub" x="16" y="172">output</text>
+  <g>
+    <rect x="16" y="180" width="54" height="34" rx="8" class="b-violet" stroke-width="1.2"/><text class="mono-s" x="43" y="202" text-anchor="middle">vi</text>
+    <rect x="74" y="180" width="54" height="34" rx="8" class="b-rose" stroke-width="1.2"/><text class="mono-s" x="101" y="202" text-anchor="middle">ANGRY</text>
+    <rect x="132" y="180" width="54" height="34" rx="8" class="b-amber" stroke-width="1.2"/><text class="mono-s" x="159" y="202" text-anchor="middle">Speech</text>
+    <rect x="190" y="180" width="54" height="34" rx="8" class="b-slate" stroke-width="1.2"/><text class="mono-s" x="217" y="202" text-anchor="middle">itn</text>
+    <rect x="252" y="180" width="172" height="34" rx="8" class="box"/>
+    <text class="mono-s" x="338" y="202" text-anchor="middle">ừ được thôi</text>
+  </g>
+  <text class="sub" x="640" y="120">LID: ngôn ngữ</text>
+  <text class="sub" x="640" y="136">SER: cảm xúc</text>
+  <text class="sub" x="640" y="152">AED: sự kiện</text>
+  <text class="sub" x="640" y="168">ITN: chuẩn hóa số</text>
+  <text class="sub" x="321" y="240" text-anchor="middle">SenseVoice-Small (~234M tham số, theo FunASR). Ngôn ngữ trong ví dụ chỉ để minh họa.</text>
+</svg>
+<figcaption>Khuôn "một model, nhiều câu trả lời". Gần với ý nghĩa "emotion-aware ASR" nhất ở dạng sản phẩm dùng được ngay.</figcaption>
+</figure>
+
+<h3>4.5 LLM: sửa lỗi, nghe trực tiếp, và giải thích</h3>
+<p>Có hai cách dùng LLM, khác nhau ở chỗ LLM có "nghe" được âm thanh hay không.</p>
+<figure>
+<svg viewBox="0 0 760 330" role="img" aria-label="Hai cách dùng LLM: hậu xử lý transcript và audio-LLM">
+  <!-- path 1 -->
+  <text class="lbl" x="16" y="26" style="fill:#6d28d9">(a) LLM sau ASR · chỉ đọc chữ</text>
+  <rect class="box b-slate" x="16" y="42" width="80" height="50" rx="10"/>
+  <text class="lbl" x="56" y="71" text-anchor="middle">Audio</text>
+  <path class="arrow" d="M96,67 L124,67" marker-end="url(#ah)"/>
+  <rect class="box b-amber" x="126" y="42" width="100" height="50" rx="10"/>
+  <text class="lbl" x="176" y="71" text-anchor="middle">ASR</text>
+  <path class="arrow" d="M226,67 L254,67" marker-end="url(#ah)"/>
+  <rect class="box" x="256" y="34" width="150" height="66" rx="10"/>
+  <text class="mono-s" x="268" y="54">1. ừ được thôi</text>
+  <text class="mono-s" x="268" y="71">2. ừ đuợc thôi</text>
+  <text class="mono-s" x="268" y="88">3. ờ được rồi</text>
+  <text class="sub" x="331" y="116" text-anchor="middle">N-best hypotheses</text>
+  <path class="arrow" d="M406,67 L434,67" marker-end="url(#ah)"/>
+  <rect class="box b-violet" x="436" y="42" width="130" height="50" rx="10"/>
+  <text class="lbl" x="501" y="64" text-anchor="middle">LLM</text>
+  <text class="sub" x="501" y="80" text-anchor="middle">sửa lỗi → suy luận</text>
+  <path class="arrow" d="M566,67 L594,67" marker-end="url(#ah)"/>
+  <rect class="box b-rose" x="596" y="42" width="150" height="50" rx="10"/>
+  <text class="mono-s" x="671" y="64" text-anchor="middle">text đã sửa</text>
+  <text class="mono-s" x="671" y="80" text-anchor="middle">+ emotion</text>
+
+  <line x1="16" y1="140" x2="746" y2="140" stroke="#e6e4df"/>
+
+  <!-- path 2 -->
+  <text class="lbl" x="16" y="168" style="fill:#6d28d9">(b) Audio-LLM · nghe trực tiếp</text>
+  <rect class="box b-slate" x="16" y="190" width="80" height="50" rx="10"/>
+  <text class="lbl" x="56" y="219" text-anchor="middle">Audio</text>
+  <path class="arrow" d="M96,215 L124,215" marker-end="url(#ah)"/>
+  <rect class="box b-teal" x="126" y="182" width="130" height="66" rx="10"/>
+  <text class="lbl" x="191" y="206" text-anchor="middle">Speech encoder</text>
+  <text class="sub" x="191" y="222" text-anchor="middle">Whisper enc</text>
+  <text class="sub" x="191" y="236" text-anchor="middle">+ emotion2vec</text>
+  <path class="arrow" d="M256,215 L284,215" marker-end="url(#ah)"/>
+  <rect class="box" x="286" y="190" width="110" height="50" rx="10"/>
+  <text class="lbl" x="341" y="212" text-anchor="middle">Adapter</text>
+  <text class="sub" x="341" y="228" text-anchor="middle">Q-Former / MLP</text>
+  <path class="arrow" d="M396,215 L424,215" marker-end="url(#ah)"/>
+  <rect class="box b-violet" x="426" y="182" width="140" height="66" rx="10"/>
+  <text class="lbl" x="496" y="206" text-anchor="middle">LLM</text>
+  <text class="sub" x="496" y="222" text-anchor="middle">LoRA fine-tune</text>
+  <text class="sub" x="496" y="236" text-anchor="middle">(+ RL thưởng đúng)</text>
+  <path class="arrow" d="M566,215 L594,215" marker-end="url(#ah)"/>
+  <rect class="box b-rose" x="596" y="176" width="150" height="80" rx="10"/>
+  <text class="sub" x="608" y="196">Transcript: …</text>
+  <text class="sub" x="608" y="212">Emotion: angry</text>
+  <text class="sub" x="608" y="228">Vì: giọng cao, nhanh,</text>
+  <text class="sub" x="608" y="244">nhấn mạnh "thôi"</text>
+  <rect x="426" y="262" width="140" height="28" rx="8" fill="#fff" stroke="#cfccc5" stroke-dasharray="4 3"/>
+  <text class="sub" x="496" y="280" text-anchor="middle">prompt: "chép lời và cho biết…"</text>
+  <path class="arrow" d="M496,262 L496,250" marker-end="url(#ah)"/>
+  <text class="sub" x="380" y="318" text-anchor="middle">Ví dụ: Qwen2-Audio, SALMONN, WavLLM; các paper emotion reasoning, EmoQ, EMO-RL, EmotionThinker (2025-2026).</text>
+</svg>
+<figcaption>(a) rẻ và dễ thử với API; (b) mạnh và linh hoạt nhất nhưng tốn tài nguyên huấn luyện.</figcaption>
+</figure>
+</section>
+
+<!-- 5 -->
+<section id="phat-hien">
+<h2><span class="num">05</span>Những bài học chính từ các paper</h2>
+<div class="grid">
+  <div class="card"><span class="tag t-amber">ASR ← cảm xúc</span><h4>Giọng cảm xúc làm ASR sai nhiều hơn</h4><p>Và lỗi không ngẫu nhiên: nó phụ thuộc loại từ và loại cảm xúc. Kể cả Whisper cũng có bias theo cảm xúc.</p></div>
+  <div class="card"><span class="tag t-rose">SER ← ASR</span><h4>SER "chịu" được lỗi ASR ở mức vừa</h4><p>Transcript sai khoảng 10% vẫn cho kết quả gần bằng transcript chuẩn. Sai nhiều hơn thì SER tụt rõ.</p></div>
+  <div class="card"><span class="tag t-teal">Joint</span><h4>ASR là "giáo viên phụ" tốt cho SER</h4><p>Thêm CTC làm task phụ thường giúp SER, vì encoder buộc phải nắm nội dung lời nói.</p></div>
+  <div class="card"><span class="tag t-teal">Joint</span><h4>Nhưng train chung có thể phản tác dụng</h4><p>Xung đột gradient. Giải bằng train hai giai đoạn, chọn trọng số loss cẩn thận.</p></div>
+  <div class="card"><span class="tag t-violet">LLM</span><h4>Sửa lỗi ASR trước giúp đoán cảm xúc tốt hơn</h4><p>Cho LLM xem nhiều phiên bản transcript, chọn và sửa, rồi mới đoán.</p></div>
+  <div class="card"><span class="tag t-violet">Đánh giá</span><h4>Số liệu khó so trực tiếp</h4><p>Mỗi paper một cách chia dữ liệu, số lớp, metric. Khi so, phải cùng điều kiện.</p></div>
+</div>
+</section>
+
+<!-- 6 -->
+<section id="sota">
+<h2><span class="num">06</span>Cách làm tốt nhất hiện nay</h2>
+<p>Không có một model "vô địch" duy nhất, vì mỗi nhóm bài toán có tiêu chí khác nhau. Nhưng có một "công thức chung" mà hầu hết hệ thống mạnh năm 2024-2026 đều dùng:</p>
+
+<figure>
+<svg viewBox="0 0 760 230" role="img" aria-label="Công thức chung của các hệ thống mạnh hiện nay">
+  <rect class="box b-slate" x="16" y="88" width="80" height="50" rx="10"/>
+  <text class="lbl" x="56" y="117" text-anchor="middle">Audio</text>
+  <path class="arrow" d="M96,105 C118,105 118,55 140,55" marker-end="url(#ah)"/>
+  <path class="arrow" d="M96,121 C118,121 118,171 140,171" marker-end="url(#ah)"/>
+
+  <rect class="box b-amber" x="142" y="28" width="210" height="54" rx="10"/>
+  <text class="lbl" x="247" y="51" text-anchor="middle">Encoder mạnh cho lời nói</text>
+  <text class="sub" x="247" y="68" text-anchor="middle">Whisper (large-v3), WavLM</text>
+
+  <rect class="box b-teal" x="142" y="144" width="210" height="54" rx="10"/>
+  <text class="lbl" x="247" y="167" text-anchor="middle">Encoder chuyên cảm xúc</text>
+  <text class="sub" x="247" y="184" text-anchor="middle">emotion2vec(+), WavLM</text>
+
+  <path class="arrow" d="M352,55 C380,55 380,105 408,105" marker-end="url(#ah)"/>
+  <path class="arrow" d="M352,171 C380,171 380,121 408,121" marker-end="url(#ah)"/>
+  <rect class="box b-violet" x="410" y="80" width="170" height="66" rx="10"/>
+  <text class="lbl" x="495" y="104" text-anchor="middle">Kết hợp thông minh</text>
+  <text class="sub" x="495" y="120" text-anchor="middle">gated fusion · co-attention</text>
+  <text class="sub" x="495" y="134" text-anchor="middle">hoặc LLM làm "bộ não"</text>
+  <path class="arrow" d="M580,113 L608,113" marker-end="url(#ah)"/>
+  <rect class="box" x="610" y="80" width="136" height="66" rx="10"/>
+  <text class="mono-s" x="678" y="104" text-anchor="middle">transcript</text>
+  <text class="mono-s" x="678" y="120" text-anchor="middle">+ emotion</text>
+  <text class="mono-s" x="678" y="136" text-anchor="middle">(+ lý do)</text>
+  <text class="sub" x="380" y="222" text-anchor="middle">Ý chính: dùng hai encoder bổ sung cho nhau, vì encoder giỏi ASR thường "lờ" đi thông tin cảm xúc.</text>
+</svg>
+</figure>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Nếu mục tiêu là…</th><th>Lựa chọn tốt hiện nay</th><th>Ghi chú</th></tr></thead>
+  <tbody>
+    <tr><td>Một model dùng ngay, nhanh, vừa chép lời vừa ra cảm xúc</td><td><strong>SenseVoice</strong></td><td>Open-source, có sẵn trên HuggingFace/ModelScope. Tiếng Việt chưa phải ngôn ngữ chính của bản Small.</td></tr>
+    <tr><td>Biểu diễn cảm xúc tốt nhất để gắn classifier</td><td><strong>emotion2vec / emotion2vec+</strong></td><td>Chỉ cần linear head trên feature đóng băng đã mạnh. Đội VLSP 2025 dùng.</td></tr>
+    <tr><td>ASR mạnh nhất làm nền</td><td><strong>Whisper large-v3</strong> (hoặc bản fine-tune tiếng Việt như PhoWhisper)</td><td>Vẫn có bias theo cảm xúc, nên đáng fine-tune thêm.</td></tr>
+    <tr><td>Joint ASR + SER train từ một encoder</td><td><strong>SSL encoder + CTC + emotion head, train 2 giai đoạn</strong></td><td>Khuôn đã được kiểm chứng, phù hợp để làm thí nghiệm có kiểm soát.</td></tr>
+    <tr><td>Hiểu sâu, giải thích được</td><td><strong>Audio-LLM + emotion reasoning / RL</strong></td><td>Hướng nghiên cứu nóng nhất 2025-2026, nhưng tốn GPU.</td></tr>
+  </tbody>
+</table>
+</div>
+</section>
+
+<!-- 7 -->
+<section id="du-lieu">
+<h2><span class="num">07</span>Dữ liệu và cách đo</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Dataset</th><th>Ngôn ngữ</th><th>Vì sao hay dùng</th></tr></thead>
+  <tbody>
+    <tr><td><strong>IEMOCAP</strong></td><td>Anh</td><td>~12 giờ, có cả transcript và nhãn cảm xúc. Chuẩn mặc định cho joint ASR-SER.</td></tr>
+    <tr><td><strong>MELD</strong></td><td>Anh</td><td>Hội thoại phim Friends, 7 cảm xúc, có transcript.</td></tr>
+    <tr><td><strong>MSP-Podcast</strong></td><td>Anh</td><td>Giọng tự nhiên, lớn, gần thực tế nhất.</td></tr>
+    <tr><td>RAVDESS, CREMA-D, ESD</td><td>Anh (ESD có Trung)</td><td>Câu cố định, nhiều cảm xúc. Hợp để đo "cùng câu, khác cảm xúc thì ASR sai khác nhau ra sao".</td></tr>
+    <tr><td><strong>VLSP 2025 ASR-SER</strong></td><td>Việt</td><td>Shared task tiếng Việt kết hợp ASR và SER. Cần kiểm tra cách xin dữ liệu.</td></tr>
+  </tbody>
+</table>
+</div>
+<p><strong>Metric:</strong> ASR dùng <code>WER</code> (hoặc <code>CER</code>). SER dùng <code>UA</code> (độ chính xác trung bình từng lớp, công bằng khi lớp lệch), <code>WA</code> (accuracy thường), hoặc <code>macro-F1</code>. Một chỉ số rất "đúng chủ đề" là <strong>WER tách theo từng cảm xúc</strong>, để thấy hệ thống thiên vị cảm xúc nào.</p>
+</section>
+
+<!-- 8 -->
+<section id="huong">
+<h2><span class="num">08</span>Hướng bạn có thể làm</h2>
+<p>Dưới đây là năm hướng, sắp từ nhẹ đến nặng. Với một bài cuối kì, điểm ngọt là <strong>một thí nghiệm có kiểm soát + một phân tích có insight</strong>, hơn là cố đạt SOTA.</p>
+
+<figure>
+<svg viewBox="0 0 760 330" role="img" aria-label="Ma trận công sức và độ mới của các hướng">
+  <line x1="70" y1="280" x2="730" y2="280" stroke="#8a8780" stroke-width="1.2" marker-end="url(#ah)"/>
+  <line x1="70" y1="280" x2="70" y2="24" stroke="#8a8780" stroke-width="1.2" marker-end="url(#ah)"/>
+  <text class="sub" x="400" y="310" text-anchor="middle">công sức / tài nguyên GPU →</text>
+  <text class="sub" x="30" y="150" text-anchor="middle" transform="rotate(-90 30 150)">độ mới / điểm cộng →</text>
+  <rect x="80" y="30" width="330" height="240" rx="14" fill="#e7f4f2" opacity=".55"/>
+  <text class="sub" x="94" y="50" style="fill:#0f766e">vùng hợp lý cho bài cuối kì</text>
+
+  <circle cx="150" cy="200" r="22" class="b-amber" stroke-width="1.4"/>
+  <text class="lbl" x="150" y="205" text-anchor="middle">H1</text>
+  <text class="sub" x="150" y="238" text-anchor="middle">đo bias WER</text>
+
+  <circle cx="250" cy="225" r="22" class="b-violet" stroke-width="1.4"/>
+  <text class="lbl" x="250" y="230" text-anchor="middle">H5</text>
+  <text class="sub" x="250" y="263" text-anchor="middle">LLM post-ASR</text>
+
+  <circle cx="300" cy="150" r="22" class="b-teal" stroke-width="1.4"/>
+  <text class="lbl" x="300" y="155" text-anchor="middle">H3</text>
+  <text class="sub" x="300" y="188" text-anchor="middle">cascade + gate</text>
+
+  <circle cx="370" cy="100" r="22" class="b-rose" stroke-width="1.4"/>
+  <text class="lbl" x="370" y="105" text-anchor="middle">H2</text>
+  <text class="sub" x="370" y="138" text-anchor="middle">multi-task CTC</text>
+
+  <circle cx="480" cy="70" r="22" class="b-rose" stroke-width="1.4"/>
+  <text class="lbl" x="480" y="75" text-anchor="middle">H4</text>
+  <text class="sub" x="480" y="108" text-anchor="middle">Whisper + emotion token</text>
+
+  <circle cx="660" cy="50" r="18" fill="#fff" stroke="#bdbab3" stroke-dasharray="3 3"/>
+  <text class="sub" x="660" y="54" text-anchor="middle">LLM</text>
+  <text class="sub" x="660" y="86" text-anchor="middle">train audio-LLM</text>
+  <text class="sub" x="660" y="100" text-anchor="middle">(quá sức 1 kì)</text>
+
+  <path d="M172,195 C230,160 320,110 348,104" class="arrow-t" stroke-dasharray="4 4" marker-end="url(#ah-t)"/>
+  <text class="sub" x="214" y="140" style="fill:#0f766e">combo gợi ý</text>
+</svg>
+<figcaption>Vị trí ước lượng theo kinh nghiệm, không phải số đo.</figcaption>
+</figure>
+
+<div class="dir">
+  <h4>H1 · Cảm xúc làm ASR sai đến mức nào?</h4>
+  <div class="meta">Nhẹ · cần GPU nhỏ hoặc Colab · thuần phân tích</div>
+  <p>Chạy vài ASR (Whisper các cỡ, wav2vec2, PhoWhisper nếu tiếng Việt) trên dataset có nhãn cảm xúc. Đo WER theo từng cảm xúc, theo loại từ, theo cường độ. Trả lời: cảm xúc nào khó nhất, lỗi nằm ở đâu. Đây là bản "tái hiện + mở rộng" paper Interspeech 2023, đặc biệt mới nếu làm trên tiếng Việt.</p>
+</div>
+
+<div class="dir pick">
+  <h4>H2 · Multi-task: CTC + emotion head <span class="tag t-teal" style="margin-left:6px">gợi ý</span></h4>
+  <div class="meta">Vừa · 1 GPU ~16-24GB · thí nghiệm có kiểm soát</div>
+  <p>Lấy WavLM/wav2vec2 (hoặc Whisper encoder), gắn hai head như khuôn 4.2. So sánh: chỉ SER, chỉ ASR, train chung với vài giá trị λ, và train hai giai đoạn. Báo cả WER lẫn UA. Câu hỏi nghiên cứu rõ ràng: "ASR có giúp SER không, và SER có giúp ASR trên giọng cảm xúc không?".</p>
+</div>
+
+<div class="dir">
+  <h4>H3 · Cascade Whisper + emotion2vec với gated fusion</h4>
+  <div class="meta">Vừa · phần lớn là feature đóng băng · dễ ra kết quả</div>
+  <p>Giống công thức đội VLSP 2025, nhưng thêm một "cổng" học khi nào tin chữ, khi nào tin giọng. Thí nghiệm hay: cố tình làm transcript sai nhiều hơn (dùng Whisper nhỏ hơn) và xem cổng phản ứng thế nào.</p>
+</div>
+
+<div class="dir">
+  <h4>H4 · Dạy Whisper nói ra cảm xúc</h4>
+  <div class="meta">Vừa-nặng · fine-tune Whisper small/base · đúng tinh thần "emotion-aware ASR" nhất</div>
+  <p>Thêm token như <code>&lt;|angry|&gt;</code> vào đầu chuỗi đích, fine-tune để Whisper sinh nhãn cảm xúc rồi chép lời, giống ý tưởng SenseVoice. Đo xem WER có giảm trên giọng cảm xúc không, và SER đạt bao nhiêu so với model riêng.</p>
+</div>
+
+<div class="dir">
+  <h4>H5 · LLM sửa lỗi transcript rồi đoán cảm xúc</h4>
+  <div class="meta">Nhẹ · chủ yếu là API và prompt · không cần train</div>
+  <p>Lấy N-best từ Whisper, cho LLM chọn/sửa và đoán cảm xúc. So với chỉ dùng transcript tốt nhất. Phù hợp làm phần mở rộng cho H1 hoặc H3.</p>
+</div>
+
+<div class="callout">
+<strong>Combo gợi ý cho bài cuối kì:</strong> làm <strong>H1</strong> trước (1-2 tuần, ra ngay insight cho phần phân tích), sau đó <strong>H2 hoặc H4</strong> làm phần đóng góp chính. Nếu được dùng dữ liệu VLSP 2025, làm trên <strong>tiếng Việt</strong> sẽ là điểm khác biệt rõ ràng so với gần hết paper (vốn chỉ làm tiếng Anh). Nếu không, IEMOCAP là lựa chọn an toàn vì có nhiều số liệu để so.
+</div>
+
+<figure>
+<svg viewBox="0 0 760 170" role="img" aria-label="Lộ trình đề xuất">
+  <g>
+    <rect class="box b-amber" x="16" y="40" width="160" height="70" rx="12"/>
+    <text class="lbl" x="96" y="66" text-anchor="middle">1 · Baseline</text>
+    <text class="sub" x="96" y="84" text-anchor="middle">Whisper + SER riêng</text>
+    <text class="sub" x="96" y="99" text-anchor="middle">đo WER theo cảm xúc</text>
+    <path class="arrow" d="M176,75 L206,75" marker-end="url(#ah)"/>
+    <rect class="box b-teal" x="208" y="40" width="160" height="70" rx="12"/>
+    <text class="lbl" x="288" y="66" text-anchor="middle">2 · Phân tích (H1)</text>
+    <text class="sub" x="288" y="84" text-anchor="middle">lỗi ở đâu, vì sao</text>
+    <text class="sub" x="288" y="99" text-anchor="middle">→ động lực cho bước 3</text>
+    <path class="arrow" d="M368,75 L398,75" marker-end="url(#ah)"/>
+    <rect class="box b-rose" x="400" y="40" width="160" height="70" rx="12"/>
+    <text class="lbl" x="480" y="66" text-anchor="middle">3 · Model joint</text>
+    <text class="sub" x="480" y="84" text-anchor="middle">H2 hoặc H4</text>
+    <text class="sub" x="480" y="99" text-anchor="middle">+ ablation λ, 2-stage</text>
+    <path class="arrow" d="M560,75 L590,75" marker-end="url(#ah)"/>
+    <rect class="box b-violet" x="592" y="40" width="152" height="70" rx="12"/>
+    <text class="lbl" x="668" y="66" text-anchor="middle">4 · Báo cáo</text>
+    <text class="sub" x="668" y="84" text-anchor="middle">WER + UA theo lớp</text>
+    <text class="sub" x="668" y="99" text-anchor="middle">demo vài ví dụ</text>
+  </g>
+  <text class="sub" x="380" y="145" text-anchor="middle">Mỗi bước tự nó đã là kết quả nộp được, nên nếu hết thời gian vẫn có bài hoàn chỉnh.</text>
+</svg>
+</figure>
+</section>
+
+<!-- 9 -->
+<section id="tham-khao">
+<h2><span class="num">09</span>Tài liệu chính</h2>
+<p class="muted">Bản đầy đủ có ghi chú, dataset và đánh dấu "cần kiểm tra" nằm ở <code>.claude/research/papers.md</code>. Nên đọc trước nhất: luận án của Yuanchao Li (mục đầu), coi như một survey của cả chủ đề.</p>
+
+<div class="refgroup">Tổng quan và phân tích</div>
+<ol class="refs">
+  <li>Y. Li. <a href="https://arxiv.org/abs/2601.17901">Speech Emotion Recognition with ASR Integration</a>. PhD thesis, Edinburgh, arXiv 2026.</li>
+  <li>Y. Li et al. <a href="https://arxiv.org/abs/2305.16065">ASR and Emotional Speech: A Word-Level Investigation of the Mutual Impact of Speech and Emotion Recognition</a>. Interspeech 2023.</li>
+  <li>Y. Li, P. Bell, C. Lai. <a href="https://arxiv.org/abs/2406.08353">Speech Emotion Recognition with ASR Transcripts: A Comprehensive Study on Word Error Rate and Fusion Techniques</a>. SLT 2024.</li>
+</ol>
+
+<div class="refgroup">Joint / multi-task ASR + SER</div>
+<ol class="refs" start="4">
+  <li>H. Feng et al. <a href="https://www.isca-archive.org/interspeech_2020/feng20_interspeech.html">End-to-End Speech Emotion Recognition Combined with Acoustic-to-Word ASR Model</a>. Interspeech 2020.</li>
+  <li>X. Cai et al. <a href="https://paperswithcode.com/paper/speech-emotion-recognition-with-multi-task">Speech Emotion Recognition with Multi-Task Learning</a>. Interspeech 2021.</li>
+  <li>Y. Li, P. Bell, C. Lai. <a href="https://arxiv.org/abs/2110.15684">Fusing ASR Outputs in Joint Training for Speech Emotion Recognition</a>. ICASSP 2022.</li>
+  <li><a href="https://arxiv.org/abs/2203.16794">MMER: Multimodal Multi-task Learning for Speech Emotion Recognition</a>. Interspeech 2023.</li>
+  <li>Gao et al. <a href="https://www.isca-archive.org/interspeech_2023/gao23d_interspeech.pdf">Two-stage fine-tuning (ASR → SER) cho SSL model</a>. Interspeech 2023.</li>
+  <li><a href="https://arxiv.org/abs/2305.12540">On the Efficacy and Noise-Robustness of Jointly Learned Speech Emotion and Automatic Speech Recognition</a>. Interspeech 2023.</li>
+  <li><a href="https://www.researchgate.net/publication/384833411">A Tiny Whisper-SER: Unifying ASR and Multi-label SER Tasks</a>.</li>
+  <li><a href="https://link.springer.com/chapter/10.1007/978-981-96-1045-7_8">AESR: Speech Recognition With Speech Emotion Recognizing Learning</a>.</li>
+</ol>
+
+<div class="refgroup">Foundation model và benchmark</div>
+<ol class="refs" start="12">
+  <li>FunAudioLLM team. <a href="https://arxiv.org/abs/2407.04051">FunAudioLLM (SenseVoice)</a>, 2024 · <a href="https://github.com/FunAudioLLM/SenseVoice">GitHub</a>.</li>
+  <li>Z. Ma et al. <a href="https://arxiv.org/abs/2312.15185">emotion2vec: Self-Supervised Pre-Training for Speech Emotion Representation</a>. Findings ACL 2024.</li>
+  <li>Z. Ma et al. <a href="https://arxiv.org/abs/2406.07162">EmoBox: Multilingual Multi-corpus SER Toolkit and Benchmark</a>. Interspeech 2024.</li>
+</ol>
+
+<div class="refgroup">LLM và Audio-LLM</div>
+<ol class="refs" start="15">
+  <li><a href="https://arxiv.org/abs/2409.09785">GenSEC: LLM-based Generative Error Correction challenge (ASR, speaker tagging, emotion)</a>. SLT 2024.</li>
+  <li><a href="https://arxiv.org/abs/2409.15551">Revise, Reason, and Recognize: LLM-Based Emotion Recognition via Emotion-Specific Prompts and ASR Error Correction</a>.</li>
+  <li><a href="https://arxiv.org/abs/2410.03312">LLM prompting cho post-ASR emotion prediction (GenSEC)</a>, 2024.</li>
+  <li><a href="https://arxiv.org/abs/2506.06820">Beyond Classification: Towards Speech Emotion Reasoning with Multitask AudioLLMs</a>, 2025.</li>
+  <li><a href="https://arxiv.org/abs/2509.15775">EmoQ: SER via Speech-Aware Q-Former and LLM</a>, 2025.</li>
+  <li><a href="https://arxiv.org/abs/2509.15654">EMO-RL: Emotion-Rule-Based RL for Audio-Language Models</a>, 2025.</li>
+  <li><a href="https://arxiv.org/abs/2601.15668">EmotionThinker: Prosody-Aware RL for Explainable Speech Emotion Reasoning</a>, 2026.</li>
+  <li><a href="https://arxiv.org/abs/2609.04236">Robust SER under Tone-Word Conflict</a>, 2026.</li>
+</ol>
+
+<div class="refgroup">Tiếng Việt</div>
+<ol class="refs" start="23">
+  <li><a href="https://aclanthology.org/2025.vlsp-1/">Proceedings VLSP 2025</a> (shared task ASR + SER, các báo cáo hệ thống).</li>
+  <li>B. T. Dat, N. D. Khanh. <a href="https://aclanthology.org/2025.vlsp-1.2.pdf">Speech recognition and speech emotion recognition approach for VLSP 2025</a>.</li>
+</ol>
+</section>
+
+<footer>
+  Tổng hợp ngày 24/10/2026. Đây là bản overview: số liệu lấy từ abstract và trang chính thức, nên mở paper gốc trước khi trích dẫn trong báo cáo.
+</footer>
+</main>
+</body>
+</html>

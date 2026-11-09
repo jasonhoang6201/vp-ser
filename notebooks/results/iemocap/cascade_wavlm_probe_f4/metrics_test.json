@@ -1,0 +1,64 @@
+{
+  "name": "cascade_wavlm_probe_f4",
+  "dataset": "iemocap",
+  "split": "test",
+  "notes": "single; predictions = 1-seed ensemble",
+  "ser": {
+    "wa": 0.6673132880698351,
+    "ua": 0.659022113335392,
+    "macro_f1": 0.6604676848798653,
+    "weighted_f1": 0.6567838207320065,
+    "recall_by_emotion": {
+      "neutral": 0.6511627906976745,
+      "joy": 0.44554455445544555,
+      "anger": 0.8960244648318043,
+      "sadness": 0.6433566433566433
+    },
+    "n": 1031,
+    "n_invalid_pred": 0,
+    "labels": [
+      "neutral",
+      "joy",
+      "anger",
+      "sadness"
+    ],
+    "confusion": [
+      [
+        168,
+        33,
+        44,
+        13
+      ],
+      [
+        52,
+        135,
+        105,
+        11
+      ],
+      [
+        27,
+        7,
+        293,
+        0
+      ],
+      [
+        38,
+        8,
+        5,
+        92
+      ]
+    ]
+  },
+  "seeds": [
+    {
+      "seed": 0,
+      "dev_ua": 0.8068224973808426,
+      "test_ua": 0.659022113335392,
+      "test_wf1": 0.6567838207320065
+    }
+  ],
+  "ua_mean": 0.659022113335392,
+  "ua_std": NaN,
+  "wf1_mean": 0.6567838207320065,
+  "wf1_std": NaN
+}

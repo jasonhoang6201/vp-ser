@@ -1,0 +1,52 @@
+{
+  "name": "emotion2vec_plus_large_zeroshot",
+  "dataset": "iemocap",
+  "split": "test",
+  "notes": "restricted argmax over dataset classes, no training",
+  "ser": {
+    "wa": 0.8688925081433225,
+    "ua": 0.8617137686913438,
+    "macro_f1": 0.8699213567048485,
+    "weighted_f1": 0.8671725598602795,
+    "recall_by_emotion": {
+      "neutral": 0.7411444141689373,
+      "joy": 0.9634703196347032,
+      "anger": 0.813953488372093,
+      "sadness": 0.9282868525896414
+    },
+    "n": 1228,
+    "n_invalid_pred": 0,
+    "labels": [
+      "neutral",
+      "joy",
+      "anger",
+      "sadness"
+    ],
+    "confusion": [
+      [
+        272,
+        62,
+        4,
+        29
+      ],
+      [
+        10,
+        422,
+        0,
+        6
+      ],
+      [
+        7,
+        15,
+        140,
+        10
+      ],
+      [
+        1,
+        17,
+        0,
+        233
+      ]
+    ]
+  }
+}

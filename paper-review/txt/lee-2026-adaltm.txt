@@ -1,0 +1,680 @@
+=== page 1 ===
+AdaLTM: Adaptive Layer-wise Task Vector Merging for Categorical Speech
+Emotion Recognition with ASR Knowledge Integration
+Chia-Yu Lee1, Huang-Cheng Chou ID 2,∗, Tzu-Quan Lin ID 3,∗, Yuanchao Li ID 4,∗†, Ya-Tse Wu1,
+Shrikanth Narayanan ID 2, Chi-Chun Lee ID 1,†
+1 National Tsing Hua University, Hsinchu, Taiwan
+2 Signal Analysis and Interpretation Laboratory (SAIL), University of Southern California, USA
+3 Graduate Institute of Communication Engineering, National Taiwan University, Taipei, Taiwan
+4 University of Edinburgh, Edinburgh, UK
+aqz7793@gmail.com, yuanchao.li@ed.ac.uk, cclee@ee.nthu.edu.tw
+Abstract
+Integrating Automatic Speech Recognition (ASR) into Speech
+Emotion Recognition (SER) enhances modeling by providing
+linguistic context. However, conventional feature fusion faces
+performance bottlenecks, and multi-task learning often suffers
+from optimization conflicts.
+While task vectors and model
+merging have addressed such conflicts in NLP and CV, their
+potential in speech tasks remains largely unexplored. In this
+work, we propose an Adaptive Layer-wise Task Vector Merg-
+ing (AdaLTM) framework based on WavLM-Large. Instead of
+joint optimization, we extract task vectors from in-domain ASR
+and SER models fine-tuned on emotion datasets. These vectors
+are integrated into a frozen base model using layer-wise learn-
+able coefficients. This strategy enables depth-aware balancing
+of linguistic and paralinguistic knowledge across transformer
+layers without gradient interference. Experiments on the MSP-
+Podcast demonstrate that the proposed approach effectively mit-
+igates conflicts between ASR and SER.
+Index Terms: Speech emotion recognition, adaptive learning,
+task vector
+1. Introduction and Related Work
+Speech Emotion Recognition (SER) is intrinsically multimodal,
+relying heavily on both acoustic cues and linguistic content
+[1, 2]. Consequently, integrating knowledge from Automatic
+Speech Recognition (ASR) has become a standard paradigm to
+enhance SER performance [3, 4]. Early approaches focused on
+output-level fusion, where textual representations from ASR are
+combined with acoustic features [5, 6]. However, this strategy
+is limited by its sensitivity to ASR transcription errors, particu-
+larly on expressive speech [4], and it fails to foster deep, inter-
+mediate interactions between modalities [7].
+To enable deeper fusion, many have resorted to Multi-Task
+Learning (MTL), jointly optimizing ASR and SER objectives
+within a shared acoustic encoder [8, 3]. Yet, this introduces a
+severe optimization conflict, as the tasks’ objectives are funda-
+mentally misaligned. ASR seeks emotion-invariant representa-
+tions by suppressing paralinguistic variability, whereas SER re-
+lies precisely on such variability to infer emotional states [9, 4].
+The resulting gradient interference often degrades the model’s
+ability to learn robust emotional cues, motivating a paradigm
+shift away from gradient-based joint optimization.
+*These authors contributed equally.
+†indicates the corresponding author.
+Figure 1: The proposed Adaptive Layer-wise Task Vector Merg-
+ing (AdaLTM) framework. The pre-trained backbone and task
+vectors (Wbase, ∆WASR, ∆WSER) remain frozen, while only
+the layer-wise merging coefficients (λ) and the downstream pre-
+diction head are updated.
+Recently, operating directly in the weight space via task
+vectors has emerged as a promising, optimization-free alterna-
+tive [10]. By defining a task vector τ as the difference between
+fine-tuned parameters (θft) and pre-trained parameters (θpre),
+one can algebraically add a task’s capability to a base model:
+τ = θft −θpre. While task vectors have been successfully ap-
+plied across various speech domains [11, 12, 13], their use in
+SER remains largely unexplored.
+Furthermore, we identify a critical, previously overlooked
+bottleneck in applying this paradigm to ASR-enhanced SER:
+domain mismatch. We find that simply merging a task vector
+from a standard, out-of-domain ASR model (e.g., fine-tuned on
+Librispeech [14]) yields sub-optimal results. Such models are
+trained to be emotion-agnostic, actively discarding the rich par-
+alinguistic cues (e.g., laughter, pitch contours) that are vital for
+SER. This aligns with recent findings that highlight the impor-
+tance of domain consistency and careful integration strategies
+when leveraging ASR knowledge [7, 9, 15].
+To resolve both the optimization conflict and the domain
+mismatch, we propose the Adaptive Layer-wise Task Vector
+Merging (AdaLTM) framework (shown in Figure 1). Instead
+of joint training, we first extract separate task vectors from ASR
+and SER models that have been independently fine-tuned on the
+target emotional domain (MSP-Podcast [16, 17]). Building on
+recent advances in adaptive merging [18], we introduce learn-
+able layer-wise coefficients that dynamically balance and inject
+these in-domain task vectors into a frozen WavLM-Large back-
+bone [19]. We employ WavLM-Large as our backbone, mo-
+tivated by its leading performance on the SUPERB [20] and
+EMO-SUPERB [21] SER benchmarks. For each layer l, the
+arXiv:2603.25041v2  [eess.AS]  20 Jun 2026
+
+=== page 2 ===
+merged weights θ(l)
+merged are computed as:
+θ(l)
+merged = θ(l)
+pre + α(l)τ (l)
+ASR + β(l)τ (l)
+SER,
+(1)
+where α(l) and β(l) are learnable parameters. Our main contri-
+butions are threefold:
+• We introduce a novel adaptive layer-wise model-merging
+framework (AdaLTM) that integrates ASR knowledge into
+SER, effectively resolving the optimization conflicts inherent
+to traditional MTL.1
+• We establish the critical role of domain consistency in task
+vector merging, demonstrating that in-domain ASR knowl-
+edge significantly outperforms out-of-domain alternatives.
+• We analyze layer-wise merging dynamics and achieve a com-
+petitive Unweighted Average Recall of 38.94% (Macro-F1
+scroe of 35.20%) on the MSP-Podcast dataset.
+2. Methodology
+We
+propose
+Adaptive
+Layer-wise
+Task
+Vector
+Merging
+(AdaLTM), shown in Figure 1, a framework that enhances
+SER by extracting task-specific knowledge into task vectors and
+adaptively integrating them into a pre-trained backbone. We
+employ two distinct layer-wise mechanisms: λ for weight-space
+task vector merging, and α for downstream feature aggregation.
+2.1. Task Vector Formulation
+We employ the WavLM-Large model as our foundational back-
+bone, denoted by its pre-trained weights Wbase.
+To cap-
+ture domain-specific and task-specific knowledge, we fine-tune
+Wbase on distinct target tasks using Differential Learning Rates
+(DLR). Specifically, we fine-tune the base model on the MSP-
+Podcast dataset to derive both an SER-specific model (WSER)
+and an in-domain ASR model (WASR). A task vector repre-
+sents the direction and magnitude in the weight space required
+to adapt the base model to a specific task. We define the ASR
+and SER task vectors as the element-wise weight residuals:
+∆WASR = WASR −Wbase.
+(2)
+∆WSER = WSER −Wbase.
+(3)
+By isolating these vectors, we capture the transition from
+generalized acoustic representations to specialized knowledge
+(i.e., textual mapping for ASR and paralinguistic extraction for
+SER) without modifying the original backbone.
+2.2. Adaptive Layer-wise Merging Strategy
+Model merging normally applies a single scaling factor across
+all layers, which fails to account for the varying levels of ab-
+straction learned at different depths of the transformer. To ad-
+dress this, we propose an adaptive Layer-wise merging strat-
+egy. We partition the WavLM-Large model into 25 distinct lay-
+ers: one non-encoder layer (comprising the CNN feature ex-
+tractor and positional embeddings), denoted as index l = 0,
+and the subsequent 24 transformer encoder layers, indexed as
+l ∈{1, 2, . . . , 24}. For each layer l, we introduce layer-wise,
+continuous learnable parameters λ(l)
+ASR and λ(l)
+SER to dynam-
+ically scale the respective task vectors.
+The merged weight
+W (l)
+merged for the l-th layer is formulated as:
+W (l)
+merged = W (l)
+base + λ(l)
+ASR∆W (l)
+ASR + λ(l)
+SER∆W (l)
+SER.
+(4)
+1https://anonymous.4open.science/r/AdaLTM-62A2/
+Both λ(l)
+ASR and λ(l)
+SER are initialized to 0.5, a value empiri-
+cally found to provide a stable starting point for the optimization
+process, ensuring the generalized capabilities of the base model
+are preserved initially.
+2.3. Task-Specific Optimization
+During the final phase of emotion training, we utilize the model
+parameterized by dynamically composed weights Wmerged as a
+feature extractor. To effectively aggregate the hierarchical fea-
+tures, we extract the hidden states H(l) from all 24 transformer
+layers and apply a learnable weighted sum mechanism to form
+the final representation Hout:
+Hout =
+24
+X
+l=1
+αlH(l),
+(5)
+where αl are the normalized, trainable layer weights. Hout
+is then fed into a SER Prediction Head for the final classifica-
+tion. Crucially, to prevent catastrophic forgetting, the backbone
+weights (Wbase, ∆WASR, and ∆WSER) are strictly frozen
+during this phase. The only trainable parameters are the layer-
+wise merging coefficients {λ(l)
+ASR, λ(l)
+SER}24
+l=0, the weighted
+sum weights {αl}24
+l=1, and the parameters of the Emotion Pre-
+diction Head. This architecture enforces the model to learn how
+to integrate ASR knowledge for enhancing SER performance.
+3. Experimental Setup
+3.1. Dataset and Backbone Models
+All experiments are conducted on the MSP-Podcast (v1.12) cor-
+pus [16, 17] to ensure domain consistency for both primary SER
+and auxiliary ASR tasks. The SER task is an 8-class classi-
+fication problem (Anger, Contempt, Disgust, Fear, Happiness,
+Neutral, Sadness, Surprise). To ensure high-quality ASR super-
+vision, we use only samples with human-annotated transcripts,
+resulting in 89,752 training, 25,232 validation, and 46,366 test
+samples.
+Our framework is built upon the pre-trained WavLM-Large
+foundation model (Wbase). To extract the necessary task vec-
+tors, we employ three fine-tuned model variants:
+• Primary SER Model (WSER): A WavLM-Large model
+fine-tuned on MSP-Podcast for SER [22]2, establishing our
+acoustic baseline with a MaF1 of 35.56%.
+• In-domain ASR Model (WASRin): A WavLM-Large model
+fine-tuned on MSP-Podcast transcripts, achieving a robust
+WER of 23.09% on the test set and providing domain-aligned
+linguistic knowledge.
+• Out-of-domain ASR Model (WASRout):
+A standard
+WavLM-Large model fine-tuned on LibriSpeech 100h3, used
+as a baseline to demonstrate the importance of domain con-
+sistency. It yields a much higher WER of 37.86%.
+3.2. Comparison Setups
+We design two sets of experiments to validate our approach.
+First, to demonstrate the synergy of our dual-vector merging, we
+conduct a comprehensive ablation study, with results presented
+in Part 2 of Table 1. The setups include: (1) Baseline, a frozen
+WavLM backbone without merging; (2) ASR-Only, merging
+only the in-domain ASR vector; (3) SER-Only, merging only
+the SER vector; and (4) Proposed Dual-Vector, our complete
+framework integrating both.
+2https://huggingface.co/tiantiaf/wavlm-large-categorical-emotion
+3https://huggingface.co/patrickvonplaten/wavlm-libri-clean-100h-large
+
+=== page 3 ===
+Table 1: Performance comparison of different ASR integra-
+tion strategies and merging configurations on the MSP-Podcast
+dataset.
+All metrics are reported in (%).
+Best results for
+our proposed paradigm are in bold. Pre.: Precision; MaF1:
+Macro-F1. We report the 95% confidence interval (CI) for each
+SER result using the toolkit [23].
+Method/Setup
+UAR
+Pre.
+MaF1
+WER
+Part 1: Multi-Task Learning (MTL) Baselines
+WavLM-Large (Fully Trainable)
+29.54±0.38 33.35±1.47 28.40±0.51 99.12
+MTL w/ static init.
+(Wbase +
+0.5∆W )
+29.21±0.38 38.30±2.46 29.06±0.50 66.37
+Part 2: Ablation Study of Our Merging Paradigm (AdaLTM)
+Setup 1: Baseline (Frozen Back-
+bone)
+37.05±0.67 34.46±0.42 34.46±0.47
+-
+Setup 2: ASR-Only Vector
+37.57±0.67 34.43±0.38 33.56±0.42
+-
+Setup 3: SER-Only Vector
+39.09±0.60 34.80±0.39 35.41±0.44
+-
+Setup 4: Proposed Dual-Vector
+38.94±0.61 34.26±0.42 35.20±0.48
+-
+Part 3: Importance of Domain (Dual-Vector Merging)
+Out-of-Domain Dual-Vectors
+38.68±0.63 34.20±0.43 34.84±0.48
+-
+In-Domain Dual-Vectors (Ours)
+38.94±0.61 34.26±0.42 35.20±0.48
+-
+Part 4: Importance of Granularity (Merging Strategy)
+Static Global Merging (λ = 0.5) 38.30±0.61 34.71±0.46 35.73±0.51
+-
+Adaptive Global Merging
+38.93±0.60 34.02±0.43 34.85±0.47
+-
+Adaptive
+Layer-wise
+Merging
+(Ours)
+38.94±0.61 34.26±0.42 35.20±0.48
+-
+Second, to justify the necessity of layer-wise granular-
+ity, we compare our proposed Adaptive Layer-wise strategy
+against two global baselines (Part 4 of Table 1): a Static Global
+merge with a fixed λ = 0.5 for all layers, and an Adaptive
+Global merge that learns a single shared λ across all layers.
+3.3. Implementation Details and Metrics
+To prevent catastrophic forgetting, the pre-trained backbone
+(Wbase) and task vectors (∆W) are frozen during all down-
+stream experiments.
+Training is restricted to the layer-wise
+merging coefficients λ (initialized to 0.5), the weighted sum
+weights αl, and the emotion prediction head. Each task vector
+introduces only 25 additional learnable parameters: 24 layer-
+wise λ coefficients for the transformer layers and 1 coeffi-
+cient for the audio front-end block. These parameters are op-
+timized using the AdamW optimizer [24] with a learning rate
+of 1.0 × 10−4 and a batch size of 32. To address class imbal-
+ance in the MSP-Podcast dataset, we employ a class-balanced
+soft cross-entropy loss [25, 26]. For each experiment, the model
+checkpoint with the lowest validation loss from 100 training
+epochs is selected for evaluation. Performance is primarily eval-
+uated using Unweighted Average Recall (UAR), supplemented
+by Precision and Macro-F1 (MaF1) for a comprehensive analy-
+sis. All experiments were conducted using the PyTorch frame-
+work [27] on two NVIDIA V100 GPU (64GB).
+4. Results and Analyses
+4.1. Baseline Comparison: Overcoming Conflicts
+To evaluate the limitations of conventional MTL, we compare
+our framework against two fully trainable baselines updating
+via joint ASR and SER losses. To mitigate initialization bias,
+the second baseline initializes with statically merged task vec-
+tors (Wbase + 0.5∆WASR + 0.5∆WSER).
+As shown in Part 1 of Table 1, conventional MTL ap-
+proaches exhibit severe gradient interference, or the “seesaw ef-
+fect.” Although static initialization constrains auxiliary WER to
+1
+4
+8
+12
+16
+20
+24
+Layer index
+0.40
+0.45
+0.50
+0.55
+λ value
+Dual-ASR-Vector
+Dual-Emo-Vector
+Only ASR
+Only Emo
+Figure 2: Layer-wise Dynamics: Dual vs. Single Task Vectors.
+Blue line: Proposed dual-vector ASR. Orange line: Dual-vector
+SER. Green line: Only-ASR setup. Red line: Only-SER setup.
+1
+4
+8
+12
+16
+20
+24
+Layer index
+0.48
+0.50
+0.52
+0.54
+0.56
+0.58
+λ value
+In Domain Model ASR
+In Domain Model Emo
+Out Domain Model ASR
+Out Domain Model Emo
+Figure 3: Impact of Domain Consistency on Task Vector Merg-
+ing. Blue line: In-domain ASR vector. Orange line: In-domain
+SER vector. Green line: Out-domain ASR vector. Red line: Out-
+domain SER vector.
+66.37% (vs. 99.12% for the vanilla backbone), the primary SER
+performance inevitably collapses to a UAR of 29.62%. This
+confirms that jointly optimizing a single backbone for diamet-
+rically opposed tasks: emotion-invariant ASR versus emotion-
+rich SER, degrades acoustic representations.
+In contrast, AdaLTM eliminates these conflicts by strictly
+freezing the backbone during adaptive layer-wise merging. This
+strategy achieves a UAR of 38.62% and Precision of 34.55%,
+an absolute improvement of over 8.4% compared to the best
+MTL epoch, substantiating that multi-task knowledge is most
+effectively unified via weight-space merging rather than joint
+backpropagation. Furthermore, compared to the fully trainable
+MTL baseline that updates 311.7M parameters, accounting for
+98.6684% of the 315.9M total model parameters, AdaLTM up-
+dates only 0.46M parameters, corresponding to just 0.1463% of
+the logical total model size.
+4.2. The Synergy of Complementary Task Vectors
+Part 2 of Table 1 presents a comprehensive ablation study vali-
+dating the necessity of our dual-vector approach. The progres-
+sion of these results clearly illustrates the additive and synergis-
+tic value of merging complementary task vectors. The progres-
+sion of these results clearly illustrates the additive and synergis-
+tic value of merging complementary task vectors.
+The experiment begins with Setup 1 (Baseline), which uses
+the frozen WavLM backbone as a static feature extractor. This
+yields a UAR of 37.05%, reflecting the performance ceiling of
+relying solely on generalized, pre-trained acoustic representa-
+tions for this task.
+Next, Setup 2 (ASR-Only) introduces linguistic knowl-
+edge by merging exclusively with the in-domain ASR task vec-
+tor, raising the UAR to 37.57%. This demonstrates that con-
+versational linguistic context provides a fundamental level of
+
+=== page 4 ===
+emotional discriminability, but the marginal improvement sug-
+gests it lacks the explicit paralinguistic fine-tuning required for
+robust SER.
+Conversely, Setup 3 (SER-Only) captures these crucial
+paralinguistic nuances by merging only with the SER task vec-
+tor. This achieves a much stronger UAR of 39.09%, establishing
+a rigorous single-vector merging baseline. The absolute gain of
+2.04% UAR over the baseline proves that adaptively scaling a
+frozen, task-specific residual vector is a vastly superior strategy
+to using the base model’s raw features.
+Finally, Setup 4 (Proposed Dual-Vector) integrates both
+ASR and SER vectors simultaneously, achieving a highly com-
+petitive peak UAR of 38.94%. This result demonstrates a defini-
+tive synergistic effect. By independently scaling the ASR and
+SER vectors, our adaptive mechanism seamlessly interlocks
+textual semantics (“what is being said,” from Setup 2) with
+acoustic prosody (“how it is spoken,” from Setup 3).
+The marginal 0.15% UAR reduction compared to the SER-
+Only setup reflects the physical constraints of representational
+crowding: accommodating both emotion-invariant lexical map-
+pings and emotion-rich prosody within a fixed-capacity model
+introduces slight parameter competition. This observation is
+highly consistent with recent findings in adaptive model merg-
+ing [18], which demonstrate that individual task-specific expert
+models inherently establish a performance upper bound, mak-
+ing minor degradations during multi-task weight fusion an ex-
+pected theoretical outcome.
+However, the critical takeaway is the framework’s robust-
+ness. Unlike joint-training approaches that suffer from catas-
+trophic interference, our layer-wise mechanism successfully
+navigates this crowding, preserving the expert-level capability
+of the SER vector while safely integrating textual semantics.
+This combined integration definitively outperforms the standard
+static baseline (Setup 1) by a 1.89% absolute margin in UAR.
+4.3. Impact of Domain and Layer-wise Knowledge
+Our experiments also underscore the critical importance of both
+domain alignment and merging granularity, with results detailed
+in Part 3 and 4 of Table 1.
+Domain Consistency is Key:
+When replacing the in-
+domain ASR vector with an out-of-domain (LibriSpeech-tuned)
+one, the UAR drops from 38.94% to 38.68%. While this per-
+formance is still strong, the degradation confirms that domain-
+aligned linguistic features provide a more effective semantic an-
+chor, as visually supported by our layer-wise analysis in Sec-
+tion 4.4.
+Layer-wise Granularity Matters: We compared our pro-
+posed adaptive layer-wise merging against two global strate-
+gies. A static global merge with a fixed λ = 0.5 yields a UAR
+of 38.30%. An adaptive global strategy, which learns a sin-
+gle shared λ for all layers, improves this to 38.93%. However,
+our adaptive layer-wise approach achieves the highest UAR of
+38.94%, demonstrating that providing the model with the flexi-
+bility to balance ASR and SER knowledge differently across the
+network’s depth is crucial for resolving representational con-
+flicts and achieving optimal performance.
+4.4. Layer-wise Dynamics: Unveiling Multi-Task Synergy
+and Domain Mismatch
+To physically interpret our merging results, Figure 2 visualizes
+the learned layer-wise λ trajectories across the 24 transformer
+layers. These distributions reveal exactly how the model man-
+ages representational crowding and domain interference.
+In-Domain Synergy: Linguistic Anchoring and Prosodic
+Dominance. In our proposed dual-vector setup, the in-domain
+ASR weights (λASRin, blue line) stabilize remarkably near the
+0.5 baseline, sharply contrasting the severe volatility seen when
+the ASR vector is used alone (green line). This proves that when
+acoustic prosody is available, the ASR vector no longer strug-
+gles to predict emotions; instead, it functions as a stable linguis-
+tic anchor. Supported by this semantic foundation, the SER vec-
+tor achieves absolute prosodic dominance. Across the middle-
+to-deep layers, the dual-setup SER weights (orange) track con-
+sistently higher than the single-setup SER weights (red). The
+adaptive mechanism confidently amplifies paralinguistic fea-
+tures, physicalizing the 1 + 1 > 1 synergy observed in our
+UAR metrics.
+Out-Domain Mismatch: Feature Suppression and Opti-
+mization Chaos. Conversely, introducing an out-of-domain task
+vector severely disrupts this balance. First, the in-domain SER
+weights (λEmoout) are actively suppressed across the middle
+and deep layers, demonstrating that emotion-agnostic textual
+features directly hinder the extraction of paralinguistic cues.
+Furthermore, the out-domain ASR weights (λASRout) exhibit
+violent fluctuations, culminating in an unnatural, chaotic spike
+in the final semantic blocks (layers 20–24). This optimization
+chaos occurs because the model erratically up-scales conflict-
+ing, rigid textual mappings in a failed attempt to minimize the
+loss. This visually confirms that without strict domain align-
+ment, adaptive merging degrades into gradient instability and
+representational interference.
+5. Discussion and Conclusion
+This work demonstrates that operating in the weight space
+via Adaptive Layer-wise Task Vector Merging (AdaLTM) pro-
+vides an effective alternative to conventional multi-task learn-
+ing for integrating auxiliary ASR knowledge into SER. By
+avoiding joint backpropagation, the proposed framework elimi-
+nates gradient interference between ASR and SER objectives,
+which commonly limits traditional joint training paradigms.
+Our layer-wise analysis further suggests that deeper transformer
+blocks benefit more from domain-aligned linguistic representa-
+tions, supporting the importance of both domain consistency
+and layer-wise granularity in multi-task model merging.
+Extensive experiments confirm that domain alignment
+plays a critical role in successful task vector integration. In-
+corporating an in-domain ASR task vector (MSP-Podcast) con-
+sistently improves performance, particularly for high-arousal
+emotions characterized by strong acoustic variability, whereas
+merging an out-of-domain vector (LibriSpeech) leads to per-
+formance degradation. These findings highlight that auxiliary
+linguistic knowledge must be both structurally and distribution-
+ally compatible with the target emotional domain. Overall, the
+proposed approach achieves a UAR of 38.62%, demonstrating
+that task vector merging is viable for ASR-enhanced SER.
+Despite these promising results, several limitations remain.
+First, the effectiveness of AdaLTM depends on the availabil-
+ity of in-domain transcriptions to fine-tune the auxiliary ASR
+model. For under-resourced emotional datasets lacking reliable
+transcripts, extracting a highly compatible ASR task vector re-
+mains challenging. Second, although the downstream adapta-
+tion stage is parameter-efficient (updating only the layer-wise
+coefficients (λ) and the prediction head), the initial extraction
+of task vectors requires fine-tuning separate foundation models,
+introducing additional computational overhead. Future work
+will focus on resolving these limitations toward more general-
+izable and zero-shot SER scenarios.
+
+=== page 5 ===
+6. Acknowledgments
+We acknowledge computing resources from the National Cen-
+ter for High-Performance Computing (NIAR, Taiwan). Sup-
+ported by NSTC, Taiwan (112-2628-E-007-012-MY3; 114-
+2917-I-564-030 to Huang-Cheng Chou), NSF (IIS 2311676),
+and ODNI IARPA ARTS (D2023-2308110001).
+Thanks to
+Tiantian Feng and Hung-yi Lee for valuable feedback.
+7. Generative AI Use Disclosure
+Generative AI tools were used only for minor improvements in
+language and presentation. No AI system was used to generate,
+modify, or interpret the scientific content of this manuscript. All
+authors are fully accountable for the originality and validity of
+the research.
+8. References
+[1] C. M. Lee and S. S. Narayanan, “Toward detecting emotions in
+spoken dialogs,” IEEE Transactions on Speech and Audio Pro-
+cessing, vol. 13, no. 2, pp. 293–303, mar 2005.
+[2] C.-C. Lee, T. Chaspari, E. M. Provost, and S. S. Narayanan, “An
+engineering view on emotions and speech: From analysis and pre-
+dictive models to responsible human-centered applications,” Pro-
+ceedings of the IEEE, pp. 1–17, 2023.
+[3] Y. Li, P. Bell, and C. Lai, “Fusing ASR outputs in joint training for
+speech emotion recognition,” in ICASSP 2022-2022 IEEE Inter-
+national Conference on Acoustics, Speech and Signal Processing
+(ICASSP).
+IEEE, 2022, pp. 7362–7366.
+[4] Y. Li, Z. Zhao, O. Klejch, P. Bell, and C. Lai, “ASR and emotional
+speech: A word-level investigation of the mutual impact of speech
+and emotion recognition,” in Proc. Interspeech 2023, 2023, pp.
+1449–1453.
+[5] S. Yoon, S. Byun, and K. Jung, “Multimodal speech emotion
+recognition using audio and text,” in 2018 IEEE spoken language
+technology workshop (SLT).
+IEEE, 2018, pp. 112–118.
+[6] S. Sahu, V. Mitra, N. Seneviratne, and C. Y. Espy-Wilson, “Multi-
+modal learning for speech emotion recognition: An analysis and
+comparison of asr outputs with ground truth transcription.” in In-
+terspeech, 2019, pp. 3302–3306.
+[7] Y. Li, P. Bell, and C. Lai, “Speech Emotion Recognition With
+ASR Transcripts: a Comprehensive Study on Word Error Rate and
+Fusion Techniques,” in 2024 IEEE Spoken Language Technology
+Workshop (SLT), 2024, pp. 518–525.
+[8] X. Cai, J. Yuan, R. Zheng, L. Huang, and K. Church, “Speech
+Emotion Recognition with Multi-Task Learning,” in Interspeech
+2021, 2021, pp. 4508–4512.
+[9] H.-C. Chou, “A Tiny Whisper-SER: Unifying Automatic Speech
+Recognition and Multi-label Speech Emotion Recognition Tasks,”
+in 2024 Asia Pacific Signal and Information Processing Associ-
+ation Annual Summit and Conference (APSIPA ASC), 2024, pp.
+1–6.
+[10] G. Ilharco et al., “Editing Models with Task Arithmetic,” in The
+Eleventh International Conference on Learning Representations,
+2023, pp. 1–17.
+[11] G. Ramesh and K. Audhkhasi, “Task Vector Algebra for ASR
+Models,” in ICASSP 2024 - 2024 IEEE International Conference
+on Acoustics, Speech and Signal Processing (ICASSP).
+IEEE,
+2024, pp. 12 256–12 260.
+[12] P. Plantinga, J. Yoo, A. Girma, and C. Dhir, “Parameter Averaging
+Is All You Need To Prevent Forgetting,” in 2024 IEEE Spoken
+Language Technology Workshop (SLT).
+IEEE, 2024, pp. 271–
+278.
+[13] T.-Q. Lin, W.-P. Huang, H. Tang, and H.-y. Lee, “Speech-FT:
+Merging pre-trained and fine-tuned speech representation mod-
+els for cross-task generalization,” IEEE Transactions on Audio,
+Speech and Language Processing, vol. 34, pp. 70–83, 2025.
+[14] V. Panayotov, G. Chen, D. Povey, and S. Khudanpur, “Lib-
+rispeech: An ASR corpus based on public domain audio books,”
+in 2015 IEEE International Conference on Acoustics, Speech and
+Signal Processing (ICASSP), 2015, pp. 5206–5210.
+[15] Y. Li, Y. Gong, C.-H. H. Yang, P. Bell, and C. Lai, “Revise,
+Reason, and Recognize: LLM-Based Emotion Recognition via
+Emotion-Specific Prompts and ASR Error Correction,” in ICASSP
+2025 - 2025 IEEE International Conference on Acoustics, Speech
+and Signal Processing (ICASSP), 2025, pp. 1–5.
+[16] R. Lotfian and C. Busso, “Building naturalistic emotionally bal-
+anced speech corpus by retrieving emotional speech from existing
+podcast recordings,” IEEE Transactions on Affective Computing,
+vol. 10, no. 4, pp. 471–483, 2019.
+[17] C. Busso,
+R. Lotfian,
+K. Sridhar,
+A. N. Salman,
+W.-C.
+Lin,
+L. Goncalves,
+S. Parthasarathy,
+A. R. Naini,
+S.-G.
+Leem, L. Martinez-Lucas, H.-C. Chou, and P. Mote, “The
+MSP-Podcast
+Corpus,”
+2025.
+[Online].
+Available:
+https:
+//arxiv.org/abs/2509.09791
+[18] E. Yang, Z. Wang, L. Shen, S. Liu, G. Guo, X. Wang, and D. Tao,
+“AdaMerging: Adaptive Model Merging for Multi-Task Learn-
+ing,” in The Twelve International Conference on Learning Repre-
+sentations, 2024, pp. 1–21.
+[19] S. Chen, C. Wang, Z. Chen, Y. Wu, S. Liu, Z. Chen, J. Li,
+N. Kanda, T. Yoshioka, X. Xiao et al., “Wavlm: Large-scale self-
+supervised pre-training for full stack speech processing,” IEEE
+Journal of Selected Topics in Signal Processing, vol. 16, no. 6,
+pp. 1505–1518, 2022.
+[20] S. wen Yang, P.-H. Chi, Y.-S. Chuang, C.-I. J. Lai, K. Lakhotia,
+Y. Y. Lin, A. T. Liu, J. Shi, X. Chang, G.-T. Lin, T.-H. Huang,
+W.-C. Tseng, K. tik Lee, D.-R. Liu, Z. Huang, S. Dong, S.-W.
+Li, S. Watanabe, A. Mohamed, and H. yi Lee, “SUPERB: Speech
+Processing Universal PERformance Benchmark,” in Interspeech
+2021, 2021, pp. 1194–1198.
+[21] H. Wu, H.-C. Chou, K.-W. Chang, L. Goncalves, J. Du, J.-S. R.
+Jang, C.-C. Lee, and H.-Y. Lee, “Open-Emotion: A Reproducible
+EMO-Superb For Speech Emotion Recognition Systems,” in 2024
+IEEE Spoken Language Technology Workshop (SLT), 2024, pp.
+510–517.
+[22] T. Feng, J. Lee, A. Xu, Y. Lee, T. Lertpetchpun, X. Shi,
+H. Wang, T. Thebaud, L. Moro-Velazquez, D. Byrd, N. Dehak,
+and S. Narayanan, “Vox-profile: A speech foundation model
+benchmark for characterizing diverse speaker and speech traits,”
+2025. [Online]. Available: https://arxiv.org/abs/2505.14648
+[23] L. Ferrer and P. Riera, “Confidence Intervals for evaluation
+in machine learning.” [Online]. Available:
+https://github.com/
+luferrer/ConfidenceIntervals
+[24] I. Loshchilov and F. Hutter, “Decoupled Weight Decay Regu-
+larization,” in International Conference on Learning Representa-
+tions, 2019.
+[25] Y. Cui, M. Jia, T.-Y. Lin, Y. Song, and S. Belongie, “Class-
+Balanced Loss Based on Effective Number of Samples,” in Pro-
+ceedings of the IEEE/CVF Conference on Computer Vision and
+Pattern Recognition (CVPR), June 2019.
+[26] H.-C. Chou, L. Goncalves, S.-G. Leem, C.-C. Lee, and C. Busso,
+“The Importance of Calibration: Rethinking Confidence and Per-
+formance of Speech Multi-label Emotion Classifiers,” in Inter-
+speech 2023, 2023, pp. 641–645.
+[27] A. Paszke et al., “PyTorch:
+An Imperative Style, High-
+Performance Deep Learning Library,” in Advances in Neural
+Information Processing Systems, H. Wallach, H. Larochelle,
+A. Beygelzimer, F. d'Alch´e-Buc, E. Fox, and R. Garnett, Eds.,
+vol. 32.
+Curran Associates, Inc., 2019.
+

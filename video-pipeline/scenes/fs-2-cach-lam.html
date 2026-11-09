@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>FastSpeech 2 · 2: Cách làm</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/fs.js"></script>
+<script src="../build/fs-2-cach-lam.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Cách làm', '3 Bộ điều chỉnh độ dài', '4 Cao độ, năng lượng'];
+// [segment ids that light the block, label, colour, x, width]
+const BLK = [
+  [['enc'], 'encoder', COL.acc, 200, 230],
+  [['dur', 'lr', 'pitch'], 'variance adaptor', COL.frame, 500, 520],
+  [['enc'], 'decoder song song', COL.ok, 1090, 280],
+  [[], 'vocoder', COL.i, 1440, 230],
+];
+const SUB = [['dur', 'độ dài', 520], ['pitch', 'cao độ', 690], ['pitch', 'năng lượng', 860]];
+const INFO = {
+  enc: ['encoder, decoder', 'khối Transformer: self-attention + convolution 1 chiều · mọi vị trí tính cùng lúc', 'giải quyết vấn đề chậm', COL.acc],
+  dur: ['dự đoán độ dài', 'mạng nhỏ: mỗi âm vị dài bao nhiêu frame', 'không attention chữ-frame: không lặp, không bỏ chữ', COL.frame],
+  lr: ['bộ điều chỉnh độ dài (length regulator)', 'lặp vector của mỗi âm vị đúng bằng số frame của nó', 'chuỗi âm vị → chuỗi frame (phần 3)', COL.frame],
+  pitch: ['dự đoán cao độ, năng lượng', 'đường f0 và độ to theo từng frame, cộng vào vector frame', 'điều khiển được, bớt "một chữ nhiều cách đọc" (phần 4)', COL.frame],
+};
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('FastSpeech 2', 'Phần 2/4: các thành phần', 1, PARTS);
+
+function shotPipe(G, t) {
+  const sp = S('pipe');
+  const cur = ['enc', 'dur', 'lr', 'pitch'].find(id => t >= S(id) && t < E(id) + 0.3);
+  heading('âm vị → encoder → variance adaptor → decoder → Mel → vocoder');
+  fade(G, P(t, sp + 0.3, 0.5), () => {
+    chip(G, 40, 304, 'âm vị', {size: 24, weight: 700});
+    BLK.forEach(([ids, l, c, x, w], j) => fade(G, P(t, sp + 0.5 + j * 0.5, 0.4), () => {
+      const on = ids.includes(cur);
+      rrect(x, 250, w, 160, 16, on ? c + '22' : COL.card, c, on ? 4 : 1.5);
+      text(l, x + w / 2, j === 1 ? 285 : 330, {size: 26, weight: 700, color: c, align: 'center', maxW: w - 20});
+      if (j < 3) arrow(x + w + 6, 330, BLK[j + 1][3] - 8, 330, COL.mute, 3);
+    }));
+    fade(G, P(t, sp + 1.2, 0.4), () => SUB.forEach(([id, l, x]) => {
+      const on = cur === id || (id === 'dur' && cur === 'lr');
+      rrect(x, 320, 150, 64, 12, on ? COL.frame : COL.frameSoft, COL.frame, 2);
+      text(l, x + 75, 352, {size: 22, weight: 700, color: on ? '#fff' : COL.frame, align: 'center'});
+    }));
+    text('Mel', 1400, 300, {size: 20, color: COL.mute, align: 'center'});
+  });
+  if (cur) fade(G, P(t, S(cur) + 0.3, 0.4), () => {
+    const [h, a, b, c] = INFO[cur];
+    card(240, 520, 1440, 220, {stroke: c});
+    text(h, 280, 575, {size: 30, weight: 700, color: c});
+    text(a, 280, 635, {size: 26, maxW: 1360});
+    text('→ ' + b, 280, 695, {size: 26, weight: 700, color: COL.ok, maxW: 1360});
+  });
+}
+
+function shotMfa(G, t) {
+  const s = S('mfa');
+  heading('Đáp án độ dài: forced alignment (Montreal Forced Aligner)');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    const B = {x: 260, y: 300, w: 1400, h: 160}, Dd = FS.durs(), tot = 71, g = Clip.g;
+    const xs = Array.from({length: 700}, (_, k) => B.x + k / 699 * B.w);
+    let acc = 0; const env = xs.map((_, k) => { const f = Math.floor(k / 700 * tot); let a = 0, i = 0; while (a + Dd[i] <= f) { a += Dd[i]; i++; } return FS.PH[i].v ? 1 : 0.3; });
+    poly(xs, xs.map((_, k) => B.y + B.h / 2 + Math.sin(k * 1.7) * Math.sin(k * 0.13) * env[k] * B.h * 0.45), COL.line2, 1.5);
+    Dd.forEach((d, i) => {
+      const x = B.x + acc / tot * B.w, w = d / tot * B.w;
+      fade(G, P(t, s + 1.5 + i * 0.4, 0.4), () => {
+        rrect(x + 2, B.y + B.h + 20, w - 4, 50, 8, FS.PCOL[i]);
+        text(FS.PH[i].p, x + w / 2, B.y + B.h + 45, {size: 24, weight: 700, color: '#fff', align: 'center'});
+        text(d + '', x + w / 2, B.y + B.h + 100, {size: 22, color: FS.PCOL[i], align: 'center'});
+        line(x, B.y - 10, x, B.y + B.h + 70, COL.ink, 1.5, [5, 5]);
+      });
+      acc += d;
+    });
+    text('âm thanh huấn luyện', B.x, B.y - 30, {size: 22, color: COL.mute});
+  });
+  fade(G, P(t, s + D('mfa') * 0.6, 0.5), () => text('công cụ HMM (trang 07) chia frame cho từng âm vị → đáp án để dạy bộ dự đoán độ dài', 960, 720, {size: 26, weight: 700, color: COL.frame, align: 'center', maxW: 1500}));
+}
+
+function shotV1(G, t) {
+  const s1 = S('v1'), ss = S('speed'), ds = D('speed');
+  heading(t < ss ? 'Bản đầu: học từ một Tacotron "thầy"' : 'Nhanh hơn bao nhiêu?');
+  if (t < ss) {
+    fade(G, P(t, s1 + 0.3, 0.5), () => {
+      rrect(300, 300, 400, 140, 16, COL.soft, COL.line2, 2);
+      text('Tacotron (thầy)', 500, 370, {size: 30, weight: 700, align: 'center'});
+      rrect(1220, 300, 400, 140, 16, COL.frameSoft, COL.frame, 3);
+      text('FastSpeech (trò)', 1420, 370, {size: 30, weight: 700, color: COL.frame, align: 'center'});
+      arrow(710, 340, 1210, 340, COL.mute, 3);
+      text('độ dài từ ma trận attention', 960, 320, {size: 22, align: 'center'});
+      arrow(710, 410, 1210, 410, COL.mute, 3);
+      text('Mel do thầy sinh', 960, 395, {size: 22, align: 'center'});
+    });
+    fade(G, P(t, s1 + D('v1') * 0.6, 0.5), () => text('knowledge distillation', 960, 540, {size: 32, weight: 700, color: COL.acc, align: 'center'}));
+    return;
+  }
+  fade(G, P(t, ss + 0.3, 0.5), () => {
+    const B = {x: 500, y: 300, w: 1000}, k = P(t, ss + 0.6, 1.5);
+    rrect(B.x, B.y, B.w * k, 70, 10, COL.hl);
+    text('tự hồi quy: 1', B.x, B.y - 24, {size: 24, weight: 700, color: COL.hl});
+    rrect(B.x, B.y + 140, Math.max(4, B.w / 270 * k), 70, 4, COL.ok);
+    text('FastSpeech: ≈ 1/270 thời gian sinh Mel (theo bài báo)', B.x, B.y + 116, {size: 24, weight: 700, color: COL.ok});
+  });
+  fade(G, P(t, ss + ds * 0.5, 0.5), () => {
+    const labels = ['bỏ thầy', 'học thẳng Mel thật', 'thêm cao độ, năng lượng'], xs = UI.chipXs(G, labels, {size: 26, weight: 700}, 24);
+    text('FastSpeech 2:', 960, 610, {size: 28, weight: 700, color: COL.frame, align: 'center'});
+    labels.forEach((l, j) => chip(G, xs[j], 650, l, {size: 26, weight: 700, color: COL.frame, stroke: COL.frame}));
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['encoder → variance adaptor → decoder song song'], ['độ dài, cao độ, năng lượng: các con số dự đoán'], ['độ dài thật lấy từ Montreal Forced Aligner']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text('✓', 380, 300 + j * 90, {size: 34, weight: 700, color: COL.ok});
+      text(a, 430, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 720, 640, 'Phần 3: bộ điều chỉnh độ dài  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 2', [
+  ['khối đoán độ dài, cao độ, năng lượng', 'variance adaptor', ''],
+  ['lặp vector âm vị theo độ dài', 'length regulator', ''],
+  ['chia frame cho âm vị bằng HMM', 'forced alignment (MFA)', 'cho đáp án độ dài'],
+  ['học lại đầu ra của mô hình thầy', 'knowledge distillation', 'bản FastSpeech đầu'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'pipe', to: 'pitch', draw: shotPipe},
+    {from: 'mfa', to: 'mfa', draw: shotMfa},
+    {from: 'v1', to: 'speed', draw: shotV1},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/fs-2-cach-lam.wav');
+</script>
+</body>
+</html>

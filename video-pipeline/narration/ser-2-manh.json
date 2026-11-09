@@ -1,0 +1,30 @@
+{
+  "clip": "ser-2-manh",
+  "title": "SER · Phần 2: Bốn thành phần cần biết",
+  "segments": [
+    {"id": "intro",
+     "sub": "SER, phần 2: bốn thành phần cần biết.",
+     "say": "Ét i a, phần hai: bốn thành phần cần biết."},
+    {"id": "label",
+     "sub": "Thành phần 1, kiểu nhãn: theo lớp (giận, vui, buồn, trung tính…) hoặc theo chiều (valence: dễ chịu hay khó chịu; arousal: kích động hay bình thản).",
+     "say": "Thành phần thứ nhất là kiểu nhãn. Có thể gán theo lớp, như giận, vui, buồn, trung tính. Hoặc gán theo chiều: va lần, tức dễ chịu hay khó chịu, và a rao dần, tức kích động hay bình thản."},
+    {"id": "cue",
+     "sub": "Thành phần 2, dấu hiệu trong giọng: chủ yếu là ngữ điệu (f0, năng lượng, tốc độ, chất giọng), cộng thêm chính các từ được nói.",
+     "say": "Thành phần thứ hai là dấu hiệu trong giọng. Chủ yếu là ngữ điệu: ép không, năng lượng, tốc độ, và chất giọng. Cộng thêm chính các từ được nói."},
+    {"id": "data",
+     "sub": "Thành phần 3, bộ dữ liệu: IEMOCAP và MELD là hai bộ hay dùng nhất cho tiếng Anh.",
+     "say": "Thành phần thứ ba là bộ dữ liệu. I e mô cáp và Meo là hai bộ hay dùng nhất cho tiếng Anh."},
+    {"id": "metric",
+     "sub": "Thành phần 4, thước đo: WA, UA, macro-F1, weighted-F1. Chọn sai thước đo thì mô hình vô dụng vẫn trông được.",
+     "say": "Thành phần thứ tư là thước đo: đắp bờ liu a, u a, ma crô ép một, và oe tịt ép một. Chọn sai thước đo thì một mô hình vô dụng vẫn trông có vẻ tốt."},
+    {"id": "flow",
+     "sub": "Ghép lại: chọn kiểu nhãn → mô hình nghe dấu hiệu trong giọng → học trên bộ dữ liệu → chấm bằng thước đo đúng.",
+     "say": "Ghép bốn thành phần lại: chọn kiểu nhãn, cho mô hình nghe các dấu hiệu trong giọng, học trên một bộ dữ liệu, rồi chấm bằng thước đo đúng."},
+    {"id": "result",
+     "sub": "Tóm lại: nhãn, dấu hiệu, dữ liệu, thước đo. Phần 3: nhãn theo lớp, theo chiều, và dấu hiệu trong giọng.",
+     "say": "Tóm lại bốn thành phần: nhãn, dấu hiệu, dữ liệu, và thước đo. Phần ba: nhãn theo lớp, nhãn theo chiều, và dấu hiệu trong giọng."},
+    {"id": "terms",
+     "sub": "Thuật ngữ của phần này.",
+     "say": "Các thuật ngữ của phần này."}
+  ]
+}

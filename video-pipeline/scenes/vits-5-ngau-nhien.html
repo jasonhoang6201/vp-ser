@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>VITS · 5: Độ dài ngẫu nhiên</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../lib/vits.js"></script>
+<script src="../build/vits-5-ngau-nhien.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Năm thành phần', '3 VAE và flow', '4 MAS', '5 Độ dài ngẫu nhiên'];
+const PCOL = [COL.mute, COL.acc, COL.ok, COL.hl, COL.frame, COL.i];
+const B = {x: 340, y: 250, w: 1200}, CW = B.w / 90;
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('VITS', 'Phần 5/5: độ dài ngẫu nhiên, mỗi lần đọc một nhịp', 4, PARTS);
+
+function shotRows(G, t) {
+  const si = S('idea'), sz = S('zero'), sm = S('mid'), sh = S('high');
+  const ns = t >= sh ? 1.6 : t >= sm ? 0.8 : 0, s0 = t >= sh ? sh : t >= sm ? sm : sz;
+  heading(t < sz ? 'Học phân phối của độ dài, khi dùng bốc mẫu' : `Mức ngẫu nhiên ${String(ns).replace('.', ',')}: 5 lần đọc "xin chào"`);
+  if (t < sz) {
+    fade(G, P(t, si + 0.3, 0.5), () => {
+      chip(G, 300, 330, 'âm vị "a"', {size: 28, weight: 700, color: COL.frame, stroke: COL.frame});
+      arrow(500, 356, 600, 356, COL.mute, 3);
+      card(620, 260, 640, 260, {stroke: COL.frame});
+      const xs = Array.from({length: 121}, (_, k) => k / 120), f = u => Math.exp(-0.5 * ((Math.log(0.05 + u * 1.9) - Math.log(0.7)) / 0.35) ** 2);
+      poly(xs.map(u => 660 + u * 560), xs.map(u => 490 - f(u) * 160), COL.frame, 4);
+      text('độ dài (frame) →', 1220, 505, {size: 18, color: COL.mute, align: 'right'});
+      text('một phân phối, không phải một số', 940, 300, {size: 24, weight: 700, color: COL.frame, align: 'center'});
+    });
+    fade(G, P(t, si + D('idea') * 0.55, 0.5), () => text('mô phỏng: log-normal cho dễ thấy (VITS thật dùng flow)', 960, 620, {size: 24, color: COL.mute, align: 'center'}));
+    return;
+  }
+  const rows = VITS.readings(ns, 1);
+  rows.forEach((rw, n) => fade(G, P(t, s0 + 0.3 + n * 0.25, 0.4), () => {
+    let acc = 0;
+    const y = B.y + n * 90;
+    rw.forEach((d, i) => {
+      rrect(B.x + acc * CW, y, d * CW - 2, 62, 6, PCOL[i]);
+      if (d * CW > 22) text(VITS.PH[i], B.x + (acc + d / 2) * CW, y + 31, {size: 22, weight: 700, color: '#fff', align: 'center'});
+      acc += d;
+    });
+    text(`lần ${n + 1}`, B.x - 20, y + 31, {size: 22, color: COL.mute, align: 'right'});
+    text(`${acc * 10} ms`, B.x + acc * CW + 14, y + 31, {size: 24, weight: 700});
+  }));
+  const msg = ns === 0 ? ['giống hệt nhau, như FastSpeech 2', COL.mute] : ns < 1 ? ['nhịp thay đổi vừa phải: tự nhiên hơn', COL.ok] : ['nhịp kéo giãn bất thường: quá tay', COL.hl];
+  fade(G, P(t, s0 + 1.8, 0.5), () => text(msg[0], 960, 740, {size: 30, weight: 700, color: msg[1], align: 'center'}));
+}
+
+function shotKnobs(G, t) {
+  const sk = S('knobs'), sp = S('page'), sn = S('next'), dn = D('next');
+  heading(t < sp ? 'Ba tham số trong bản cài đặt chính thức' : t < sn ? 'Tóm tắt trang VITS' : 'Dùng VITS khi nào?');
+  if (t < sp) {
+    [['noise_scale', 'ngẫu nhiên của z', 'cách đọc, giọng điệu'], ['noise_scale_w', 'ngẫu nhiên của độ dài', 'nhịp đọc'], ['length_scale', 'hệ số độ dài', 'tốc độ (như α của FastSpeech)']].forEach(([a, b, c], j) =>
+      fade(G, P(t, sk + 0.5 + j * 1.5, 0.5), () => {
+        const x = 220 + j * 520;
+        card(x, 290, 460, 260, {stroke: COL.frame});
+        text(a, x + 230, 350, {size: 28, weight: 700, color: COL.frame, align: 'center', mono: true});
+        text(b, x + 230, 420, {size: 26, weight: 700, align: 'center'});
+        text(c, x + 230, 480, {size: 22, color: COL.mute, align: 'center'});
+      }));
+    return;
+  }
+  if (t < sn) {
+    fade(G, P(t, sp + 0.3, 0.5), () => {
+      const labels = ['VAE', 'prior + flow', 'MAS', 'độ dài ngẫu nhiên', 'GAN'], xs = UI.chipXs(G, labels, {size: 28, weight: 700}, 50);
+      labels.forEach((l, j) => {
+        chip(G, xs[j], 320, l, {size: 28, weight: 700, color: COL.frame, stroke: COL.frame});
+        if (j) text('+', xs[j] - 25, 346, {size: 30, weight: 700, align: 'center'});
+      });
+    });
+    [['✓', 'một mô hình, học một lần, chữ → thẳng sóng âm', COL.ok], ['✓', 'không vocoder riêng, không công cụ căn ngoài', COL.ok]].forEach(([m, a, c], j) =>
+      fade(G, P(t, sp + 2 + j * 1.5, 0.5), () => {
+        text(m, 460, 480 + j * 80, {size: 32, weight: 700, color: c});
+        text(a, 510, 480 + j * 80, {size: 30});
+      }));
+    return;
+  }
+  fade(G, P(t, sn + 0.3, 0.5), () => {
+    card(220, 280, 700, 300, {stroke: COL.ok, lw: 3});
+    text('giọng riêng của một người', 260, 340, {size: 30, weight: 700, color: COL.ok});
+    text('vài giờ dữ liệu → huấn luyện VITS', 260, 410, {size: 26});
+    text('✓ rất phổ biến', 260, 480, {size: 26, weight: 700, color: COL.ok});
+  });
+  fade(G, P(t, sn + dn * 0.45, 0.5), () => {
+    card(1000, 280, 700, 300, {stroke: COL.frame, lw: 3});
+    text('giọng người lạ', 1040, 340, {size: 30, weight: 700, color: COL.frame});
+    text('chỉ vài giây mẫu', 1040, 410, {size: 26});
+    text('→ cần cách khác: trang sau', 1040, 480, {size: 26, weight: 700, color: COL.frame});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['✓', 'học phân phối của độ dài, bốc mẫu khi dùng', COL.ok], ['✓', 'vừa phải: nhịp tự nhiên', COL.ok], ['✗', 'quá tay: nhịp méo', COL.hl]].forEach(([m, a, c], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text(m, 520, 300 + j * 90, {size: 34, weight: 700, color: c});
+      text(a, 570, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 800, 640, 'Trang sau: XTTS  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 5', [
+  ['đoán phân phối độ dài, bốc mẫu', 'stochastic duration predictor', 'dùng flow'],
+  ['mức ngẫu nhiên của z / độ dài', 'noise_scale / noise_scale_w', 'bản cài đặt chính thức'],
+  ['hệ số tốc độ', 'length_scale', '> 1: đọc chậm'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'idea', to: 'high', draw: shotRows},
+    {from: 'knobs', to: 'next', draw: shotKnobs},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/vits-5-ngau-nhien.wav');
+</script>
+</body>
+</html>

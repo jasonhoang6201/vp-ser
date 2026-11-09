@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>MFCC 1: Vấn đề</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/dsp.js"></script>
+<script src="../lib/engine.js"></script>
+<script src="../build/01-van-de.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, axes, heat, clamp, lerp} = Clip;
+const g = () => Clip.g;
+
+const a2 = DSP.frameInfo(DSP.envA, 200), a3 = DSP.frameInfo(DSP.envA, 300), i2 = DSP.frameInfo(DSP.envI, 200);
+const D1 = DSP.dist(a2.ldb, a3.ldb), D2 = DSP.dist(a2.ldb, i2.ldb);
+const dbOf = pow => { const mx = Math.max(...pow); return Array.from(pow, v => 10 * Math.log10(Math.max(v, mx * 1e-6))); };
+
+// 0.1 s of a synthetic "a" at 200 Hz, the same harmonic recipe as framePow.
+const WAVE = Array.from({length: 1600}, (_, n) => {
+  let v = 0;
+  for (let k = 1; k * 200 < 7800; k++) v += DSP.envA(k * 200) * Math.sin(2 * Math.PI * k * 200 * n / 16000 + k * k * 0.7) / Math.sqrt(k);
+  return v;
+});
+const WMAX = Math.max(...WAVE.map(Math.abs));
+
+// One second of frames drifting between "a" and "i" with a gliding f0, for the feature-vector heatmap.
+const SEQ = Array.from({length: 100}, (_, j) => {
+  const w = 0.5 - 0.5 * Math.cos(2 * Math.PI * j / 100 * 1.5), f0 = 190 + 50 * Math.sin(j / 100 * 5);
+  return DSP.frameInfo(f => (1 - w) * DSP.envA(f) + w * DSP.envI(f), f0).ldb;
+});
+const SEQ_LO = Math.min(...SEQ.flat()), SEQ_HI = Math.max(...SEQ.flat());
+
+// Vowel morph for the correlation shot: precomputed on a grid of mix weights.
+const MORPH = Array.from({length: 61}, (_, j) => DSP.frameInfo(f => (1 - j / 60) * DSP.envA(f) + j / 60 * DSP.envI(f), 200).ldb);
+const morphAt = u => MORPH[Math.round(clamp(u) * 60)];
+// Filters 22 and 23 (0-based 21, 22) sit near F2 of "i", so they swing about 15 dB during the morph.
+const HA = 21;
+
+function card(x, y, w, h, o = {}) { rrect(x, y, w, h, 14, o.fill || COL.card, o.stroke || COL.line, o.lw || 2); }
+function heading(s, y = 140) { text(s, 960, y, {size: 44, weight: 700, align: 'center'}); }
+
+/* ---------- shots ---------- */
+
+function shotIntro(G, t) {
+  const p = P(t, 0.3, 1.0);
+  G.save(); G.globalAlpha *= p;
+  text('Vì sao cần MFCC?', 960, 400 - 20 * (1 - p), {size: 84, weight: 700, align: 'center'});
+  text('Phần 1/6: vấn đề MFCC sinh ra để giải quyết', 960, 490, {size: 34, color: COL.mute, align: 'center'});
+  G.restore();
+  const parts = ['1 Vấn đề', '2 Log', '3 DCT', '4 Giữ 13 hệ số', '5 Cả câu: ma trận, delta', '6 MFCC ngày nay'];
+  let x = 960 - 820;
+  parts.forEach((s, j) => {
+    const q = P(t, 0.9 + j * 0.12, 0.5);
+    G.save(); G.globalAlpha *= q;
+    G.font = `500 24px ${Clip.FONT}`;
+    const w = G.measureText(s).width + 36;
+    rrect(x, 600, w, 52, 26, j ? COL.card : COL.frameSoft, j ? COL.line : COL.frame);
+    text(s, x + w / 2, 626, {size: 24, weight: j ? 400 : 600, color: j ? COL.mute : COL.frame, align: 'center'});
+    G.restore();
+    x += w + 16;
+  });
+}
+
+const PIPE = ['sóng âm', 'frame 25 ms, mỗi 10 ms', 'FFT', 'phổ 257 bin', '40 bộ lọc Mel', '40 số'];
+function shotPipe(G, t) {
+  heading('Đã có gì: mỗi frame thành 40 số');
+  const s = S('pipe'), d = D('pipe'), bw = 250, gap = 54, x0 = (1920 - (6 * bw + 5 * gap)) / 2, y = 230;
+  PIPE.forEach((lab, j) => {
+    const q = P(t, s + d * j / 6.5, 0.6), x = x0 + j * (bw + gap);
+    if (q <= 0) return;
+    G.save(); G.globalAlpha *= q;
+    card(x, y, bw, 76, j === 5 ? {fill: COL.accSoft, stroke: COL.acc} : {});
+    text(lab, x + bw / 2, y + 38, {size: lab.length > 14 ? 22 : 26, weight: 600, align: 'center', color: j === 5 ? COL.acc : COL.ink});
+    if (j) arrow(x - gap + 6, y + 38, x - 8, y + 38);
+    const B = {x: x + 14, y: y + 120, w: bw - 28, h: 180};
+    card(x, y + 100, bw, 260, {stroke: '#ecebe8'});
+    mini(G, j, B, q);
+    G.restore();
+  });
+  const q = P(t, s + d * 0.9, 0.6);
+  G.save(); G.globalAlpha *= q;
+  text('1 giây ≈ 100 frame, mỗi frame 40 số', 960, 680, {size: 32, weight: 600, align: 'center'});
+  G.restore();
+}
+function mini(G, j, B, q) {
+  const mid = B.y + B.h / 2;
+  if (j === 0 || j === 1) {
+    const n = 800, xs = [], ys = [];
+    for (let i = 0; i < n; i += 2) { xs.push(B.x + i / n * B.w); ys.push(mid - WAVE[i] / WMAX * B.h * 0.4); }
+    poly(xs, ys, COL.mute, 2, null, j === 0 ? q : 1);
+    if (j === 1) {
+      const fx = B.x + B.w * 0.3, fw = B.w * 400 / n;
+      rrect(fx, B.y + 10, fw, B.h - 20, 6, 'rgba(217,115,13,0.12)', COL.frame, 2.5);
+      text('25 ms', fx + fw / 2, B.y + B.h + 26, {size: 20, color: COL.frame, align: 'center'});
+    }
+  } else if (j === 2) {
+    text('tìm các tần số', B.x + B.w / 2, mid - 18, {size: 22, color: COL.mute, align: 'center'});
+    text('có trong frame', B.x + B.w / 2, mid + 16, {size: 22, color: COL.mute, align: 'center'});
+  } else if (j === 3) {
+    const db = dbOf(a2.pow), lo = -60, hi = 0, mx = Math.max(...db);
+    const xs = db.map((_, k) => B.x + k / 256 * B.w), ys = db.map(v => B.y + B.h - clamp((v - mx - lo) / (hi - lo)) * B.h);
+    poly(xs, ys, COL.ink, 1.6, null, q);
+    text('0 → 8000 Hz', B.x + B.w / 2, B.y + B.h + 26, {size: 20, color: COL.mute, align: 'center'});
+  } else if (j === 4) {
+    const X = f => B.x + f / 8000 * B.w;
+    for (let m = 0; m < 40; m++) {
+      if (m / 40 > q) break;
+      const e = DSP.EDGES;
+      poly([X(e[m]), X(e[m + 1]), X(e[m + 2])], [B.y + B.h, B.y + 20, B.y + B.h], m % 2 ? COL.acc : COL.ok, 1.5);
+    }
+    text('hẹp ở thấp, rộng ở cao', B.x + B.w / 2, B.y + B.h + 26, {size: 20, color: COL.mute, align: 'center'});
+  } else {
+    const lo = Math.min(...a2.ldb), hi = Math.max(...a2.ldb), bw = B.w / 40;
+    a2.ldb.forEach((v, k) => {
+      if (k / 40 > q) return;
+      const h = (v - lo) / (hi - lo) * (B.h - 10) + 6;
+      G.fillStyle = COL.acc; G.fillRect(B.x + k * bw + 1, B.y + B.h - h, bw - 2, h);
+    });
+  }
+}
+
+function shotFeat(G, t) {
+  heading('Vectơ đặc trưng (feature vector)');
+  const s = S('feat'), d = D('feat');
+  const cx = 230, cy = 230, ch = 13;
+  const p1 = P(t, s + 0.2, 0.8);
+  G.save(); G.globalAlpha *= p1;
+  for (let k = 0; k < 40; k++) {
+    G.fillStyle = heat((a2.ldb[k] - SEQ_LO) / (SEQ_HI - SEQ_LO));
+    G.fillRect(cx, cy + (39 - k) * ch, 60, ch - 1);
+  }
+  text('xₜ', cx + 30, cy - 34, {size: 34, weight: 700, align: 'center'});
+  text('40 số', cx + 30, cy + 40 * ch + 30, {size: 24, color: COL.mute, align: 'center'});
+  G.restore();
+  // The sequence fills in left to right during the middle of the narration.
+  const gx = 420, gw = 1000, cw = gw / 100, n = Math.round(100 * clamp((t - s - d * 0.25) / (d * 0.4)));
+  if (n > 0) {
+    for (let j = 0; j < n; j++) for (let k = 0; k < 40; k++) {
+      G.fillStyle = heat((SEQ[j][k] - SEQ_LO) / (SEQ_HI - SEQ_LO));
+      G.fillRect(gx + j * cw, cy + (39 - k) * ch, cw + 0.5, ch - 1);
+    }
+    line(gx, cy + 40 * ch + 12, gx + gw, cy + 40 * ch + 12, COL.line2, 2);
+    text('0 s', gx, cy + 40 * ch + 36, {size: 20, color: COL.mute, align: 'center'});
+    text('1 s  (100 vectơ)', gx + gw, cy + 40 * ch + 36, {size: 20, color: COL.mute, align: 'right'});
+    text('thời gian →', gx + gw / 2, cy + 40 * ch + 36, {size: 20, color: COL.mute, align: 'center'});
+  }
+  const q = P(t, s + d * 0.7, 0.6);
+  if (q > 0) {
+    G.save(); G.globalAlpha *= q;
+    card(1480, 330, 380, 230, {fill: COL.frameSoft, stroke: COL.frame});
+    text('Giữ thông tin gì?', 1670, 400, {size: 32, weight: 700, color: COL.frame, align: 'center'});
+    text('Bỏ thông tin gì?', 1670, 480, {size: 32, weight: 700, color: COL.frame, align: 'center'});
+    G.restore();
+  }
+}
+
+function shotEra(G, t) {
+  heading('Bối cảnh: chọn cách biểu diễn nào?');
+  const s = S('era'), d = D('era'), y = 330;
+  line(160, y, 1760, y, COL.line2, 3);
+  const items = [
+    {x: 420, at: 0.05, year: 'thập niên 1970', lines: ['LPC (hệ số dự đoán tuyến tính)', 'năng lượng qua dãy bộ lọc', 'nhiều cách khác nhau']},
+    {x: 960, at: 0.38, year: '1980', lines: ['Davis & Mermelstein', 'IEEE Trans. ASSP', 'so sánh trên bài nhận dạng từ:', 'MFCC tốt nhất'], hot: true},
+    {x: 1500, at: 0.72, year: '1980 → khoảng 2010', lines: ['MFCC là đặc trưng', 'mặc định cho giọng nói']},
+  ];
+  for (const it of items) {
+    const q = P(t, s + d * it.at, 0.7);
+    if (q <= 0) continue;
+    G.save(); G.globalAlpha *= q;
+    G.beginPath(); G.arc(it.x, y, 12, 0, 7); G.fillStyle = it.hot ? COL.frame : COL.ink; G.fill();
+    text(it.year, it.x, y - 44, {size: 30, weight: 700, align: 'center', color: it.hot ? COL.frame : COL.ink});
+    card(it.x - 230, y + 40 + 20 * (1 - q), 460, 64 + it.lines.length * 42, it.hot ? {fill: COL.frameSoft, stroke: COL.frame} : {});
+    it.lines.forEach((l, j) => text(l, it.x, y + 92 + 20 * (1 - q) + j * 42, {size: 26, align: 'center', weight: it.hot && j === 3 ? 700 : 400}));
+    G.restore();
+  }
+}
+
+/* source-filter: three panels, comb × envelope = spectrum */
+const SF = {y: 230, w: 500, h: 360, xs: [90, 710, 1330]};
+const HARM = Array.from({length: 19}, (_, j) => (j + 1) * 200);
+const ENVMAX = Math.max(...Array.from({length: 400}, (_, i) => DSP.envA(i * 10)));
+function panel(G, j, title, sub, col) {
+  const x = SF.xs[j];
+  card(x, SF.y, SF.w, SF.h + 120);
+  text(title, x + 24, SF.y + 36, {size: 28, weight: 700, color: col});
+  text(sub, x + 24, SF.y + 74, {size: 22, color: COL.mute});
+  const B = {x: x + 30, y: SF.y + 110, w: SF.w - 60, h: SF.h - 60};
+  line(B.x, B.y + B.h, B.x + B.w, B.y + B.h, COL.line2, 2);
+  text('0', B.x, B.y + B.h + 22, {size: 18, color: COL.mute, align: 'center'});
+  text('4000 Hz', B.x + B.w, B.y + B.h + 22, {size: 18, color: COL.mute, align: 'center'});
+  return {B, X: f => B.x + f / 4000 * B.w, Y: v => B.y + B.h - v * B.h};
+}
+function shotSF(G, t) {
+  heading('Mô hình nguồn - bộ lọc (source-filter model)');
+  const s1 = S('sf'), s2 = S('filt'), s3 = S('mul');
+  // Panel 1: the comb (source).
+  {
+    const {X, Y, B} = panel(G, 0, 'Nguồn: dây thanh', 'cái lược: họa âm cách đều f0', COL.ink);
+    HARM.forEach((f, j) => {
+      const q = P(t, s1 + 1.5 + j * 0.12, 0.4);
+      if (q > 0) line(X(f), Y(0), X(f), Y(q * 0.95 / Math.sqrt(j + 1)), COL.ink, 4);
+    });
+    const q = P(t, s1 + D('sf') * 0.65, 0.6);
+    if (q > 0) {
+      G.save(); G.globalAlpha *= q;
+      arrow(X(200), Y(0.98), X(400), Y(0.98), COL.frame, 2.5, 10); arrow(X(400), Y(0.98), X(200), Y(0.98), COL.frame, 2.5, 10);
+      text('f0 = 200 Hz', X(420), Y(0.98), {size: 22, weight: 600, color: COL.frame});
+      G.restore();
+    }
+  }
+  // Panel 2: the envelope (filter).
+  if (t > s2 - 0.3) {
+    const q0 = P(t, s2 - 0.3, 0.5);
+    G.save(); G.globalAlpha *= q0;
+    const {X, Y} = panel(G, 1, 'Bộ lọc: ống thanh quản', 'cái khuôn: đường bao, các formant', COL.ok);
+    const fs = Array.from({length: 201}, (_, i) => i * 20);
+    poly(fs.map(X), fs.map(f => Y(DSP.envA(f) / ENVMAX * 0.95)), COL.ok, 4, null, P(t, s2 + 0.8, 2.5));
+    [['F1', 800], ['F2', 1250], ['F3', 2600]].forEach(([n, f], j) => {
+      const q = P(t, s2 + D('filt') * (0.4 + j * 0.12), 0.5);
+      if (q > 0) { G.save(); G.globalAlpha *= q; text(n, X(f), Y(DSP.envA(f) / ENVMAX * 0.95) - 26, {size: 24, weight: 700, color: COL.ok, align: 'center'}); G.restore(); }
+    });
+    G.restore();
+  }
+  // Panel 3: the product.
+  if (t > s3 - 0.3) {
+    const q0 = P(t, s3 - 0.3, 0.5);
+    G.save(); G.globalAlpha *= q0;
+    const {X, Y} = panel(G, 2, 'Phổ đo được', 'mỗi răng × độ cao khuôn tại đó', COL.acc);
+    const prod = HARM.map((f, j) => DSP.envA(f) / Math.sqrt(j + 1)), pm = Math.max(...prod);
+    const u = P(t, s3 + 1.2, 2.2);
+    HARM.forEach((f, j) => line(X(f), Y(0), X(f), Y(lerp(0.95 / Math.sqrt(j + 1), prod[j] / pm * 0.95, u)), COL.acc, 4));
+    if (u > 0.5) {
+      // Tooth k is envA(f) / sqrt(k) with f = 200 k, so the curve through the tips is envA(f) / sqrt(f / 200).
+      const fs = Array.from({length: 191}, (_, i) => 200 + i * 20);
+      G.save(); G.globalAlpha *= (u - 0.5) * 2;
+      poly(fs.map(X), fs.map(f => Y(DSP.envA(f) / Math.sqrt(f / 200) / pm * 0.95)), COL.ok, 2.5, [8, 6]);
+      G.restore();
+    }
+    G.restore();
+    text('×', 655, SF.y + SF.h / 2 + 60, {size: 64, weight: 300, color: COL.mute, align: 'center'});
+    text('=', 1275, SF.y + SF.h / 2 + 60, {size: 64, weight: 300, color: COL.mute, align: 'center'});
+    const q = P(t, s3 + D('mul') * 0.5, 0.6);
+    if (q > 0) { G.save(); G.globalAlpha *= q; text('phổ = lược × khuôn', 960, 800, {size: 36, weight: 700, align: 'center'}); G.restore(); }
+  }
+}
+
+function shotWhich(G, t) {
+  heading('Cái nào cho biết "chữ gì"?');
+  const s = S('which'), d = D('which');
+  const cards = [
+    {x: 150, title: 'Cái khuôn → chữ gì', col: COL.ok, at: 0.02, foot: 'đổi khẩu hình → formant dời chỗ'},
+    {x: 1000, title: 'Cái lược → giọng cao hay trầm', col: COL.ink, at: 0.45, foot: 'cùng chữ, khác người nói → lược khác'},
+  ];
+  cards.forEach((c, j) => {
+    const q = P(t, s + d * c.at, 0.7);
+    if (q <= 0) return;
+    G.save(); G.globalAlpha *= q;
+    card(c.x, 220, 770, 520);
+    text(c.title, c.x + 36, 270, {size: 32, weight: 700, color: c.col});
+    const B = {x: c.x + 50, y: 330, w: 670, h: 300}, X = f => B.x + f / 4000 * B.w;
+    line(B.x, B.y + B.h, B.x + B.w, B.y + B.h, COL.line2, 2);
+    text('0', B.x, B.y + B.h + 22, {size: 18, color: COL.mute, align: 'center'});
+    text('4000 Hz', B.x + B.w, B.y + B.h + 22, {size: 18, color: COL.mute, align: 'center'});
+    if (j === 0) {
+      const fs = Array.from({length: 201}, (_, i) => i * 20), Y = v => B.y + B.h - v / ENVMAX * B.h * 0.9;
+      poly(fs.map(X), fs.map(f => Y(DSP.envA(f))), COL.acc, 4);
+      poly(fs.map(X), fs.map(f => Y(DSP.envI(f))), COL.i, 4, null, P(t, s + d * 0.15, 1));
+      text('"a"', X(1250), Y(1.0),{size: 28, weight: 700, color: COL.acc, align: 'center'});
+      if (t > s + d * 0.2) text('"i"', X(2350), Y(0.85), {size: 28, weight: 700, color: COL.i, align: 'center'});
+    } else {
+      [[120, 'giọng nam, f0 ≈ 120 Hz', 0.25], [220, 'giọng nữ, f0 ≈ 220 Hz', 0.75]].forEach(([f0, lab, yy]) => {
+        const by = B.y + B.h * yy;
+        for (let f = f0; f < 4000; f += f0) line(X(f), by + 40, X(f), by - 30 / Math.sqrt(f / f0) - 6, COL.ink, 3);
+        text(lab, B.x + B.w, by - 58, {size: 22, color: COL.mute, align: 'right'});
+      });
+    }
+    text(c.foot, c.x + 385, 700, {size: 26, color: COL.mute, align: 'center'});
+    G.restore();
+  });
+}
+
+/* the three Mel frames */
+const MEL = {B: {x: 170, y: 220, w: 1050, h: 470}};
+function shotMel(G, t) {
+  heading('Bộ lọc Mel không tách lược khỏi khuôn');
+  const s = S('three'), d = D('three'), all = [...a2.ldb, ...a3.ldb, ...i2.ldb];
+  const lo = Math.floor((Math.min(...all) - 3) / 10) * 10, hi = Math.ceil((Math.max(...all) + 3) / 10) * 10;
+  const B = MEL.B;
+  const {X, Y} = axes(B, [0.5, 40.5], [lo, hi], {gridY: Array.from({length: Math.floor((hi - lo) / 20) + 1}, (_, i) => lo + i * 20), fmtY: v => `${v} dB`,
+    ticksX: [1, 10, 20, 30, 40], fmtX: v => v, xlabel: 'bộ lọc Mel số'});
+  const ks = a2.ldb.map((_, k) => X(k + 1));
+  const SER = [[a2, COL.acc, null, '"a", f0 = 200 Hz'], [a3, COL.acc, [10, 7], '"a", f0 = 300 Hz'], [i2, COL.i, null, '"i", f0 = 200 Hz']];
+  // Gap shading between the two "a" curves.
+  const gs = S('gap'), gq = P(t, gs + 0.3, 1.5);
+  if (gq > 0) {
+    G.save(); G.globalAlpha *= 0.5 * gq;
+    G.beginPath();
+    ks.forEach((x, k) => k ? G.lineTo(x, Y(a2.ldb[k])) : G.moveTo(x, Y(a2.ldb[k])));
+    for (let k = 39; k >= 0; k--) G.lineTo(ks[k], Y(a3.ldb[k]));
+    G.closePath(); G.fillStyle = '#f3c6c2'; G.fill();
+    G.restore();
+    const bq = P(t, gs + D('gap') * 0.35, 0.6);
+    if (bq > 0) {
+      G.save(); G.globalAlpha *= bq;
+      const xa = X(0.6), xb = X(12.4);
+      line(xa, B.y - 6, xb, B.y - 6, COL.hl, 3); line(xa, B.y - 6, xa, B.y + 8, COL.hl, 3); line(xb, B.y - 6, xb, B.y + 8, COL.hl, 3);
+      text('bộ lọc hẹp: thấy từng răng lược', (xa + xb) / 2 + 60, B.y - 30, {size: 24, weight: 600, color: COL.hl, align: 'center'});
+      G.restore();
+    }
+  }
+  SER.forEach(([inf, c, dash, lab], j) => {
+    const at = s + d * (0.3 + j * 0.2);
+    const q = P(t, at, 1.4);
+    if (q <= 0) return;
+    poly(ks, inf.ldb.map(Y), c, 3.5, dash, q);
+    const lx = B.x + 20 + j * 340;
+    G.save(); G.globalAlpha *= clamp(q * 2);
+    poly([lx, lx + 44], [B.y + B.h + 92, B.y + B.h + 92], c, 4, dash);
+    text(lab, lx + 56, B.y + B.h + 92, {size: 24, weight: 600, color: c});
+    G.restore();
+  });
+  // Distances.
+  const ds = S('dist'), dq = P(t, ds, 0.6);
+  if (dq > 0) {
+    G.save(); G.globalAlpha *= dq;
+    const x0 = 1300;
+    card(x0, 220, 540, 560);
+    text('Khoảng cách Euclid', x0 + 270, 268, {size: 28, weight: 700, align: 'center'});
+    text('d(x, y) = √ Σₖ (xₖ − yₖ)²', x0 + 270, 320, {size: 28, mono: true, align: 'center'});
+    const bars = [[D1, COL.acc, 'cùng "a", khác giọng', 0.2], [D2, COL.i, 'khác chữ, cùng giọng', 0.42]];
+    bars.forEach(([v, c, lab, at], j) => {
+      const q = P(t, ds + D('dist') * at, 1.0), y = 400 + j * 130, w = 420 * v / 100 * q;
+      text(lab, x0 + 50, y, {size: 24, color: COL.mute});
+      G.fillStyle = c; G.fillRect(x0 + 50, y + 22, w, 44);
+      if (q > 0.05) text(String(Math.round(v * q)), x0 + 62 + w, y + 44, {size: 30, weight: 700, color: c});
+    });
+    const rq = P(t, ds + D('dist') * 0.62, 0.6);
+    if (rq > 0) {
+      G.save(); G.globalAlpha *= rq;
+      text(`${Math.round(D1)} / ${Math.round(D2)} ≈ ${(D1 / D2).toFixed(2).replace('.', ',')} ≈ 2/3`, x0 + 270, 690, {size: 32, weight: 700, align: 'center'});
+      text('lược = nhiễu cho câu hỏi "chữ gì"', x0 + 270, 740, {size: 24, color: COL.hl, align: 'center', weight: 600});
+      G.restore();
+    }
+    G.restore();
+  }
+}
+
+function shotCorr(G, t) {
+  heading('Vướng 2: các số cạnh nhau tương quan mạnh');
+  const s = S('corr'), d = D('corr');
+  // Left: overlapping triangles around the two highlighted filters.
+  card(90, 210, 800, 560);
+  text(`Bộ lọc Mel số ${HA - 2} đến ${HA + 5}`, 120, 252, {size: 26, weight: 700});
+  const e = DSP.EDGES, f0 = e[HA - 3], f1 = e[HA + 7];
+  const B = {x: 130, y: 300, w: 720, h: 330}, X = f => B.x + (f - f0) / (f1 - f0) * B.w, Y = v => B.y + B.h - v * B.h;
+  line(B.x, Y(0), B.x + B.w, Y(0), COL.line2, 2);
+  text(`${Math.round(f0)} Hz`, B.x, Y(0) + 24, {size: 18, color: COL.mute, align: 'center'});
+  text(`${Math.round(f1)} Hz`, B.x + B.w, Y(0) + 24, {size: 18, color: COL.mute, align: 'center'});
+  for (let m = HA - 3; m <= HA + 4; m++) {
+    const q = P(t, s + 0.2 + (m - HA + 3) * 0.12, 0.5);
+    if (q <= 0) continue;
+    const hot = m === HA ? COL.frame : m === HA + 1 ? COL.acc : null;
+    if (hot) {
+      G.save(); G.globalAlpha *= 0.18 * q;
+      G.beginPath(); G.moveTo(X(e[m]), Y(0)); G.lineTo(X(e[m + 1]), Y(1)); G.lineTo(X(e[m + 2]), Y(0)); G.closePath(); G.fillStyle = hot; G.fill();
+      G.restore();
+    }
+    poly([X(e[m]), X(e[m + 1]), X(e[m + 2])], [Y(0), Y(q), Y(0)], hot || COL.line2, hot ? 3.5 : 2);
+    if (hot) text(String(m + 1), X(e[m + 1]), Y(1) - 20, {size: 24, weight: 700, color: hot, align: 'center'});
+  }
+  const oq = P(t, s + d * 0.2, 0.6);
+  if (oq > 0) {
+    G.save(); G.globalAlpha *= oq;
+    // Triangle HA falls and HA + 1 rises over the same span, so the shared area peaks at half height in its middle.
+    const xa = e[HA + 1], xb = e[HA + 2];
+    G.beginPath(); G.moveTo(X(xa), Y(0)); G.lineTo(X((xa + xb) / 2), Y(0.5)); G.lineTo(X(xb), Y(0)); G.closePath();
+    G.fillStyle = 'rgba(212,76,71,0.35)'; G.fill();
+    text('vùng chồng nhau: cùng hứng các bin này', B.x + B.w / 2, Y(0) + 70, {size: 24, color: COL.hl, weight: 600, align: 'center'});
+    G.restore();
+  }
+  // Right: 40 bars while the vowel morphs a -> i -> a; the two filters highlighted, with their traces.
+  const rq = P(t, s + d * 0.35, 0.6);
+  if (rq <= 0) return;
+  G.save(); G.globalAlpha *= rq;
+  card(940, 210, 900, 560);
+  const t0 = s + d * 0.35, u = tt => 0.5 - 0.5 * Math.cos(2 * Math.PI * Math.max(0, tt - t0) / 6);
+  const cur = morphAt(u(t)), lo = -62, hi = 2, mx = Math.max(...MORPH.flat());
+  const BB = {x: 990, y: 290, w: 800, h: 230}, bw = BB.w / 40;
+  text('40 số Mel khi khẩu hình đổi dần "a" → "i" → "a"', 980, 252, {size: 26, weight: 700});
+  cur.forEach((v, k) => {
+    const h = clamp((v - mx - lo) / (hi - lo)) * BB.h;
+    G.fillStyle = k === HA ? COL.frame : k === HA + 1 ? COL.acc : '#c9c7c1';
+    G.fillRect(BB.x + k * bw + 1, BB.y + BB.h - h, bw - 2, h);
+  });
+  line(BB.x, BB.y + BB.h, BB.x + BB.w, BB.y + BB.h, COL.line2, 2);
+  // Traces of the two highlighted numbers over the last 6 seconds, on a shared dB scale fitted to their range.
+  const TB = {x: 990, y: 590, w: 800, h: 140}, span = 6, n = 120, xs = [], ya = [], yb = [];
+  const vals = MORPH.flatMap(m => [m[HA], m[HA + 1]]), vlo = Math.min(...vals) - 1, vhi = Math.max(...vals) + 1;
+  const TY = v => TB.y + TB.h - (v - vlo) / (vhi - vlo) * TB.h;
+  for (let i = 0; i <= n; i++) {
+    const tt = t - span + span * i / n;
+    if (tt < t0) continue;
+    const m = morphAt(u(tt));
+    xs.push(TB.x + i / n * TB.w); ya.push(TY(m[HA])); yb.push(TY(m[HA + 1]));
+  }
+  line(TB.x, TB.y + TB.h, TB.x + TB.w, TB.y + TB.h, '#ecebe8', 1.5);
+  if (xs.length > 1) { poly(xs, ya, COL.frame, 3.5); poly(xs, yb, COL.acc, 3.5, [9, 6]); }
+  text(`số ${HA + 1}`, TB.x, TB.y - 22, {size: 22, weight: 700, color: COL.frame});
+  text(`số ${HA + 2}`, TB.x + 90, TB.y - 22, {size: 22, weight: 700, color: COL.acc});
+  text('theo thời gian: hai đường đi cùng nhau', TB.x + TB.w, TB.y - 22, {size: 22, color: COL.mute, align: 'right'});
+  G.restore();
+}
+
+function matrix(G, x, y, size, f) {
+  const c = size / 40;
+  for (let i = 0; i < 40; i++) for (let j = 0; j < 40; j++) {
+    const v = f(i, j);
+    G.fillStyle = v > 0 ? `rgba(51,126,169,${0.08 + 0.92 * v})` : '#f4f3f0';
+    G.fillRect(x + j * c, y + i * c, c - 0.5, c - 0.5);
+  }
+}
+function shotWhy(G, t) {
+  heading('Vì sao tương quan là vướng?');
+  const s = S('why'), d = D('why');
+  const q1 = P(t, s + 0.2, 0.8), q2 = P(t, s + d * 0.45, 0.8), q3 = P(t, s + d * 0.8, 0.6);
+  G.save(); G.globalAlpha *= q1;
+  text('Thực tế: 40 số Mel', 520, 230, {size: 30, weight: 700, align: 'center'});
+  matrix(G, 320, 270, 400, (i, j) => Math.exp(-Math.abs(i - j) / 4));
+  text('ô sáng gần đường chéo: số cạnh nhau tương quan (minh họa)', 520, 700, {size: 22, color: COL.mute, align: 'center'});
+  text('hiệp phương sai đầy đủ: 40 × 41 / 2 = 820 số', 520, 740, {size: 24, align: 'center'});
+  G.restore();
+  if (q2 > 0) {
+    G.save(); G.globalAlpha *= q2;
+    text('≠', 960, 470, {size: 80, weight: 300, color: COL.hl, align: 'center'});
+    text('Giả định của mô hình', 1400, 230, {size: 30, weight: 700, align: 'center'});
+    matrix(G, 1200, 270, 400, (i, j) => i === j ? 1 : 0);
+    text('chỉ đường chéo: các số coi như không tương quan', 1400, 700, {size: 22, color: COL.mute, align: 'center'});
+    text('hiệp phương sai đường chéo: 40 số', 1400, 740, {size: 24, align: 'center'});
+    G.restore();
+  }
+  if (q3 > 0) { G.save(); G.globalAlpha *= q3; text('Vectơ Mel vi phạm giả định này', 960, 810, {size: 32, weight: 700, color: COL.hl, align: 'center'}); G.restore(); }
+}
+
+function cells(G, x, y, n, c, col, q) {
+  for (let k = 0; k < n; k++) { if (k / n > q) break; rrect(x + k * (c + 6), y, c, c, 5, col, null); }
+}
+function shotSize(G, t) {
+  heading('Vướng 3: 40 số là nhiều');
+  const s = S('size'), d = D('size');
+  text('Mel', 150, 290, {size: 30, weight: 700});
+  cells(G, 260, 262, 40, 32, '#9fc3d8', P(t, s + 0.2, 1.2));
+  const q2 = P(t, s + d * 0.25, 0.6);
+  if (q2 > 0) {
+    G.save(); G.globalAlpha *= q2;
+    for (let k = 0; k < 40; k += 3) rrect(260 + k * 38 - 3, 256, 38 * 3, 44, 8, null, COL.hl, 2);
+    text('nhiều số lặp lại cùng một thông tin', 260, 340, {size: 24, color: COL.hl, weight: 600});
+    G.restore();
+  }
+  const q3 = P(t, s + d * 0.5, 0.7);
+  if (q3 > 0) {
+    G.save(); G.globalAlpha *= q3;
+    card(260, 420, 1400, 300);
+    text('Một phân phối Gauss nhiều chiều, hiệp phương sai đầy đủ, cần bao nhiêu số?', 300, 470, {size: 26, weight: 600});
+    text('40 chiều:', 300, 550, {size: 28}); text('40 (trung bình) + 820 (hiệp phương sai) = 860 số', 470, 550, {size: 28, mono: true});
+    text('13 chiều:', 300, 620, {size: 28}); text('13 + 91 = 104 số', 470, 620, {size: 28, mono: true, color: COL.ok});
+    text('vectơ càng dài → càng nhiều tham số → càng cần nhiều dữ liệu', 300, 690, {size: 24, color: COL.mute});
+    G.restore();
+  }
+}
+
+function shotGoal(G, t) {
+  heading('Mục tiêu của MFCC');
+  const s = S('goal'), d = D('goal');
+  card(200, 240, 1520, 470, {fill: COL.card, stroke: COL.acc, lw: 3});
+  text('40 số Mel', 360, 360, {size: 36, weight: 700, align: 'center'});
+  cells(G, 270, 400, 10, 14, '#9fc3d8', 1); cells(G, 270, 420, 10, 14, '#9fc3d8', 1); cells(G, 270, 440, 10, 14, '#9fc3d8', 1); cells(G, 270, 460, 10, 14, '#9fc3d8', 1);
+  arrow(520, 400, 700, 400, COL.acc, 4, 16);
+  const q = P(t, s + 0.6, 0.7);
+  G.save(); G.globalAlpha *= q;
+  text('≈ 13 số', 860, 360, {size: 36, weight: 700, color: COL.acc, align: 'center'});
+  cells(G, 760, 400, 13, 10, COL.acc, 1);
+  G.restore();
+  const goals = ['mô tả cái khuôn (chữ gì)', 'bỏ phần lớn cái lược (giọng cao hay trầm)', 'các số ít tương quan với nhau'];
+  goals.forEach((s2, j) => {
+    const qq = P(t, s + d * (0.45 + j * 0.15), 0.5);
+    if (qq <= 0) return;
+    G.save(); G.globalAlpha *= qq;
+    text('✓', 1080, 330 + j * 90, {size: 40, weight: 700, color: COL.ok});
+    text(s2, 1130, 330 + j * 90, {size: 30});
+    G.restore();
+  });
+}
+
+function shotPlan(G, t) {
+  heading('3 bước của MFCC');
+  const s = S('plan'), d = D('plan');
+  const boxes = [['40 số Mel', '', '', 0], ['log', 'lược × khuôn', '→ lược + khuôn', 0.12], ['DCT', 'xếp theo độ nhấp nhô:', 'chậm = khuôn, nhanh = lược', 0.38],
+    ['giữ 13 hệ số đầu', 'bỏ phần nhấp nhô nhanh', '', 0.68], ['MFCC', '', '', 0.85]];
+  const bw = 290, gap = 60, x0 = (1920 - (5 * bw + 4 * gap)) / 2, y = 300;
+  boxes.forEach(([lab, c1, c2, at], j) => {
+    const q = P(t, s + d * at, 0.6);
+    if (q <= 0) return;
+    G.save(); G.globalAlpha *= q;
+    const x = x0 + j * (bw + gap), isNew = j >= 1 && j <= 3;
+    card(x, y, bw, 90, isNew ? {fill: COL.frameSoft, stroke: COL.frame} : j === 4 ? {fill: COL.accSoft, stroke: COL.acc} : {});
+    text(lab, x + bw / 2, y + 45, {size: 30, weight: 700, align: 'center', color: isNew ? COL.frame : j === 4 ? COL.acc : COL.ink});
+    if (j) arrow(x - gap + 6, y + 45, x - 8, y + 45);
+    if (c1) text(c1, x + bw / 2, y + 140, {size: 24, align: 'center'});
+    if (c2) text(c2, x + bw / 2, y + 176, {size: 24, align: 'center'});
+    if (isNew) text(`clip ${j + 1}`, x + bw / 2, y + 240, {size: 22, color: COL.mute, align: 'center'});
+    G.restore();
+  });
+}
+
+const TERMS = [
+  ['vectơ đặc trưng', 'feature vector', 'bộ số mô tả một frame'],
+  ['mô hình nguồn - bộ lọc', 'source-filter model', 'phổ = nguồn × bộ lọc'],
+  ['cái lược', 'harmonics (họa âm), do f0', 'giọng cao hay trầm'],
+  ['cái khuôn', 'spectral envelope, formant', 'chữ gì'],
+  ['khoảng cách Euclid', 'Euclidean distance', '√Σ(xₖ − yₖ)²'],
+  ['tương quan', 'correlation', 'hai số lên xuống cùng nhau'],
+  ['hiệp phương sai đường chéo', 'diagonal covariance', 'coi các số không tương quan'],
+  ['MFCC', 'Mel-Frequency Cepstral Coefficients', 'khoảng 13 số mỗi frame'],
+];
+function shotTerms(G, t) {
+  heading('Thuật ngữ của phần 1', 130);
+  const s = S('terms'), cx = [170, 640, 1220], y0 = 210, rh = 72;
+  ['Nói thường', 'Thuật ngữ', 'Ý nghĩa'].forEach((h, j) => text(h, cx[j], y0, {size: 24, weight: 600, color: COL.mute}));
+  line(150, y0 + 26, 1770, y0 + 26, COL.line2, 2);
+  TERMS.forEach((r, i) => {
+    const q = P(t, s + 0.2 + i * 0.45, 0.5);
+    if (q <= 0) return;
+    G.save(); G.globalAlpha *= q;
+    const y = y0 + 64 + i * rh;
+    text(r[0], cx[0], y, {size: 28});
+    text(r[1], cx[1], y, {size: 28, weight: 700, color: COL.acc});
+    text(r[2], cx[2], y, {size: 26, color: COL.mute});
+    line(150, y + rh / 2, 1770, y + rh / 2, '#ecebe8', 1.5);
+    G.restore();
+  });
+}
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 9,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'pipe', to: 'pipe', draw: shotPipe},
+    {from: 'feat', to: 'feat', draw: shotFeat},
+    {from: 'era', to: 'era', draw: shotEra},
+    {from: 'sf', to: 'mul', draw: shotSF},
+    {from: 'which', to: 'which', draw: shotWhich},
+    {from: 'three', to: 'dist', draw: shotMel},
+    {from: 'corr', to: 'corr', draw: shotCorr},
+    {from: 'why', to: 'why', draw: shotWhy},
+    {from: 'size', to: 'size', draw: shotSize},
+    {from: 'goal', to: 'goal', draw: shotGoal},
+    {from: 'plan', to: 'plan', draw: shotPlan},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/01-van-de.wav');
+</script>
+</body>
+</html>

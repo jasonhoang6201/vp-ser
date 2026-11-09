@@ -1,0 +1,64 @@
+{
+  "name": "sensevoice_small_finetune_f1",
+  "dataset": "iemocap",
+  "split": "test",
+  "notes": "SenseVoice-Small fine-tuned 10 ep, lr 0.0002, ckpt model.pt",
+  "asr": {
+    "wer": 0.12148015905217885,
+    "n_utts": 1072,
+    "n_ref_words": 12323,
+    "n_empty_ref_skipped": 13,
+    "wer_by_emotion": {
+      "anger": 0.0688909484090207,
+      "joy": 0.17600964436407474,
+      "neutral": 0.12272460364063417,
+      "sadness": 0.11515664690939881
+    }
+  },
+  "ser": {
+    "wa": 0.7078341013824885,
+    "ua": 0.7331649626501473,
+    "macro_f1": 0.714567082385119,
+    "weighted_f1": 0.7083010590800437,
+    "recall_by_emotion": {
+      "neutral": 0.5833333333333334,
+      "joy": 0.737410071942446,
+      "anger": 0.7510917030567685,
+      "sadness": 0.8608247422680413
+    },
+    "n": 1085,
+    "n_invalid_pred": 0,
+    "labels": [
+      "neutral",
+      "joy",
+      "anger",
+      "sadness"
+    ],
+    "confusion": [
+      [
+        224,
+        57,
+        14,
+        89
+      ],
+      [
+        34,
+        205,
+        13,
+        26
+      ],
+      [
+        25,
+        15,
+        172,
+        17
+      ],
+      [
+        13,
+        10,
+        4,
+        167
+      ]
+    ]
+  }
+}

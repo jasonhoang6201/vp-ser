@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>ASR cổ điển 4: Mô hình ngôn ngữ</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/asr-4-lm.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn thành phần', '3 Từ điển, triphone', '4 Mô hình ngôn ngữ', '5 WER'];
+// Same illustrative scores as demo/08: [sentence, acoustic log score, LM log score].
+const CANDS = [['hôm nay trời mưa', -120.8, -9.1], ['hôm nay trời mua', -119.6, -13.4], ['hôm nay chời mưa', -120.5, -17.8], ['hôm nay trời nắng', -124.5, -7.6]];
+const f1 = v => v.toFixed(1).replace('.', ',').replace('-', '−');
+const WORDS = ['hôm', 'nay', 'trời', 'mưa', 'rất', 'to'];
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Hệ ASR cổ điển', 'Phần 4/5: mô hình ngôn ngữ, câu nào hợp lý hơn?', 3, PARTS);
+
+function wordRow(y, hot = -1) {
+  const xs = [];
+  let x = 960 - WORDS.length * 150 / 2;
+  WORDS.forEach((w, j) => { chip(Clip.g, x + 10, y, w, j === hot ? HOT : {size: 30, weight: 700, color: COL.ink}); xs.push(x + 70); x += 150; });
+  return xs;
+}
+
+function shotNgram(G, t) {
+  const sn = S('need'), dn = D('need'), sg = S('ngram'), dg = D('ngram');
+  heading(t < sg ? 'Cần P(W): xác suất của cả câu' : 'n-gram: mỗi từ chỉ nhìn vài từ trước');
+  fade(G, P(t, sn + 0.3, 0.5), () => {
+    const xs = wordRow(260);
+    if (t < sg) fade(G, P(t, sn + dn * 0.4, 0.5), () => {
+      card(560, 420, 800, 140, {stroke: COL.hl});
+      text('đếm nguyên câu trong văn bản?', 960, 465, {size: 28, weight: 700, align: 'center'});
+      text('hầu hết các câu chỉ xuất hiện đúng một lần', 960, 515, {size: 26, color: COL.hl, align: 'center'});
+    });
+    if (t >= sg) {
+      const g = Clip.g, u = P(t, sg + 0.6, dg * 0.5);
+      for (let j = 1; j < xs.length; j++) {
+        if (j > u * xs.length) break;
+        g.beginPath(); g.moveTo(xs[j - 1], 252); g.quadraticCurveTo((xs[j - 1] + xs[j]) / 2, 190, xs[j] - 8, 250);
+        g.strokeStyle = COL.acc; g.lineWidth = 2.5; g.stroke();
+        arrow(xs[j] - 14, 242, xs[j] - 8, 252, COL.acc, 2.5, 10);
+      }
+    }
+  });
+  fade(G, P(t, sg + dg * 0.35, 0.5), () => {
+    text('giống giả định Markov của HMM: chỉ nhìn n − 1 từ ngay trước', 960, 420, {size: 26, color: COL.mute, align: 'center'});
+  });
+  fade(G, P(t, sg + dg * 0.6, 0.5), () => {
+    text('P(câu) = P(hôm) · P(nay | hôm) · P(trời | nay) · P(mưa | trời) · …', 960, 530, {size: 32, weight: 700, color: COL.acc, align: 'center'});
+    text('n = 2: bigram,  n = 3: trigram', 960, 600, {size: 24, color: COL.mute, align: 'center'});
+  });
+}
+
+function shotBigram(G, t) {
+  const sb = S('bigram'), sc = S('count'), dc = D('count'), ss = S('smooth'), ds = D('smooth');
+  heading('Bigram: đếm trên rất nhiều văn bản');
+  fade(G, P(t, sb + 0.3, 0.5), () => {
+    text('P("mưa" | "trời")  =', 700, 260, {size: 36, weight: 700, align: 'right'});
+    text('số lần gặp "trời mưa"', 980, 230, {size: 30, weight: 700, color: COL.acc, align: 'center'});
+    line(780, 260, 1180, 260, COL.ink, 3);
+    text('số lần gặp "trời"', 980, 292, {size: 30, weight: 700, align: 'center'});
+  });
+  fade(G, P(t, sc + 0.3, 0.5), () => {
+    const rows = [['"trời"', 10000, COL.ink], ['"trời mưa"', 1200, COL.acc], ['"trời mua"', 3, COL.frame]];
+    const u = P(t, sc + 0.4, 1.2);
+    rows.forEach(([l, n, c], j) => {
+      const y = 380 + j * 70;
+      text(l, 520, y, {size: 28, weight: 700, color: c, align: 'right'});
+      const bw = Math.max(3, n / 10000 * 600 * u);
+      rrect(550, y - 20, bw, 40, 6, c + (j ? 'cc' : '55'));
+      text(n.toLocaleString('vi-VN') + ' lần', 570 + bw, y, {size: 24, weight: 700, color: c});
+    });
+    text('số minh họa', 550, 600, {size: 20, color: COL.mute});
+  });
+  fade(G, P(t, sc + dc * 0.55, 0.5), () => {
+    card(1400, 360, 380, 200, {stroke: COL.acc});
+    text('P(mưa | trời) = 0,12', 1430, 420, {size: 26, weight: 700, color: COL.acc});
+    text('P(mua | trời) = 0,0003', 1430, 490, {size: 26, weight: 700, color: COL.frame});
+  });
+  fade(G, P(t, ss + 0.3, 0.5), () => {
+    card(300, 650, 1320, 150, {stroke: COL.hl});
+    text('cặp chưa gặp bao giờ: đếm ra 0 → cả câu thành 0', 340, 700, {size: 26, weight: 700, color: COL.hl});
+    fade(G, P(t, ss + ds * 0.5, 0.5), () => text('làm trơn (smoothing): chia bớt xác suất cho cặp chưa gặp, ví dụ Kneser-Ney 1995', 340, 755, {size: 25, color: COL.ink}));
+  });
+}
+
+// Weight follows the narration: 0 until w1, ramps to 1 during w1, then to 3 during w3.
+function weightAt(t) {
+  const s1 = S('w1'), s3 = S('w3');
+  if (t < s1) return 0;
+  if (t < s3) return lerp(0, 1, Clip.ease(P(t, s1 + 0.3, 1.5)));
+  return lerp(1, 3, Clip.ease(P(t, s3 + 0.3, 1.8)));
+}
+
+function shotTable(G, t) {
+  const sc = S('cands'), sf = S('formula');
+  heading('Cùng một đoạn âm thanh, bốn câu');
+  const w = weightAt(t), rows = CANDS.map(([s, a, l]) => ({s, a, l, tot: a + w * l})).sort((x, y) => y.tot - x.tot);
+  const cx = [260, 900, 1170, 1460];
+  fade(G, P(t, sc + 0.3, 0.5), () => {
+    ['Câu', 'Âm học', 'Ngôn ngữ', 'Tổng'].forEach((h, j) => text(h, cx[j], 250, {size: 24, weight: 600, color: COL.mute, align: j ? 'right' : 'left'}));
+    line(240, 278, 1500, 278, COL.line2, 2);
+    rows.forEach((r, i) => {
+      const y = 330 + i * 76, win = i === 0;
+      if (win) rrect(240, y - 32, 1260, 64, 10, '#e8f3ec', COL.ok, 2);
+      text((win ? '✓ ' : '') + r.s, cx[0] + 10, y, {size: 30, weight: win ? 700 : 400, color: win ? COL.ok : COL.ink});
+      text(f1(r.a), cx[1], y, {size: 28, align: 'right'});
+      text(f1(r.l), cx[2], y, {size: 28, align: 'right'});
+      fade(G, P(t, sf + 0.3, 0.5), () => text(f1(r.tot), cx[3], y, {size: 30, weight: 700, color: win ? COL.ok : COL.ink, align: 'right'}));
+    });
+    text('điểm là log: càng ít âm càng tốt · số minh họa', 240, 640, {size: 20, color: COL.mute});
+  });
+  fade(G, P(t, sf + 0.3, 0.5), () => {
+    text('tổng = âm học + trọng số × ngôn ngữ', 960, 700, {size: 30, weight: 700, color: COL.acc, align: 'center'});
+    const X = v => 560 + v / 3 * 800;
+    line(X(0), 780, X(3), 780, COL.line2, 6);
+    [0, 1, 2, 3].forEach(v => text(String(v), X(v), 816, {size: 20, color: COL.mute, align: 'center'}));
+    line(X(0), 780, X(w), 780, COL.acc, 6);
+    Clip.g.beginPath(); Clip.g.arc(X(w), 780, 14, 0, Math.PI * 2); Clip.g.fillStyle = COL.acc; Clip.g.fill();
+    text(`trọng số LM = ${w.toFixed(1).replace('.', ',')}`, X(3) + 40, 780, {size: 26, weight: 700, color: COL.acc});
+  });
+  const note = t >= S('w3') + 2.5 ? ['quá cao: chọn câu "nghe hay", không khớp âm thanh', COL.hl]
+    : t >= S('w1') + 2 ? ['câu hay gặp thắng', COL.ok] : t >= S('w0') + 0.3 ? ['chỉ nghe: "trời mua" thắng', COL.frame] : null;
+  if (note) text(note[0], 1540, 330, {size: 24, weight: 700, color: note[1], maxW: 340});
+}
+
+function shotTune(G, t) {
+  const s = S('tune'), d = D('tune');
+  heading('Chọn trọng số trên tập dev');
+  const B = {x: 360, y: 260, w: 900, h: 400};
+  const {X, Y} = Clip.axes(B, [0, 3], [0, 1], {ticksX: [0, 0.5, 1, 1.5, 2, 2.5, 3], fmtX: v => String(v).replace('.', ','), xlabel: 'trọng số LM', ylabel: 'WER trên tập dev (minh họa)'});
+  const ws = Array.from({length: 61}, (_, k) => k / 20), err = w => 0.18 + 0.5 * Math.exp(-w * 4) + 0.06 * (w - 1) ** 2;
+  poly(ws.map(X), ws.map(w => Y(err(w))), COL.acc, 4, null, P(t, s + 0.4, 1.5));
+  fade(G, P(t, s + 2, 0.5), () => {
+    const wm = ws.reduce((b, w) => (err(w) < err(b) ? w : b), 0);
+    Clip.g.beginPath(); Clip.g.arc(X(wm), Y(err(wm)), 10, 0, Math.PI * 2); Clip.g.fillStyle = COL.ok; Clip.g.fill();
+    text('chỗ cân bằng', X(wm), Y(err(wm)) + 40, {size: 24, weight: 700, color: COL.ok, align: 'center'});
+    text('chỉ nghe', X(0.1), Y(err(0)) - 20, {size: 22, color: COL.frame});
+    text('nghe theo thói quen', X(2.3), Y(err(3)) - 30, {size: 22, color: COL.hl, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.45, 0.5), () => {
+    card(1340, 300, 420, 300, {stroke: COL.acc});
+    text('hệ GMM-HMM thật', 1370, 350, {size: 26, color: COL.mute});
+    text('trọng số 10–15', 1370, 410, {size: 34, weight: 700, color: COL.acc});
+    text('điểm âm học cộng trên hàng trăm frame: rất "tự tin"', 1370, 480, {size: 22, maxW: 360});
+  });
+}
+
+const LAT = [[['hôm', 0]], [['nay', 0]], [['trời', 0], ['chời', -3]], [['mưa', 0], ['mua', -1], ['nắng', -4], ['múa', -6]], [['rất', 0], ['dất', -5]]];
+function shotBeam(G, t) {
+  const s = S('beam'), d = D('beam');
+  heading('Tìm kiếm chùm (beam search)');
+  const X = j => 300 + j * 330, Y = (k, n) => 470 + (k - (n - 1) / 2) * 100;
+  const shown = Math.ceil(LAT.length * P(t, s + 0.5, d * 0.5));
+  for (let j = 0; j < shown; j++) {
+    LAT[j].forEach(([w, sc], k) => {
+      const n = LAT[j].length, keep = k < 2, x = X(j), y = Y(k, n);
+      if (j > 0) LAT[j - 1].forEach((_, kp) => { if (kp < 2) line(X(j - 1) + 70, Y(kp, LAT[j - 1].length), x - 70, y, keep ? COL.acc + '88' : COL.line, keep ? 2.5 : 1.5, keep ? null : [5, 5]); });
+      rrect(x - 70, y - 30, 140, 60, 12, keep ? COL.accSoft : COL.soft, keep ? COL.acc : COL.line2, keep ? 2.5 : 1.5);
+      text(w, x, y, {size: 26, weight: keep ? 700 : 400, color: keep ? COL.acc : COL.mute, align: 'center'});
+      if (!keep) text('✗', x + 84, y, {size: 24, weight: 700, color: COL.hl});
+    });
+  }
+  fade(G, P(t, s + d * 0.6, 0.5), () => {
+    card(460, 720, 1000, 100, {stroke: COL.acc});
+    text('mỗi bước chỉ giữ vài đường điểm cao nhất (ở đây: 2), bỏ phần còn lại', 960, 770, {size: 26, weight: 700, color: COL.acc, align: 'center'});
+  });
+  fade(G, P(t, s + 0.3, 0.5), () => text('đồ thị ghép HMM + từ điển + n-gram, chạy kiểu Viterbi', 960, 240, {size: 24, color: COL.mute, align: 'center'}));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['n-gram: đếm từ nào hay theo sau vài từ trước', ''],
+   ['cần làm trơn cho cặp chưa gặp', ''],
+   ['trọng số LM cân giữa nghe giống và câu hợp lý', ''],
+   ['decoder tìm bằng beam search', '']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text('✓', 400, 290 + j * 84, {size: 34, weight: 700, color: COL.ok});
+      text(a, 450, 290 + j * 84, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 800, 680, 'Phần 5: WER  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 4', [
+  ['phần câu có hợp lý không', 'mô hình ngôn ngữ (LM), P(W)', 'học từ văn bản'],
+  ['nhìn n − 1 từ trước', 'n-gram (bigram, trigram)', 'đếm trên nhiều văn bản'],
+  ['chia xác suất cho cặp chưa gặp', 'làm trơn (smoothing)', 'ví dụ Kneser-Ney'],
+  ['hệ số nhân điểm ngôn ngữ', 'trọng số LM (LM weight)', 'chọn trên tập dev'],
+  ['dữ liệu riêng để chỉnh', 'tập dev (development set)', 'không dùng để học'],
+  ['chỉ giữ các đường điểm cao', 'tìm kiếm chùm (beam search)', 'decoder không thử hết'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'need', to: 'ngram', draw: shotNgram},
+    {from: 'bigram', to: 'smooth', draw: shotBigram},
+    {from: 'cands', to: 'w3', draw: shotTable},
+    {from: 'tune', to: 'tune', draw: shotTune},
+    {from: 'beam', to: 'beam', draw: shotBeam},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/asr-4-lm.wav');
+</script>
+</body>
+</html>

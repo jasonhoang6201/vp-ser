@@ -1,0 +1,30 @@
+{
+  "clip": "pool-2-cong-cu",
+  "title": "Từ frame đến câu · Phần 2: Bốn công cụ",
+  "segments": [
+    {"id": "intro",
+     "sub": "Từ frame đến câu, phần 2: bốn công cụ.",
+     "say": "Từ frame đến cả câu, phần hai: bốn công cụ."},
+    {"id": "pipe",
+     "sub": "Đường đi: sóng âm → encoder (L tầng) → trộn các tầng → pooling theo thời gian → bộ phân loại → nhãn.",
+     "say": "Đường đi: sóng âm vào en cô đơ có eo tầng, trộn các tầng lại, pu ling theo thời gian, rồi vào bộ phân loại, ra nhãn."},
+    {"id": "pool",
+     "sub": "Công cụ 1, pooling: gộp T vector thành 1, bằng trung bình (mean) hoặc trung bình có trọng số học được (attention pooling). Giải quyết: nhiều frame, một nhãn.",
+     "say": "Công cụ thứ nhất là pu ling: gộp tê véc tơ thành một, bằng trung bình, hoặc trung bình có trọng số học được, gọi là ờ ten sần pu ling. Nó giải quyết vấn đề nhiều frame mà chỉ một nhãn."},
+    {"id": "layer",
+     "sub": "Công cụ 2, trộn các tầng: tổng có trọng số của mọi tầng, trọng số học được. Giải quyết: không biết tầng nào chứa cảm xúc.",
+     "say": "Công cụ thứ hai là trộn các tầng: lấy tổng có trọng số của mọi tầng, với trọng số học được. Nó giải quyết vấn đề không biết tầng nào chứa cảm xúc."},
+    {"id": "probe",
+     "sub": "Công cụ 3, probe hay fine-tune: đóng băng encoder, chỉ học phần sau (probe), hoặc học lại cả encoder (fine-tune). Giải quyết: tốn kém, dễ học thuộc.",
+     "say": "Công cụ thứ ba là chọn giữa pờ rốp và phai tiu: đóng băng en cô đơ và chỉ học phần phía sau, hoặc học lại cả en cô đơ. Nó giải quyết vấn đề tốn kém và dễ học thuộc."},
+    {"id": "e2v",
+     "sub": "Công cụ 4, emotion2vec: một encoder học sẵn riêng cho cảm xúc. Giải quyết: encoder chung học cho nội dung nhiều hơn cảm xúc.",
+     "say": "Công cụ thứ tư là i mô sần tu véc, một en cô đơ học sẵn riêng cho cảm xúc. Nó giải quyết vấn đề en cô đơ chung học cho nội dung nhiều hơn cảm xúc."},
+    {"id": "result",
+     "sub": "Tóm lại: pooling, trộn tầng, probe hay fine-tune, emotion2vec. Phần 3: pooling, trung bình làm loãng, attention thì không.",
+     "say": "Tóm lại bốn công cụ: pu ling, trộn tầng, pờ rốp hay phai tiu, và i mô sần tu véc. Phần ba: pu ling, vì sao trung bình làm loãng, còn ờ ten sần thì không."},
+    {"id": "terms",
+     "sub": "Thuật ngữ của phần này.",
+     "say": "Các thuật ngữ của phần này."}
+  ]
+}

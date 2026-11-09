@@ -1,0 +1,591 @@
+=== page 1 ===
+This work has been submitted to the IEEE for possible publication. Copyright may be transferred without notice, after which this version may no longer be accessible.
+HARMONIFUSE: A COMPONENT-SELECTIVE AND PROMPT-ADAPTIVE FRAMEWORK
+FOR MULTI-TASK SPEECH LANGUAGE MODELING
+Yuke Si1,2,†, Runyan Yang1,2,†, Yingying Gao1,2, Junlan Feng1,2, Chao Deng1,2, Shilei Zhang1,2,∗
+1Jiutian Artificial Intelligence Research Institute, China Mobile, Beijing, China
+2The State Key Laboratory of Multimedia Information Processing, Peking University, Beijing, China
+ABSTRACT
+Recent advances in large language models have facilitated the
+development of unified speech language models (SLMs) ca-
+pable of supporting multiple speech tasks within a shared ar-
+chitecture. However, tasks such as automatic speech recog-
+nition (ASR) and speech emotion recognition (SER) rely on
+distinct types of information: ASR primarily depends on lin-
+guistic content, whereas SER requires the integration of both
+linguistic and paralinguistic cues. Existing multitask SLMs
+typically adopt naive parameter sharing or prompt-based con-
+ditioning without explicitly modeling the differences in infor-
+mation composition required by each task. Such designs risk
+task interference and performance degradation, especially un-
+der limited data conditions. To address these limitations, we
+propose HarmoniFuse, a component-selective and prompt-
+adaptive framework for multi-task speech language model-
+ing. HarmoniFuse is designed to harmonize heterogeneous
+task demands by selecting and fusing task-relevant compo-
+nents of speech representations. Specifically, it integrates a
+gated speech encoder to extract task-specific acoustic features
+and a prompt-adaptive dynamic fusion module to aggregate
+transformer layers based on task characteristics. In addition,
+a batch-interleaved training strategy enables leveraging sep-
+arate ASR and SER datasets without requiring joint annota-
+tion. Experimental results demonstrate that HarmoniFuse im-
+proves both ASR and SER performance, offering a scalable
+and robust solution for multitask speech understanding under
+realistic data constraints.
+Index Terms— Multi-task Learning, Speech Emotion
+Recognition, Automatic Speech Recognition
+1. INTRODUCTION
+Benefiting from the rapid evolution of large language models
+(LLM), large-scale speech understanding systems have in-
+creasingly adopted a unified multitask processing paradigm [1,
+2, 3, 4, 5, 6]. These works demonstrate that shared encoder-
+decoder architectures can handle diverse speech tasks through
+† Equal contribution
+* Corresponding author
+multitask joint training, usually including automatic speech
+recognition (ASR), language identification, and speech emo-
+tion recognition (SER), etc. These unified multitask frame-
+works offer significant advantages by reducing deployment
+overhead, enhancing cross-task generalization, and enabling
+holistic speech understanding.
+Current large speech language models (SLMs) commonly
+adopt a brute-force multitask training strategy, leveraging
+hundreds of thousands of hours’ annotated data to implicitly
+resolve task conflicts across diverse objectives [7].
+Some
+models further incorporate prompt-based decoding mecha-
+nisms to distinguish between tasks during inference [4, 6],
+providing a lightweight form of task conditioning. However,
+these approaches typically lack explicit architectural mecha-
+nisms for modeling the divergent nature of tasks like ASR and
+SER. Moreover, the effectiveness of this data-driven strategy
+hinges on the availability of large-scale multi-label datasets,
+which are especially costly and scarce for affective tasks such
+as SER. This limits the scalability and applicability of cur-
+rent approaches in scenarios where the available data remains
+insufficient for large-scale model training.
+In contrast, prior work on ASR-SER integration has
+largely been conducted in small-scale models, where re-
+searchers have proposed strategies to mitigate task interfer-
+ence. Classical approaches include cascaded pipelines that
+apply ASR followed by text-based SER [8, 9], but such
+designs suffer from ASR error propagation and disconnect
+between acoustic and emotional features.
+More recently,
+some SER-related studies have introduced representation
+disentanglement [10, 11] and multi-stream attention mecha-
+nisms [12, 13, 14] to separately model affective and linguistic
+cues. While these methods show promise in controlled set-
+tings, they are typically developed for specific tasks and
+lightweight model architectures, and have not yet been ap-
+plied to large-scale SLMs with unified multitask capabilities.
+To address the above challenges, we propose Harmoni-
+Fuse, a component-selective and prompt-adaptive framework
+for multi-task speech language modeling. The core insight
+is that effective multi-task learning for divergent tasks such
+as ASR and SER requires more than parameter sharing. It
+demands task-aware, dynamic control over how information
+arXiv:2509.18570v1  [eess.AS]  23 Sep 2025
+
+=== page 2 ===
+This work has been submitted to the IEEE for possible publication. Copyright may be transferred without notice, after which this version may no longer be accessible.
+is extracted, routed, and fused within the model. Harmoni-
+Fuse selectively emphasizes task-specific components based
+on task prompt, such as linguistic details for ASR and a com-
+bination of linguistic and paralinguistic cues for SER.
+HarmoniFuse introduces three key innovations. First, a
+speech encoder selectively emphasizes task-relevant compo-
+nents from raw audio based on task characteristics. Second,
+a prompt-adaptive layer fusion module dynamically aggre-
+gate transformer layers based on task prompts and input sam-
+ples, allowing the decoder to flexibly shift attention between
+linguistic precision and paralinguistic expressiveness. Third,
+a batch-interleaved training strategy is introduced to over-
+come the scarcity of jointly annotated ASR-SER data, al-
+lowing the model to alternate between independent ASR and
+SER samples during training. This design leverages separate
+task-specific datasets while still promoting cross-task learn-
+ing. Together, these innovations provide fine-grained control
+over task-aware information flow, effectively mitigating task
+interference, improving generalization across diverse tasks,
+and enabling robust multi-task speech understanding in data-
+constrained conditions.
+2. METHOD
+As shown in Fig. 1, HarmoniFuse consists of four compo-
+nents: (1) a speech encoder for extracting continuous acous-
+tic representations from raw audio, (2) a multi-modal trans-
+former language model for task-aware contextual processing,
+(3) a prompt-adaptive dynamic layer fusion module, and (4)
+task-specific output layers for downstream ASR or SER.
+2.1. Speech Encoder with Gated Layer Fusion
+The first stage of HarmoniFuse converts raw waveforms into
+high-level speech representations. We employ a pre-trained
+24-layer WavLM model [15] as the speech encoder due to
+its strong capability in capturing both phonetic content and
+prosodic cues across multiple layers. Given an input speech
+waveform, the speech encoder extracts a sequence of layer
+hidden states: H1, H2, . . . , H24 ∈RT0×d0, where T0 is the
+representation sequence length and d0 is the WavLM model
+hidden dimension. To enable task-aware fusion across layers,
+we introduce a learnable weighting mechanism over all layers
+instead of using only the static layer:
+Hfused =
+24
+X
+i=1
+exp (wi)
+P24
+j=1 exp (wj)
+Hi,
+(1)
+where wi is the learnable weight parameter of the i-th layer,
+jointly optimized with other model parameters during end-
+to-end training. This layer fusion mechanism allows the en-
+coder to dynamically emphasize different layer combinations
+based on task characteristics, thereby avoiding over-reliance
+speech
+ASR Head
+SER Head
+ASR Transcripts
+Emotion Label
+Multi-modal Transformer Language Model
+……
+HarmoniFuse within 
+Speech Language Model
+Task Prompt
+Gate
+Speech
+Encoder
+Task-specific Output Layers
+Prompt-adaptive Dynamic Layer Fusion
+ASR Fusion
+Params
+SER Fusion
+Params
+Fig. 1. Overall architecture of proposed HarmoniFuse, featur-
+ing gated encoder-layer fusion and prompt-adaptive dynamic
+transformer layer fusion to harmonize linguistic and paralin-
+guistic components across ASR and SER tasks.
+on shallow or top-level features. It also enhances training effi-
+ciency and task specialization without requiring separate fine-
+tuning for each task.
+2.2. Multi-modal Transformer LM
+The second stage processes fused speech representations us-
+ing a transformer-based language model. Inspired by recent
+multitask prompting strategies [16, 6], we design a structured
+input format comprising three main parts: (1) speech repre-
+sentation Hfused, (2) a task prompt token or token sequence
+(e.g., “speech recognition” for ASR or “emotion recognition”
+for SER), and (3) a “BOS” (beginning-of-sentence) token that
+signals the model to begin generation. These are concatenated
+and fed into a stack of M Transformer encoder layers. Given
+the input sequence, the model produces each layer’s contex-
+tual representations Rm, m ∈{1, 2, . . . , M}:
+Rm = [rm,1, rm,2, . . . , rm,T ] ∈RT ×d,
+(2)
+where T is the sequence length and d is the hidden dimension.
+
+=== page 3 ===
+This work has been submitted to the IEEE for possible publication. Copyright may be transferred without notice, after which this version may no longer be accessible.
+2.3. Prompt-adaptive Dynamic Layer Fusion
+To enable task-specific adaptation, we introduce a dynamic
+layer fusion module on top of the SLM. For a given speech
+task τ, at each output time step t, we use a set of weights to
+fuse the model’s layer-wise representation:
+ατ
+t =
+
+ατ
+1,t, ατ
+2,t, . . . , ατ
+M,t
+
+,
+(3)
+where each ατ
+m,t ∈[0, 1] represents the importance of layer
+m. The final task-conditioned representation is computed as:
+rτ
+t =
+M
+X
+m=1
+ατ
+m,trm,t.
+(4)
+Specifically, ατ
+m for each layer is decomposed into two parts:
+ατ
+m,t = β · σ (λτ
+m) + (1 −β) · σ
+ FFN
+ rτ
+m,t; Θm
+
+,
+(5)
+where β is a hyperpameter set to 0.5, σ (·) denotes the sig-
+moid function, λτ
+m is a learnable task- and layer-specific
+scalar parameter, and FFN (·; Θm) is a feed-forward network
+specific to layers with hidden dimention d′ = d/4, taking
+hidden representation rτ
+m,t as input. The first part of ατ
+m,t
+encodes the preference directly related to the task, while the
+second part captures the relevance of speech representations
+as well as task prompts.
+2.4. Task-specific Output Layers
+The final stage includes task-specific heads that project the
+fused transformer representation to output spaces for ASR or
+SER.
+2.4.1. ASR Head (Autoregressive Sequence Generation)
+For ASR, the model generates output tokens in an autoregres-
+sive manner. At each decoding step t, the head computes
+a probability distribution over the vocabulary using a linear
+projection followed by a softmax:
+pt (yt) = Softmax
+ WASRrASR
+t
++ bASR
+
+(6)
+where rASR
+t
+is the output fused hidden state of the Trans-
+former at step t, and WASR, bASR are learnable parameters.
+The loss is computed using cross-entropy with teacher forcing
+during training.
+2.4.2. SER Head (Classification)
+For SER, the SLM predict only the emotion label (i.e. T = 1).
+So we use the fused hidden state rSER
+1
+of the Transformer to
+predict the label. The head applies a fully connected layer:
+pSER = Softmax
+ WSERrSER
+1
++ bSER
+
+(7)
+where WSER, bSER are task-specific learnable parameters.
+The loss is computed using categorical cross-entropy.
+3. EXPERIMENT SETUP
+3.1. Datasets
+For the ASR task, we utilize the widely adopted 960 hours
+LibriSpeech dataset [17] as our primary training corpus. To
+enhance the robustness of speech recognition across variable
+speaking styles, we apply 3-fold speed perturbation at ratio
+0.9, 1.0 and 1.1 [18].
+For the SER task, we adopt the IEMOCAP dataset [19] as
+the primary supervised corpus. To scale up the data for large
+model training, we further incorporate unlabeled speech from
+the Emilia dataset [20], which was originally designed for
+speech synthesis and features rich emotional expressiveness.
+We follow the Emotion2Vec framework [21] to automatically
+generate emotion pseudo-labels for Emilia. To ensure label
+compatibility with IEMOCAP, we perform emotion category
+alignment and retain four prototypical emotions: happy, sad,
+angry, and neutral [21, 22].
+From the full Emilia corpus,
+we select approximately 1,800 hours of English utterances
+with a relatively balanced distribution across these four emo-
+tion classes. This pseudo-labeled subset of Emilia is then
+combined with IEMOCAP to form the training data. Instead
+of performing 5-fold cross-validation as commonly done for
+IEMOCAP in smaller-scale setups, we directly adopt the ses-
+sion 5 as a fixed held-out test set, in line with several existing
+works where high computational cost limits repeated training
+across folds [22]. The remainder of IEMOCAP data is used
+for training and validation, providing a rigorous and repro-
+ducible evaluation while avoiding unnecessary retraining.
+3.2. Model and Training Settings
+The multi-modal transformer language model in Harmoni-
+Fuse consists of 12 transformer blocks, each with 12 atten-
+tion heads, a hidden size of 768, and a feed-forward network
+size of 2,048. The total number of trainable parameters is ap-
+proximately 160 million. Training is performed on 4 NVIDIA
+A800 GPUs (80 GB each). One training batch on each GPU
+contains 400 seconds of speech, and we apply gradient accu-
+mulation over 4 steps to simulate a larger effective batch size.
+Optimization is conducted using the Adam optimizer with an
+initial warm-up of 2,000 steps, followed by linear decay. We
+train the model for 20 epochs, and select the checkpoint with
+the lowest validation loss for final evaluation.
+4. RESULTS AND DISCUSSION
+We evaluate HarmoniFuse on two downstream tasks: SER
+and ASR. For SER, we report unweighted accuracy (UA) and
+weighted accuracy (WA), which measure performance by av-
+eraging over classes and by accounting for class distribution,
+respectively. For ASR, we report word error rate (WER) on
+both the “clean” and “other” subsets of the LibriSpeech test
+set. The results are presented in Tables 1 and 2.
+
+=== page 4 ===
+This work has been submitted to the IEEE for possible publication. Copyright may be transferred without notice, after which this version may no longer be accessible.
+Table 1. Experimental results on single-task models.
+Method
+SER
+ASR clean
+ASR other
+UA(%)
+WA(%)
+WER(%)
+WER(%)
+Encoder WavLM12
+75.01
+73.65
+8.0
+13.9
+Encoder WavLM24
+71.58
+71.64
+4.5
+6.0
+Encoder Gate
+75.31
+75.66
+3.8
+5.1
+Single-task performance: gated layer aggregation en-
+hances encoder representation learning. Table 1 shows the
+performance of different encoder layer selections in single-
+task settings. Prior studies have shown that different layers
+of pre-trained speech models like wav2vec 2.0 and HuBERT
+capture distinct types of information [23, 24]. They showed
+that lower and middle layers tend to preserve acoustic and
+paralinguistic features, while top layers encode more linguis-
+tic information. Our experiments corroborate these findings.
+Specifically, we observe that using the 12th layer of the
+WavLM encoder yields the higher accuracy for SER (75.01%
+on UA and 73.65% on WA), likely because this layer best pre-
+serves emotional cues such as pitch, rhythm, and tone. In con-
+trast, the 24th (final) layer achieves the lowest WER for ASR
+(4.5% on clean, 6.0% on other), consistent with its stronger
+focus on semantic content. To move beyond fixed-layer selec-
+tion, we introduce a learnable gating mechanism to aggregate
+information across all encoder layers. This approach outper-
+forms both single-layer baselines, improving SER to 75.31%
+(UA) and 75.66% (WA) and reducing ASR WER to 3.8%
+(clean) and 5.1% (other), showing that gated speech encoder
+is beneficial even in single-task scenarios.
+Multi-task performance: handling conflicts between
+SER and ASR. Table 2 reports performance under multi-task
+learning with task prompts. It shows that the shared encoder
+alone cannot ensure effective multi-task learning, and the
+model exhibits trade-off results without the prompt-adaptive
+dynamic layer fusion. Specifically, the model using the 12th
+layer performs reasonably well on SER (75.51% on UA and
+74.94% on WA) but poorly on ASR (6.1% WER on clean
+and 12.1% on other), while the 24th layer does the opposite.
+The gated speech encoder attempts to compromise, but still
+fails to reach the performance of the best single-task models,
+suggesting that static fusion cannot resolve task interference.
+In contrast, HarmoniFuse introduces prompt-adaptive dy-
+namic layer fusion, allowing the model to dynamically aggre-
+gate different layers depending on the task. This significantly
+improves both tasks: SER accuracy rises to 76.51% (UA)
+and 76.31% (WA), and ASR WER drops to 3.5% (clean) and
+5.1% (other). Notably, both ASR and SER performances sur-
+passes the single-task oracle baselines (WER 3.8% on clean
+and 5.1% on other for ASR, UA 75.31% and WA 75.66% for
+SER), confirming that our method effectively balances task-
+specific needs without requiring separate models.
+To further analyze the model’s behavior, we visualize the
+Table 2. Experimental results on multi-task with task prompt.
+Method
+SER
+ASR clean
+ASR other
+UA(%)
+WA(%)
+WER(%)
+WER(%)
+Encoder WavLM12
+75.51
+74.94
+6.1
+12.1
+Encoder WavLM24
+74.01
+73.97
+3.8
+5.6
+Encoder Gate
+76.14
+75.42
+3.9
+5.8
+HarmoniFuse
+76.51
+76.31
+3.5
+5.1
+Fig. 2.
+Comparison of layer-weights distribution between
+SER and ASR in speech language model.
+learned layer fusion weights σ (λτ
+m) of Eq. (5) in Figure 2.
+For SER, the model assigns higher importance to both the
+highest and mid-level layers (e.g., peaks at index 8 and 12),
+indicating a strong reliance on both prosodic and linguistic
+components. In contrast, the ASR task emphasizes deeper
+layers, more concentrating on refined linguistic component. It
+validates that HarmoniFuse learns task-discriminative repre-
+sentations by selecting the most relevant layers for each task.
+Rather than forcing a compromise, the model routes informa-
+tion according to the unique demands of each objective.
+5. CONCLUSION
+In this work, we presented HarmoniFuse, a component-
+selective and prompt-adaptive framework designed to harmo-
+nize divergent objectives in multitask speech understanding,
+specifically focusing on ASR and SER tasks. The proposed
+framework incorporates three key innovations: a gated speech
+encoder, prompt-adaptive dynamic layer fusion, and batch-
+interleaved training strategy. These components jointly ad-
+dress longstanding challenges in multitask learning, including
+representation conflicts, limited joint annotations, and inter-
+task interference.
+Experimental results demonstrate that it
+achieves strong performance across both tasks by dynami-
+cally coordinating linguistic and paralinguistic components,
+highlighting the benefits of task prompt-aware fusion in large
+speech language models.
+
+=== page 5 ===
+This work has been submitted to the IEEE for possible publication. Copyright may be transferred without notice, after which this version may no longer be accessible.
+6. REFERENCES
+[1] Junyi Ao, Rui Wang, Long Zhou, Chengyi Wang, Shuo
+Ren, Yu Wu, Shujie Liu, Tom Ko, Qing Li, Yu Zhang,
+et al.,
+“Speecht5:
+Unified-modal encoder-decoder pre-
+training for spoken language processing,”
+arXiv preprint
+arXiv:2110.07205, 2021.
+[2] Changli Tang, Wenyi Yu, Guangzhi Sun, Xianzhao Chen, Tian
+Tan, Wei Li, Lu Lu, Zejun Ma, and Chao Zhang, “Salmonn:
+Towards generic hearing abilities for large language models,”
+arXiv preprint arXiv:2310.13289, 2023.
+[3] Soham Deshmukh, Benjamin Elizalde, Rita Singh, and Huam-
+ing Wang, “Pengi: An audio language model for audio tasks,”
+Advances in Neural Information Processing Systems, vol. 36,
+pp. 18090–18108, 2023.
+[4] Yunfei Chu, Jin Xu, Xiaohuan Zhou, Qian Yang, Shil-
+iang Zhang, Zhijie Yan, Chang Zhou, and Jingren Zhou,
+“Qwen-audio: Advancing universal audio understanding via
+unified large-scale audio-language models,”
+arXiv preprint
+arXiv:2311.07919, 2023.
+[5] Yunfei Chu, Jin Xu, Qian Yang, Haojie Wei, Xipin Wei, Zhi-
+fang Guo, Yichong Leng, Yuanjun Lv, Jinzheng He, Junyang
+Lin, et al., “Qwen2-audio technical report,” arXiv preprint
+arXiv:2407.10759, 2024.
+[6] Keyu An, Qian Chen, Chong Deng, Zhihao Du, Changfeng
+Gao, Zhifu Gao, Yue Gu, Ting He, Hangrui Hu, Kai Hu, et al.,
+“Funaudiollm: Voice understanding and generation founda-
+tion models for natural interaction between humans and llms,”
+arXiv preprint arXiv:2407.04051, 2024.
+[7] Alec Radford, Jong Wook Kim, Tao Xu, Greg Brockman,
+Christine McLeavey, and Ilya Sutskever,
+“Robust speech
+recognition via large-scale weak supervision,” 2022.
+[8] Yuanchao Li, Peter Bell, and Catherine Lai, “Fusing asr out-
+puts in joint training for speech emotion recognition,”
+in
+ICASSP 2022-2022 IEEE International Conference on Acous-
+tics, Speech and Signal Processing (ICASSP). IEEE, 2022, pp.
+7362–7366.
+[9] Yuanchao Li, Peter Bell, and Catherine Lai,
+“Speech emo-
+tion recognition with asr transcripts: A comprehensive study
+on word error rate and fusion techniques,” in 2024 IEEE Spo-
+ken Language Technology Workshop (SLT). IEEE, 2024, pp.
+518–525.
+[10] Yu-Xuan Xi, Yan Song, Li-Rong Dai, Ian McLoughlin, and Lin
+Liu, “Frontend attributes disentanglement for speech emotion
+recognition,” in ICASSP 2022-2022 IEEE International Con-
+ference on Acoustics, Speech and Signal Processing (ICASSP).
+IEEE, 2022, pp. 7712–7716.
+[11] Zhichen Yuan, CL Philip Chen, Shuzhen Li, and Tong Zhang,
+“Disentanglement network: Disentangle the emotional fea-
+tures from acoustic features for speech emotion recogni-
+tion,” in ICASSP 2024-2024 IEEE International Conference
+on Acoustics, Speech and Signal Processing (ICASSP). IEEE,
+2024, pp. 11686–11690.
+[12] Shaode Yu, Jiajian Meng, Wenqing Fan, Ye Chen, Bing Zhu,
+Hang Yu, Yaoqin Xie, and Qiurui Sun, “Speech emotion recog-
+nition using dual-stream representation and cross-attention fu-
+sion,” Electronics, vol. 13, no. 11, pp. 2191, 2024.
+[13] Mustaqeem Khan, Phuong-Nam Tran, Nhat Truong Pham, Ab-
+dulmotaleb El Saddik, and Alice Othmani, “Memocmt: mul-
+timodal emotion recognition using cross-modal transformer-
+based feature fusion,”
+Scientific reports, vol. 15, no. 1, pp.
+5473, 2025.
+[14] Heqing Zou, Yuke Si, Chen Chen, Deepu Rajan, and Eng Siong
+Chng, “Speech emotion recognition with co-attention based
+multi-level acoustic information,” in ICASSP 2022-2022 IEEE
+International Conference on Acoustics, Speech and Signal Pro-
+cessing (ICASSP). IEEE, 2022, pp. 7367–7371.
+[15] Sanyuan Chen, Chengyi Wang, Zhengyang Chen, Yu Wu, Shu-
+jie Liu, Zhuo Chen, Jinyu Li, Naoyuki Kanda, Takuya Yosh-
+ioka, Xiong Xiao, et al., “Wavlm: Large-scale self-supervised
+pre-training for full stack speech processing,” IEEE Journal of
+Selected Topics in Signal Processing, vol. 16, no. 6, pp. 1505–
+1518, 2022.
+[16] Runyan Yang, Huibao Yang, Xiqing Zhang, Tiantian Ye, Ying
+Liu, Yingying Gao, Shilei Zhang, Chao Deng, and Junlan
+Feng, “Polyspeech: Exploring unified multitask speech models
+for competitiveness with single-task models,” arXiv preprint
+arXiv:2406.07801, 2024.
+[17] Vassil Panayotov, Guoguo Chen, Daniel Povey, and Sanjeev
+Khudanpur, “Librispeech: an asr corpus based on public do-
+main audio books,”
+in 2015 IEEE international conference
+on acoustics, speech and signal processing (ICASSP). IEEE,
+2015, pp. 5206–5210.
+[18] Tom Ko, Vijayaditya Peddinti, Daniel Povey, and Sanjeev Khu-
+danpur,
+“Audio augmentation for speech recognition,”
+in
+INTERSPEECH-2015, 2015, pp. 3586–3589.
+[19] Carlos
+Busso,
+Murtaza
+Bulut,
+Chi-Chun
+Lee,
+Abe
+Kazemzadeh,
+Emily Mower,
+Samuel Kim,
+Jeannette N
+Chang, Sungbok Lee, and Shrikanth S Narayanan, “Iemocap:
+Interactive emotional dyadic motion capture database,” Lan-
+guage resources and evaluation, vol. 42, no. 4, pp. 335–359,
+2008.
+[20] Haorui He, Zengqiang Shang, Chaoren Wang, Xuyuan Li,
+Yicheng Gu, Hua Hua, Liwei Liu, Chen Yang, Jiaqi Li,
+Peiyang Shi, et al.,
+“Emilia: An extensive, multilingual,
+and diverse speech dataset for large-scale speech generation,”
+in 2024 IEEE Spoken Language Technology Workshop (SLT).
+IEEE, 2024, pp. 885–890.
+[21] Ziyang Ma, Zhisheng Zheng, Jiaxin Ye, Jinchao Li, Zhifu Gao,
+Shiliang Zhang, and Xie Chen, “emotion2vec: Self-supervised
+pre-training for speech emotion representation,” arXiv preprint
+arXiv:2312.15185, 2023.
+[22] Li-Wei Chen and Alexander Rudnicky, “Exploring wav2vec
+2.0 fine tuning for improved speech emotion recognition,” in
+ICASSP 2023-2023 IEEE international conference on acous-
+tics, speech and signal processing (ICASSP). IEEE, 2023, pp.
+1–5.
+[23] Ant´on de la Fuente and Dan Jurafsky, “A layer-wise analysis of
+mandarin and english suprasegmentals in ssl speech models,”
+arXiv preprint arXiv:2408.13678, 2024.
+[24] Leonardo Pepino, Pablo Riera, and Luciana Ferrer, “Emotion
+recognition from speech using wav2vec 2.0 embeddings,” in
+Proc. Interspeech 2021, 2021, pp. 3400–3404.
+

@@ -1,0 +1,33 @@
+{
+  "clip": "mtl-5-ent",
+  "title": "Học ASR và SER cùng lúc · Phần 5: Transducer có cảm xúc",
+  "segments": [
+    {"id": "intro",
+     "sub": "Học ASR và SER cùng lúc, phần 5: transducer có cảm xúc, ENT.",
+     "say": "Học nhận dạng lời và cảm xúc cùng lúc, phần năm: transducer có cảm xúc, E en ti."},
+    {"id": "rnnt",
+     "sub": "RNN-T (transducer): kiểu ASR thứ ba bên cạnh CTC và attention. Encoder nghe âm thanh, mạng dự đoán nhìn các chữ đã viết, mạng \"joint\" kết hợp hai bên.",
+     "say": "A ren en ti, hay transducer, là kiểu nhận dạng thứ ba bên cạnh xi ti xi và ờ ten sần. Một en cô đơ nghe âm thanh, một mạng dự đoán nhìn các chữ đã viết, và một mạng joint kết hợp hai bên."},
+    {"id": "lattice",
+     "sub": "Ở mỗi ô (frame, vị trí chữ): viết chữ tiếp (đi lên) hay sang frame sau (đi phải). Đường đi đơn điệu như CTC.",
+     "say": "Ở mỗi ô của lưới, gồm frame và vị trí chữ, mạng joint quyết định: viết chữ tiếp theo, tức đi lên, hay sang frame sau, tức đi sang phải. Đường đi đơn điệu, giống xi ti xi."},
+    {"id": "pro",
+     "sub": "Ưu điểm của cả hai: căn đơn điệu như CTC, nhìn chữ đã viết như attention, chạy được trực tuyến.",
+     "say": "Nó có ưu điểm của cả hai: căn đơn điệu như xi ti xi, nhìn chữ đã viết như ờ ten sần, và chạy được trực tuyến."},
+    {"id": "ent",
+     "sub": "ENT (Emotion Neural Transducer, Shen và cộng sự, ICASSP 2024): thêm một mạng joint thứ hai cho cảm xúc, trên cùng lưới căn đó.",
+     "say": "E en ti, tức transducer nơ ron cảm xúc, của Shen và cộng sự, hội nghị ai cát sợp năm hai nghìn hai mươi bốn, thêm một mạng joint thứ hai cho cảm xúc, trên cùng lưới căn đó."},
+    {"id": "step",
+     "sub": "Cảm xúc được đoán theo từng bước dọc câu (chi tiết hơn một nhãn cả câu), rồi gộp thành nhãn câu. Bản trong bài báo dùng encoder wav2vec 2.0 base đóng băng.",
+     "say": "Nhờ vậy, cảm xúc được đoán theo từng bước dọc câu, chi tiết hơn một nhãn cho cả câu, rồi gộp lại thành nhãn câu. Bản trong bài báo dùng en cô đơ Ue tu véc hai bản cơ sở, đóng băng."},
+    {"id": "page",
+     "sub": "Tóm tắt trang: MTL = encoder chung + CTC + pooling; loss α. Hai việc giúp nhau lúc đầu, xung đột về sau; giải quyết bằng α, hai giai đoạn, PCGrad. Thay hai đầu: token chỉ việc, hoặc ENT.",
+     "say": "Tóm tắt cả trang: học đa nhiệm gồm en cô đơ chung, đầu xi ti xi và đầu pu ling, với loss có an pha. Hai việc giúp nhau lúc đầu và xung đột về sau, giải quyết bằng an pha, hai giai đoạn, hoặc pi xi grát. Thay cho hai đầu, có tô ken chỉ việc, hoặc gắn cảm xúc vào lưới của transducer."},
+    {"id": "result",
+     "sub": "Tóm lại: RNN-T có lưới căn; ENT gắn thêm joint cảm xúc, đoán theo từng bước. Trang sau: mô hình ngôn ngữ lớn nghe âm thanh.",
+     "say": "Tóm lại: a ren en ti có lưới căn, còn E en ti gắn thêm một joint cảm xúc, đoán theo từng bước. Trang sau: mô hình ngôn ngữ lớn biết nghe âm thanh."},
+    {"id": "terms",
+     "sub": "Thuật ngữ của phần này.",
+     "say": "Các thuật ngữ của phần này."}
+  ]
+}

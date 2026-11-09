@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Học ASR và SER cùng lúc · 1: Vấn đề</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/mtl-1-van-de.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Thành phần', '3 Kéo một bộ tham số', '4 SenseVoice', '5 ENT'];
+const PAINS = [
+  ['p1', 'nhiều mô hình lớn chạy nối tiếp', 'Whisper → RoBERTa → emotion2vec: chậm, tốn bộ nhớ'],
+  ['p2', 'lỗi lan truyền (error propagation)', 'ASR chép sai thì nhánh chữ đoán sai (trang 20)'],
+  ['p3', 'không chia sẻ kiến thức', 'ASR biết "từ nào", SER biết "nói thế nào": học riêng thì không ai dùng được của nhau'],
+];
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Học ASR và SER cùng lúc', 'Phần 1/5: hai hệ thống rời thì tốn, và không giúp nhau', 0, PARTS);
+
+function shotPlace(G, t) {
+  const s = S('place'), d = D('place');
+  heading('Multi-task learning: chữ "joint" trong đề tài');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    text('hai hệ thống rời', 520, 290, {size: 26, weight: 700, color: COL.hl, align: 'center'});
+    chip(G, 300, 330, 'âm thanh → ASR → chữ', {size: 24, weight: 700});
+    chip(G, 300, 410, 'âm thanh → SER → cảm xúc', {size: 24, weight: 700});
+  });
+  fade(G, P(t, s + d * 0.5, 0.5), () => {
+    text('một mô hình', 1360, 290, {size: 26, weight: 700, color: COL.ok, align: 'center'});
+    chip(G, 1040, 360, 'âm thanh', {size: 24, weight: 700});
+    rrect(1220, 340, 220, 90, 14, COL.accSoft, COL.acc, 3);
+    text('encoder chung', 1330, 385, {size: 24, weight: 700, color: COL.acc, align: 'center'});
+    arrow(1170, 386, 1214, 386, COL.mute, 2.5);
+    arrow(1446, 370, 1520, 330, COL.mute, 2.5); arrow(1446, 400, 1520, 440, COL.mute, 2.5);
+    chip(G, 1530, 300, 'chữ', {size: 24, weight: 700, color: COL.acc, stroke: COL.acc});
+    chip(G, 1530, 420, 'cảm xúc', {size: 24, weight: 700, color: COL.frame, stroke: COL.frame});
+  });
+}
+
+function shotPain(G, t) {
+  heading('Vấn đề của cách nối tiếp (ASR rồi SER)');
+  PAINS.forEach(([id, a, b], j) => fade(G, P(t, S(id) + 0.2, 0.5), () => {
+    const y = 240 + j * 180, on = t >= S(id) && t < E(id) + 0.3;
+    card(240, y, 1440, 150, {stroke: on ? COL.hl : COL.line, lw: on ? 3 : 2});
+    text(a, 280, y + 55, {size: 32, weight: 700, color: COL.hl});
+    text(b, 280, y + 110, {size: 25, color: COL.mute, maxW: 1360});
+  }));
+}
+
+function shotHope(G, t) {
+  const sh = S('hope'), dh = D('hope'), sr = S('risk'), sg = S('goal');
+  heading(t < sr ? 'Hy vọng khi học chung' : t < sg ? 'Nguy cơ' : 'Mục tiêu');
+  if (t < sr) {
+    fade(G, P(t, sh + 0.3, 0.5), () => {
+      rrect(760, 380, 400, 110, 16, COL.accSoft, COL.acc, 3);
+      text('encoder chung', 960, 435, {size: 30, weight: 700, color: COL.acc, align: 'center'});
+      chip(G, 260, 300, 'ASR: ép chú ý nội dung', {size: 26, weight: 700, color: COL.acc, stroke: COL.acc});
+      arrow(640, 340, 754, 410, COL.acc, 3);
+      text('→ giúp SER hiểu lời', 260, 400, {size: 24, color: COL.ok});
+    });
+    fade(G, P(t, sh + dh * 0.5, 0.5), () => {
+      chip(G, 1280, 300, 'SER: ép giữ cách nói', {size: 26, weight: 700, color: COL.frame, stroke: COL.frame});
+      arrow(1300, 340, 1166, 410, COL.frame, 3);
+      text('→ giúp ASR với giọng có cảm xúc', 1280, 400, {size: 24, color: COL.ok});
+    });
+    return;
+  }
+  if (t < sg) {
+    fade(G, P(t, sr + 0.3, 0.5), () => {
+      rrect(760, 380, 400, 110, 16, COL.hlSoft, COL.hl, 3);
+      text('encoder chung', 960, 435, {size: 30, weight: 700, color: COL.hl, align: 'center'});
+      arrow(760, 435, 520, 435, COL.acc, 5); text('ASR kéo', 500, 410, {size: 26, weight: 700, color: COL.acc, align: 'right'});
+      arrow(1160, 435, 1400, 435, COL.frame, 5); text('SER kéo', 1420, 410, {size: 26, weight: 700, color: COL.frame});
+      text('hai việc xung đột', 960, 600, {size: 32, weight: 700, color: COL.hl, align: 'center'});
+    });
+    return;
+  }
+  fade(G, P(t, sg + 0.3, 0.5), () => {
+    text('một encoder chung, hai đầu ra', 960, 340, {size: 36, weight: 700, align: 'center'});
+    text('mỗi việc ít nhất không tệ hơn học riêng', 960, 430, {size: 30, color: COL.ok, align: 'center'});
+    text('nếu được thì tốt hơn', 960, 490, {size: 30, color: COL.ok, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['✗', 'nối tiếp: chậm, lỗi lan, không chia sẻ', COL.hl], ['✓', 'học chung: có thể giúp nhau', COL.ok], ['!', 'cũng có thể xung đột', COL.frame]].forEach(([m, a, c], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text(m, 520, 300 + j * 90, {size: 34, weight: 700, color: c});
+      text(a, 570, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 820, 640, 'Phần 2: các thành phần  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 1', [
+  ['một mô hình học nhiều việc', 'multi-task learning (MTL), joint training', ''],
+  ['hệ nối tiếp nhiều mô hình', 'cascade / pipeline', 'ASR rồi SER'],
+  ['việc chính / việc phụ', 'main task / auxiliary task', ''],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'place', to: 'place', draw: shotPlace},
+    {from: 'p1', to: 'p3', draw: shotPain},
+    {from: 'hope', to: 'goal', draw: shotHope},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/mtl-1-van-de.wav');
+</script>
+</body>
+</html>

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>VITS · 2: Năm thành phần</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/vits-2-manh.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Năm thành phần', '3 VAE và flow', '4 MAS', '5 Độ dài ngẫu nhiên'];
+// [piece id, label, x, y, w, h]
+const BOX = [
+  ['vae', 'posterior encoder', 330, 240, 280, 100],
+  ['vae', 'z', 700, 240, 140, 100],
+  ['vae', 'decoder (HiFi-GAN)', 930, 240, 320, 100],
+  ['gan', 'discriminator', 1480, 240, 290, 100],
+  ['prior', 'flow', 700, 400, 140, 80],
+  ['prior', 'text encoder', 330, 540, 280, 100],
+  ['prior', 'phân phối từ chữ', 660, 540, 220, 100],
+  ['mas', 'MAS: căn chữ ↔ frame', 930, 540, 320, 100],
+  ['sdp', 'dự đoán độ dài ngẫu nhiên', 330, 690, 280, 100],
+];
+const PIECE = {vae: ['1', COL.acc], prior: ['2', COL.i], mas: ['3', COL.frame], sdp: ['4', COL.ok], gan: ['5', COL.hl]};
+const INFO = {
+  vae: 'VAE: nén spectrogram → z → dựng thẳng sóng âm · z do mô hình tự học, bỏ nút thắt Mel',
+  prior: 'prior + flow: chữ đoán phân phối của z · flow khả nghịch làm phân phối đủ linh hoạt',
+  mas: 'MAS: quy hoạch động, căn đơn điệu (mượn từ Glow-TTS) · không cần công cụ căn ngoài',
+  sdp: 'học phân phối của độ dài, khi dùng bốc mẫu · mỗi lần đọc một nhịp',
+  gan: 'discriminator chấm sóng thật hay giả · sóng âm sắc nét như trang 13',
+};
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('VITS', 'Phần 2/5: năm thành phần', 1, PARTS);
+
+function shotPieces(G, t) {
+  const ids = ['vae', 'prior', 'mas', 'sdp', 'gan'], cur = ids.find(id => t >= S(id) && t < E(id) + 0.3);
+  heading('Năm thành phần của VITS (lúc học)');
+  const g = Clip.g;
+  fade(G, P(t, S('vae') + 0.2, 0.5), () => {
+    chip(G, 90, 264, 'spectrogram', {size: 22, weight: 700});
+    chip(G, 150, 564, 'chữ', {size: 22, weight: 700});
+    arrow(270, 290, 322, 290, COL.mute, 2.5); arrow(230, 590, 322, 590, COL.mute, 2.5);
+    arrow(616, 290, 694, 290, COL.mute, 2.5); arrow(846, 290, 924, 290, COL.mute, 2.5);
+    arrow(1256, 290, 1300, 290, COL.mute, 2.5);
+    text('sóng âm', 1360, 290, {size: 22, weight: 700, align: 'center'});
+    arrow(1420, 290, 1474, 290, COL.mute, 2.5);
+    arrow(770, 346, 770, 394, COL.mute, 2.5); arrow(770, 486, 770, 534, COL.mute, 2.5);
+    arrow(616, 590, 654, 590, COL.mute, 2.5); arrow(886, 590, 924, 590, COL.mute, 2.5);
+    arrow(470, 646, 470, 684, COL.mute, 2.5);
+    text('KL', 820, 510, {size: 20, weight: 700, color: COL.i});
+    BOX.forEach(([pid, l, x, y, w, h]) => {
+      const [n, c] = PIECE[pid], seen = t >= S(pid), on = cur === pid;
+      rrect(x, y, w, h, 14, on ? c + '26' : COL.card, seen ? c : COL.line2, on ? 4 : 1.5);
+      text(l, x + w / 2, y + h / 2, {size: l === 'z' ? 34 : 22, weight: 700, color: seen ? c : COL.mute, align: 'center', maxW: w - 20});
+    });
+  });
+  if (cur) fade(G, P(t, S(cur) + 0.3, 0.4), () => {
+    const [n, c] = PIECE[cur];
+    rrect(1300, 400, 470, 390, 16, COL.card, c, 3);
+    text('thành phần ' + n, 1330, 450, {size: 30, weight: 700, color: c});
+    INFO[cur].split(' · ').forEach((s, j) => text(s, 1330, 520 + j * 120, {size: 24, maxW: 410}));
+  });
+}
+
+function shotMos(G, t) {
+  const s = S('mos');
+  heading('Kết quả trong bài báo (LJSpeech: tiếng Anh, một người đọc)');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    const B = {x: 660, y: 260, h: 360}, lo = 3.5, hi = 4.6;
+    [['VITS', 4.43, COL.frame], ['giọng thật', 4.46, COL.ok]].forEach(([l, v, c], j) => {
+      const h = (v - lo) / (hi - lo) * B.h * P(t, s + 0.6 + j * 0.4, 0.8), x = B.x + j * 360;
+      rrect(x, B.y + B.h - h, 220, h, 10, c);
+      text(String(v).replace('.', ','), x + 110, B.y + B.h - h - 28, {size: 34, weight: 700, color: c, align: 'center'});
+      text(l, x + 110, B.y + B.h + 34, {size: 26, weight: 700, align: 'center'});
+    });
+    line(B.x - 40, B.y + B.h, B.x + 640, B.y + B.h, COL.line2, 2);
+    text('MOS (trục bắt đầu từ 3,5)', B.x - 40, B.y - 30, {size: 20, color: COL.mute});
+  });
+  fade(G, P(t, s + D('mos') * 0.55, 0.5), () => text('cao hơn các hệ hai giai đoạn được so: Tacotron 2 + HiFi-GAN, Glow-TTS + HiFi-GAN', 960, 730, {size: 26, weight: 700, color: COL.mute, align: 'center', maxW: 1500}));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  Object.entries(PIECE).forEach(([pid, [n, c]], j) => fade(G, P(t, s + 0.3 + j * 0.6, 0.5), () => {
+    const x = 160 + j * 330, l = {vae: 'VAE', prior: 'prior + flow', mas: 'MAS', sdp: 'độ dài ngẫu nhiên', gan: 'GAN'}[pid];
+    rrect(x, 320, 290, 90, 14, c + '18', c, 3); text(l, x + 145, 365, {size: 26, weight: 700, color: c, align: 'center', maxW: 260});
+  }));
+  fade(G, P(t, s + 3.5, 0.5), () => text('một mô hình, học một lần, chữ → sóng âm', 960, 500, {size: 32, weight: 700, color: COL.ok, align: 'center'}));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 770, 640, 'Phần 3: VAE và flow  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 2', [
+  ['bộ nén / giải nén có z ngẫu nhiên', 'VAE (variational autoencoder)', ''],
+  ['mã ẩn giữa nén và giải nén', 'biến ẩn (latent) z', 'mô hình tự học'],
+  ['phân phối đoán từ chữ / từ âm thanh', 'prior / posterior', ''],
+  ['chuỗi phép biến đổi khả nghịch', 'normalizing flow', ''],
+  ['tìm cách căn đơn điệu tốt nhất', 'Monotonic Alignment Search (MAS)', ''],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'vae', to: 'gan', draw: shotPieces},
+    {from: 'mos', to: 'mos', draw: shotMos},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/vits-2-manh.wav');
+</script>
+</body>
+</html>

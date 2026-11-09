@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Audio-LLM · 2: Ba khối, ba giai đoạn</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/llm-2-cach-lam.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Ba khối, ba giai đoạn', '3 Bao nhiêu token', '4 Đọc câu trả lời'];
+const BLK = [
+  ['enc', 'encoder âm thanh', '(audio encoder)', COL.frame, 230, ['khởi tạo từ encoder Whisper-large-v3 (trang 12)', 'log-Mel 128 kênh', 'mỗi vector ≈ 40 ms']],
+  ['proj', 'bộ chiếu', '(projector)', COL.i, 650, ['đổi vector âm thanh về kích thước', 'vector token của LLM']],
+  ['llm', 'LLM (Qwen-7B)', '(decoder-only)', COL.acc, 1070, ['decoder-only như GPT (trang 17)', 'cả mô hình ≈ 8,2 tỉ tham số', 'hiểu lệnh, suy luận, viết trả lời']],
+];
+const STAGES = [
+  ['pre', 'tiền huấn luyện', 'rất nhiều cặp (âm thanh, mô tả bằng chữ): chép lời, mô tả âm thanh, cảm xúc… mỗi việc nêu bằng câu lệnh'],
+  ['sft', 'SFT (tinh chỉnh theo lệnh)', 'cặp (câu lệnh, câu trả lời mẫu) chất lượng cao: làm theo lệnh tốt'],
+  ['dpo', 'DPO', 'hai câu trả lời, học thích câu người chấm ưa hơn: đúng sự thật, đúng định dạng'],
+];
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Audio-LLM', 'Phần 2/4: ba khối và ba giai đoạn huấn luyện', 1, PARTS);
+
+function shotBlocks(G, t) {
+  const sp = S('pipe'), cur = ['enc', 'proj', 'llm'].find(id => t >= S(id) && t < E(id) + 0.3);
+  heading('âm thanh → encoder → bộ chiếu → LLM → câu trả lời');
+  fade(G, P(t, sp + 0.3, 0.5), () => {
+    chip(G, 60, 284, 'âm thanh', {size: 24, weight: 700});
+    BLK.forEach(([id, l, r, c, x], j) => fade(G, P(t, sp + 0.5 + j * 0.4, 0.4), () => {
+      const on = cur === id;
+      rrect(x, 240, 340, 140, 16, on ? c + '22' : COL.card, c, on ? 4 : 1.5);
+      text(l, x + 170, 295, {size: 28, weight: 700, color: c, align: 'center'});
+      text(r, x + 170, 340, {size: 24, color: c, align: 'center'});
+      arrow(x - 54, 310, x - 6, 310, COL.mute, 3);
+    }));
+    chip(G, 1070, 410, '+ token câu lệnh', {size: 22, weight: 700, color: COL.acc, stroke: COL.acc});
+    arrow(1170, 404, 1200, 386, COL.mute, 2.5);
+    arrow(1416, 310, 1480, 310, COL.mute, 3);
+    chip(G, 1490, 284, 'câu trả lời bằng chữ', {size: 24, weight: 700, color: COL.ok, stroke: COL.ok});
+  });
+  if (cur) fade(G, P(t, S(cur) + 0.3, 0.4), () => {
+    const [, l, r, c, , rows] = BLK.find(b => b[0] === cur);
+    card(240, 520, 1440, 260, {stroke: c});
+    text(`${l} ${r}`, 280, 570, {size: 30, weight: 700, color: c});
+    rows.forEach((s, j) => text('· ' + s, 280, 630 + j * 46, {size: 26}));
+  });
+}
+
+function shotStages(G, t) {
+  heading('Ba giai đoạn huấn luyện');
+  STAGES.forEach(([id, l, a], j) => fade(G, P(t, S(id) + 0.2, 0.5), () => {
+    const y = 240 + j * 180, on = t >= S(id) && t < E(id) + 0.3;
+    card(240, y, 1440, 150, {stroke: on ? COL.frame : COL.line, lw: on ? 3 : 2});
+    text(String(j + 1), 290, y + 75, {size: 50, weight: 700, color: on ? COL.frame : COL.line2, align: 'center'});
+    text(l, 350, y + 55, {size: 30, weight: 700, color: COL.frame});
+    text(a, 350, y + 110, {size: 25, maxW: 1300});
+  }));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  BLK.forEach(([, l, r, c], j) => fade(G, P(t, s + 0.3 + j * 0.6, 0.5), () => {
+    const x = 300 + j * 460; rrect(x, 300, 400, 100, 14, c + '18', c, 3);
+    text(`${l} ${r}`, x + 200, 350, {size: 26, weight: 700, color: c, align: 'center'});
+  }));
+  fade(G, P(t, s + 2.5, 0.5), () => text('tiền huấn luyện → SFT → DPO', 960, 490, {size: 32, weight: 700, color: COL.frame, align: 'center'}));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 720, 620, 'Phần 3: âm thanh chiếm bao nhiêu chỗ  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 2', [
+  ['lớp đổi vector âm thanh sang LLM', 'projector, adapter', ''],
+  ['dạy làm theo lệnh bằng câu mẫu', 'SFT, instruction tuning', ''],
+  ['dạy chọn câu trả lời được ưa hơn', 'DPO (Direct Preference Optimization)', ''],
+  ['Transformer chỉ có phần viết tiếp', 'decoder-only', 'như GPT'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'pipe', to: 'llm', draw: shotBlocks},
+    {from: 'pre', to: 'dpo', draw: shotStages},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/llm-2-cach-lam.wav');
+</script>
+</body>
+</html>

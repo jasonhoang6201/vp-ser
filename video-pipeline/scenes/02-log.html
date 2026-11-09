@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>MFCC 2: Log</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/dsp.js"></script>
+<script src="../lib/engine.js"></script>
+<script src="../build/02-log.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, axes, heat, clamp, lerp} = Clip;
+
+const a2 = DSP.frameInfo(DSP.envA, 200);
+const MX = Math.max(...a2.mel), RATIO = MX / Math.min(...a2.mel);
+const DMX = Math.max(...a2.ldb);
+const TOP5 = [...a2.mel.keys()].sort((p, q) => a2.mel[q] - a2.mel[p]).slice(0, 5);
+const TOP5_SHARE = TOP5.reduce((s, k) => s + a2.mel[k], 0) / a2.mel.reduce((s, v) => s + v, 0);
+const SMALL = a2.mel.filter(v => v < MX * 0.01).length;
+const LOUD = 10 * Math.log10(4);
+
+// A microphone with a presence hump and weak lows/highs; its effect on log-Mel is nearly the same for any vowel.
+const MIC = f => (0.15 + 1 / (1 + ((f - 2500) / 900) ** 2)) ** 2;
+const rawDb = m => m.map(v => 10 * Math.log10(v));
+function micShift(env, f0) {
+  const p = DSP.framePow(env, f0), q = p.map((v, k) => v * MIC(k * DSP.BIN_HZ));
+  const a = rawDb(DSP.melOf(p)), b = rawDb(DSP.melOf(q));
+  return b.map((v, k) => v - a[k]);
+}
+const SHIFT_A = micShift(DSP.envA, 200), SHIFT_I = micShift(DSP.envI, 200);
+
+// Filter 21 (1693 to 2006 Hz) holds two harmonics of the 200 Hz "a" and deep valleys between them.
+const FK = 20, FW = DSP.BANK[FK], FBINS = [...FW.keys()].filter(b => FW[b] > 0);
+const LOG_OF_SUM = 10 * Math.log10(FBINS.reduce((s, b) => s + FW[b] * a2.pow[b], 0));
+const MEAN_OF_LOG = FBINS.reduce((s, b) => s + FW[b] * 10 * Math.log10(a2.pow[b]), 0) / FBINS.reduce((s, b) => s + FW[b], 0);
+
+// One second of frames drifting between "a" and "i" with a gliding f0, same as the clip 1 heatmap.
+const SEQ = Array.from({length: 100}, (_, j) => {
+  const w = 0.5 - 0.5 * Math.cos(2 * Math.PI * j / 100 * 1.5), f0 = 190 + 50 * Math.sin(j / 100 * 5);
+  return DSP.frameInfo(f => (1 - w) * DSP.envA(f) + w * DSP.envI(f), f0).ldb;
+});
+const SEQ_LO = Math.min(...SEQ.flat()), SEQ_HI = Math.max(...SEQ.flat());
+
+const vn = (x, d = 1) => x.toFixed(d).replace('.', ',');
+function card(x, y, w, h, o = {}) { rrect(x, y, w, h, 14, o.fill || COL.card, o.stroke || COL.line, o.lw || 2); }
+function heading(s, y = 140) { text(s, 960, y, {size: 44, weight: 700, align: 'center'}); }
+function fade(G, q, fn) { if (q <= 0) return; G.save(); G.globalAlpha *= q; fn(); G.restore(); }
+function chip(G, x, y, s, o = {}) {
+  G.font = `${o.weight || 500} ${o.size || 24}px ${Clip.FONT}`;
+  const w = G.measureText(s).width + 36;
+  rrect(x, y, w, 52, 26, o.fill || COL.card, o.stroke || COL.line);
+  text(s, x + w / 2, y + 26, {size: o.size || 24, weight: o.weight || 400, color: o.color || COL.mute, align: 'center'});
+  return w;
+}
+
+/* ---------- shots ---------- */
+
+function shotIntro(G, t) {
+  fade(G, P(t, 0.3, 1.0), () => {
+    text('Log: đổi phép nhân thành phép cộng', 960, 400, {size: 76, weight: 700, align: 'center'});
+    text('Phần 2/6: bước log', 960, 490, {size: 34, color: COL.mute, align: 'center'});
+  });
+  const parts = ['1 Vấn đề', '2 Log', '3 DCT', '4 Giữ 13 hệ số', '5 Cả câu: ma trận, delta', '6 MFCC ngày nay'];
+  let x = 960 - 820;
+  parts.forEach((s, j) => {
+    const on = j === 1;
+    G.save(); G.globalAlpha *= P(t, 0.9 + j * 0.12, 0.5);
+    x += chip(G, x, 600, s, on ? {fill: COL.frameSoft, stroke: COL.frame, color: COL.frame, weight: 600} : {}) + 16;
+    G.restore();
+  });
+}
+
+function shotRecap(G, t) {
+  heading('Bước 1 của MFCC: lấy log');
+  const s = S('recap'), d = D('recap');
+  const steps = ['frame', 'FFT', '40 bộ lọc Mel', 'log', 'DCT', 'giữ 13 số'];
+  let x = 330;
+  steps.forEach((st, j) => {
+    const q = P(t, s + 0.2 + j * 0.15, 0.4);
+    G.save(); G.globalAlpha *= q * (j > 3 ? 0.45 : 1);
+    const o = j === 3 ? {fill: COL.frameSoft, stroke: COL.frame, color: COL.frame, weight: 700}
+      : j < 3 ? {fill: COL.soft, color: COL.ink} : {};
+    const w = chip(G, x, 230, st, o);
+    if (j < steps.length - 1) arrow(x + w + 6, 256, x + w + 40, 256, COL.line2, 2.5, 10);
+    G.restore();
+    x += w + 50;
+  });
+  fade(G, P(t, s + d * 0.12, 0.7), () => {
+    card(180, 360, 760, 380);
+    text('Vướng lớn nhất', 560, 410, {size: 26, color: COL.mute, align: 'center'});
+    text('phổ = lược × khuôn', 560, 520, {size: 54, weight: 700, align: 'center'});
+    text('hai thứ dính nhau bằng phép nhân', 560, 600, {size: 28, color: COL.hl, align: 'center'});
+    text('chưa tách ra được', 560, 650, {size: 28, color: COL.hl, align: 'center'});
+  });
+  const vs = [['1', 'lược và khuôn trộn nhau', true], ['2', 'các số cạnh nhau tương quan', false], ['3', '40 số là nhiều', false]];
+  vs.forEach(([n, s2, on], j) => fade(G, P(t, s + d * (0.05 + j * 0.06), 0.5), () => {
+    const y = 420 + j * 100;
+    rrect(1010, y - 34, 720, 68, 12, on ? COL.hlSoft : COL.card, on ? COL.hl : COL.line);
+    text('Vướng ' + n, 1040, y, {size: 26, weight: 700, color: on ? COL.hl : COL.mute});
+    text(s2, 1180, y, {size: 28, color: on ? COL.ink : COL.mute});
+  }));
+}
+
+function shotWhat(G, t) {
+  heading('log₁₀: đếm số chữ số 0');
+  const s = S('what'), d = D('what');
+  const VALS = [1, 10, 100, 1000, 10000, 100000, 1000000];
+  const NAMES = ['1', '10', '100', '1 000', '10 000', '100 000', '1 000 000'];
+  const x0 = 220, x1 = 1700, yT = 330, yB = 640;
+  const XL = v => x0 + v / 1e6 * (x1 - x0), XG = k => x0 + k / 6 * (x1 - x0);
+  fade(G, P(t, s + 0.2, 0.6), () => {
+    line(x0, yT, x1, yT, COL.line2, 3);
+    text('số (trục đều)', x0 - 30, yT, {size: 24, color: COL.mute, align: 'right'});
+    [0, 250000, 500000, 750000, 1000000].forEach(v => { line(XL(v), yT - 8, XL(v), yT + 8, COL.line2, 2); });
+    text('0', XL(0), yT + 34, {size: 20, color: COL.mute, align: 'center'});
+    text('1 000 000', XL(1e6), yT + 34, {size: 20, color: COL.mute, align: 'center'});
+    text('500 000', XL(5e5), yT + 34, {size: 20, color: COL.mute, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.12, 0.6), () => {
+    line(x0 - 4, yT - 24, XL(1e4) + 6, yT - 24, COL.hl, 3);
+    text('1, 10, 100, 1 000, 10 000 dồn hết vào đây', x0, yT - 92, {size: 24, weight: 600, color: COL.hl});
+  });
+  fade(G, P(t, s + d * 0.25, 0.6), () => {
+    line(x0, yB, x1, yB, COL.line2, 3);
+    text('log₁₀ của số đó', x0 - 30, yB, {size: 24, color: COL.mute, align: 'right'});
+    for (let k = 0; k <= 6; k++) { line(XG(k), yB - 8, XG(k), yB + 8, COL.line2, 2); text(String(k), XG(k), yB + 40, {size: 26, weight: 700, color: COL.acc, align: 'center'}); }
+  });
+  VALS.forEach((v, k) => {
+    const q = P(t, s + d * (0.3 + k * 0.06), 0.9);
+    if (q <= 0) return;
+    const x = lerp(XL(v), XG(k), q), y = lerp(yT, yB, q);
+    G.beginPath(); G.arc(x, y, 10, 0, 2 * Math.PI); G.fillStyle = COL.acc; G.fill();
+    fade(G, clamp(q * 3 - 2), () => text(NAMES[k], XG(k), yB - 42, {size: 22, weight: 600, align: 'center'}));
+  });
+  for (let k = 0; k < 6; k++) fade(G, P(t, s + d * (0.72 + k * 0.03), 0.4), () => {
+    const xa = XG(k) + 14, xb = XG(k + 1) - 14, ym = yB + 130;
+    arrow(xa, ym, xb, ym, COL.frame, 2.5, 10);
+    text('× 10 → + 1', (xa + xb) / 2, ym - 24, {size: 21, weight: 600, color: COL.frame, align: 'center'});
+  });
+}
+
+function shotDb(G, t) {
+  heading('Decibel (dB): log của năng lượng');
+  const s = S('db'), d = D('db'), s2 = S('dbhist'), d2 = D('dbhist');
+  fade(G, P(t, s + 0.3, 0.6), () => {
+    card(120, 220, 800, 560);
+    text('dB = 10 × log₁₀(năng lượng)', 520, 290, {size: 38, weight: 700, mono: true, align: 'center'});
+    text('năng lượng', 280, 380, {size: 24, color: COL.mute, align: 'center'});
+    text('dB', 760, 380, {size: 24, color: COL.mute, align: 'center'});
+    line(160, 405, 880, 405, COL.line2, 2);
+  });
+  const rows = [['gấp 10', '+ 10 dB', 0.35], ['gấp 100', '+ 20 dB', 0.55], ['gấp đôi', '≈ + 3 dB', 0.75], ['gấp 1 000 000', '+ 60 dB', 0.92]];
+  rows.forEach(([a, b, at], j) => fade(G, P(t, s + d * at, 0.5), () => {
+    const y = 460 + j * 80;
+    text(a, 280, y, {size: 32, align: 'center'});
+    arrow(450, y, 620, y, COL.line2, 2.5, 10);
+    text(b, 760, y, {size: 32, weight: 700, color: j === 3 ? COL.hl : COL.acc, align: 'center'});
+  }));
+  if (t < s2 - 0.4) return;
+  fade(G, P(t, s2 - 0.3, 0.6), () => {
+    card(1000, 220, 800, 560);
+    text('Bell Labs, thập niên 1920: suy hao đường dây', 1400, 270, {size: 26, weight: 700, align: 'center'});
+    const px = [1060, 1300, 1500, 1740], py = 400;
+    px.forEach(x => { line(x, py - 50, x, py + 20, COL.ink, 4); line(x - 16, py - 40, x + 16, py - 40, COL.ink, 3); });
+    const loss = [['÷ 10', '− 10 dB'], ['÷ 2', '− 3 dB'], ['÷ 10', '− 10 dB']];
+    loss.forEach(([m, db], j) => {
+      const xa = px[j], xb = px[j + 1], q = P(t, s2 + d2 * (0.12 + j * 0.08), 0.5);
+      G.beginPath(); G.moveTo(xa, py - 40); G.quadraticCurveTo((xa + xb) / 2, py - 10, xb, py - 40);
+      G.strokeStyle = COL.line2; G.lineWidth = 2.5; G.stroke();
+      fade(G, q, () => {
+        text(m, (xa + xb) / 2, py + 30, {size: 26, weight: 600, color: COL.hl, align: 'center'});
+        fade(G, P(t, s2 + d2 * 0.42, 0.5), () => text(db, (xa + xb) / 2, py + 76, {size: 26, weight: 600, color: COL.acc, align: 'center'}));
+      });
+    });
+    fade(G, P(t, s2 + d2 * 0.32, 0.5), () => {
+      text('suy hao nhân dồn:', 1060, 540, {size: 26, color: COL.mute});
+      text('10 × 2 × 10 = 200 lần', 1290, 540, {size: 28, weight: 600, color: COL.hl});
+    });
+    fade(G, P(t, s2 + d2 * 0.45, 0.5), () => {
+      text('tính bằng dB thì cộng:', 1060, 600, {size: 26, color: COL.mute});
+      text('10 + 3 + 10 = 23 dB', 1330, 600, {size: 28, weight: 600, color: COL.acc});
+    });
+    fade(G, P(t, s2 + d2 * 0.7, 0.5), () => {
+      text('bel: theo tên Alexander Graham Bell', 1060, 680, {size: 24, color: COL.mute});
+      text('deci: một phần mười, 1 dB = 1/10 bel', 1060, 724, {size: 24, color: COL.mute});
+    });
+  });
+}
+
+function shotRange(G, t) {
+  const s = S('range'), d = D('range'), s2 = S('range2'), d2 = D('range2');
+  const u = P(t, s2 + d2 * 0.5, 1.8);
+  heading(u < 0.5 ? '40 số Mel chưa log: khoảng giá trị quá rộng' : '40 số Mel sau log (dB)');
+  const B = {x: 200, y: 230, w: 1100, h: 460}, bw = B.w / 40;
+  const hLin = k => a2.mel[k] / MX, hDb = k => clamp((a2.ldb[k] - (DMX - 60)) / 60);
+  const grow = P(t, s + 0.6, 1.2), top = P(t, s2 + 0.3, 0.6) * (1 - u);
+  for (let k = 0; k < 40; k++) {
+    const h = lerp(hLin(k), hDb(k), u) * B.h * grow, isTop = TOP5.includes(k);
+    G.fillStyle = isTop && top > 0 ? `rgba(217,115,13,${0.35 + 0.5 * top})` : 'rgba(51,126,169,0.8)';
+    G.fillRect(B.x + k * bw + bw * 0.14, B.y + B.h - h, bw * 0.72, h);
+  }
+  line(B.x, B.y + B.h, B.x + B.w, B.y + B.h, COL.line2, 2);
+  text('bộ lọc 1 (tần số thấp)', B.x, B.y + B.h + 30, {size: 20, color: COL.mute});
+  text('bộ lọc 40 (tần số cao)', B.x + B.w, B.y + B.h + 30, {size: 20, color: COL.mute, align: 'right'});
+  fade(G, 1 - u, () => {
+    text('lớn nhất', B.x - 14, B.y, {size: 20, color: COL.mute, align: 'right'});
+    text('0', B.x - 14, B.y + B.h, {size: 20, color: COL.mute, align: 'right'});
+  });
+  fade(G, u, () => {
+    for (let v = 0; v <= 60; v += 20) {
+      const y = B.y + B.h - v / 60 * B.h;
+      line(B.x, y, B.x + B.w, y, '#ecebe8', 1.5);
+      text(`đỉnh − ${60 - v} dB`, B.x - 14, y, {size: 20, color: COL.mute, align: 'right'});
+    }
+  });
+  // Markers under the bars that are below 1% of the biggest one.
+  fade(G, P(t, s + d * 0.62, 0.5) * (1 - u), () => {
+    for (let k = 0; k < 40; k++) if (a2.mel[k] < MX * 0.01) {
+      G.beginPath(); G.arc(B.x + (k + 0.5) * bw, B.y + B.h + 10, 5, 0, 2 * Math.PI); G.fillStyle = COL.hl; G.fill();
+    }
+  });
+  const C = {x: 1380, y: 230, w: 440};
+  fade(G, P(t, s + d * 0.4, 0.6), () => {
+    card(C.x, C.y, C.w, 460);
+    text('âm "a", giọng 200 Hz', C.x + 30, C.y + 46, {size: 24, color: COL.mute});
+    text('lớn nhất / nhỏ nhất', C.x + 30, C.y + 110, {size: 24, color: COL.mute});
+    text(`≈ ${vn(RATIO / 1e6)} triệu lần`, C.x + 30, C.y + 156, {size: 36, weight: 700, color: COL.hl});
+    fade(G, P(t, s + d * 0.62, 0.5), () => {
+      G.beginPath(); G.arc(C.x + 40, C.y + 222, 6, 0, 2 * Math.PI); G.fillStyle = COL.hl; G.fill();
+      text(`${SMALL}/40 cột < 1% cột lớn nhất`, C.x + 58, C.y + 222, {size: 24});
+    });
+    fade(G, P(t, s2 + 0.3, 0.6), () => {
+      rrect(C.x + 30, C.y + 268, 22, 22, 4, COL.frame);
+      text(`5 cột = ${Math.round(TOP5_SHARE * 100)}% năng lượng`, C.x + 64, C.y + 280, {size: 24});
+    });
+    fade(G, u, () => {
+      line(C.x + 30, C.y + 330, C.x + C.w - 30, C.y + 330, COL.line, 2);
+      text('sau log: cả dãy chênh', C.x + 30, C.y + 372, {size: 24, color: COL.mute});
+      text('≈ 60 dB', C.x + 30, C.y + 418, {size: 36, weight: 700, color: COL.acc});
+    });
+  });
+}
+
+function shotEar(G, t) {
+  heading('Tai nghe độ to theo tỉ lệ');
+  const s = S('ear'), d = D('ear');
+  fade(G, P(t, s + 0.3, 0.6), () => {
+    card(120, 230, 800, 470);
+    text('Weber - Fechner (thế kỷ 19)', 520, 280, {size: 28, weight: 700, align: 'center'});
+    const xs = [180, 340, 500, 660, 820], y = 470;
+    line(170, y, 840, y, COL.line2, 3);
+    ['1', '10', '100', '1 000', '10 000'].forEach((n, j) => { line(xs[j], y - 10, xs[j], y + 10, COL.ink, 3); text(n, xs[j], y + 40, {size: 26, align: 'center'}); });
+    text('năng lượng, mỗi vạch gấp 10', 520, y + 96, {size: 22, color: COL.mute, align: 'center'});
+    [[1, 0.25], [2, 0.38]].forEach(([j, at]) => fade(G, P(t, s + d * at, 0.5), () => {
+      G.beginPath(); G.moveTo(xs[j], y - 24); G.quadraticCurveTo((xs[j] + xs[j + 1]) / 2, y - 120, xs[j + 1], y - 24);
+      G.strokeStyle = COL.frame; G.lineWidth = 3; G.stroke();
+      text('nghe chênh', (xs[j] + xs[j + 1]) / 2, y - 100, {size: 22, weight: 600, color: COL.frame, align: 'center'});
+    }));
+    fade(G, P(t, s + d * 0.45, 0.5), () => text('hai bước nghe chênh gần bằng nhau', 520, 640, {size: 26, weight: 600, color: COL.frame, align: 'center'}));
+  });
+  fade(G, P(t, s + d * 0.55, 0.6), () => {
+    card(1000, 230, 800, 470);
+    const B = {x: 1080, y: 300, w: 660, h: 300};
+    const {X, Y} = axes(B, [0, 1000], [0, 1], {ticksX: [0, 500, 1000], xlabel: 'năng lượng'});
+    text('độ to cảm nhận', B.x, B.y - 30, {size: 22, color: COL.mute});
+    const xs = Array.from({length: 400}, (_, i) => 1 + i * 999 / 399);
+    poly(xs.map(X), xs.map(x => Y(Math.log10(x) / 3)), COL.acc, 4, null, P(t, s + d * 0.62, 1.2));
+    fade(G, P(t, s + d * 0.62, 0.5), () => text('log', X(700), Y(Math.log10(700) / 3) - 30, {size: 24, weight: 700, color: COL.acc}));
+    poly(xs.map(X), xs.map(x => Y((x ** 0.3 - 1) / (1000 ** 0.3 - 1))), COL.i, 3, [10, 7], P(t, s + d * 0.8, 1.2));
+    fade(G, P(t, s + d * 0.8, 0.5), () => text('lũy thừa 0,3 (Stevens)', X(560), Y((560 ** 0.3 - 1) / (1000 ** 0.3 - 1)) + 40, {size: 22, weight: 600, color: COL.i}));
+  });
+}
+
+function shotMult(G, t) {
+  heading('Lý do chính: log biến nhân thành cộng');
+  const s = S('mult'), d = D('mult');
+  fade(G, P(t, s + d * 0.12, 0.7), () => {
+    card(360, 230, 1200, 140, {stroke: COL.acc, lw: 3});
+    text('log(a × b) = log a + log b', 960, 300, {size: 52, weight: 700, mono: true, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.4, 0.6), () => {
+    text('100', 640, 470, {size: 48, mono: true, align: 'center'});
+    text('×', 760, 470, {size: 48, color: COL.mute, align: 'center'});
+    text('1 000', 900, 470, {size: 48, mono: true, align: 'center'});
+    text('=', 1050, 470, {size: 48, color: COL.mute, align: 'center'});
+    text('100 000', 1240, 470, {size: 48, mono: true, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.55, 0.6), () => {
+    [640, 900, 1240].forEach(x => arrow(x, 510, x, 570, COL.line2, 2.5, 10));
+    text('2', 640, 620, {size: 52, weight: 700, color: COL.acc, align: 'center'});
+    text('+', 760, 620, {size: 48, color: COL.mute, align: 'center'});
+    text('3', 900, 620, {size: 52, weight: 700, color: COL.acc, align: 'center'});
+    text('=', 1050, 620, {size: 48, color: COL.mute, align: 'center'});
+    text('5', 1240, 620, {size: 52, weight: 700, color: COL.acc, align: 'center'});
+    text('log₁₀', 470, 620, {size: 28, color: COL.mute, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.8, 0.6), () => {
+    chip(G, 700, 720, 'nhân   →   cộng', {fill: COL.frameSoft, stroke: COL.frame, color: COL.frame, weight: 700, size: 30});
+  });
+}
+
+function shotApply(G, t) {
+  const s = S('apply'), d = D('apply'), u = P(t, s + d * 0.42, 2.2), isLog = u > 0.5;
+  heading(isLog ? 'Sau log: log phổ = log lược + log khuôn' : 'Trước log: phổ = lược × khuôn');
+  const L = 300, W = 1360, F2 = 4000, PH = 120, GAP = 64, ENVMAX = 1.06, FL = 0.01;
+  const khuon = f => DSP.envA(f) / ENVMAX;
+  const luoc = f => { let v = 0; for (let k = 1; k * 200 < F2 + 100; k++) v += DSP.gauss(f, k * 200, 14); return Math.min(1, v); };
+  const lg = v => 10 * Math.log10(Math.max(v, FL));
+  const fs = Array.from({length: W + 1}, (_, p) => p / W * F2), xs = fs.map(f => L + f / F2 * W);
+  const rows = [
+    ['lược', 'log lược', luoc, COL.ink],
+    ['khuôn', 'log khuôn', khuon, COL.ok],
+    ['phổ = lược × khuôn', 'log phổ = log lược + log khuôn', f => luoc(f) * khuon(f), COL.acc],
+  ];
+  rows.forEach(([n1, n2, fn, c], j) => {
+    const q = P(t, s + 0.2 + j * 0.25, 0.5);
+    if (q <= 0) return;
+    G.save(); G.globalAlpha *= q;
+    const top = 220 + j * (PH + GAP), yLin = v => top + PH - v * PH, yLog = v => top + PH - (v + 36) / 36 * PH;
+    const Yu = v => lerp(yLin(v), yLog(lg(v)), u);
+    text(isLog ? n2 : n1, L, top - 18, {size: 24, weight: 700, color: c});
+    line(L, top + PH, L + W, top + PH, COL.line2, 2);
+    text(u < 0.5 ? '0' : '− 36 dB', L - 14, top + PH, {size: 18, color: COL.mute, align: 'right'});
+    text(u < 0.5 ? '1' : '0 dB', L - 14, top, {size: 18, color: COL.mute, align: 'right'});
+    if (j === 2) poly(xs, fs.map(f => Yu(khuon(f))), COL.ok, 2.5, [8, 6]);
+    poly(xs, fs.map(f => Yu(fn(f))), c, 2.2);
+    G.restore();
+  });
+  const yb = 220 + 3 * (PH + GAP) - GAP + 26;
+  for (let f = 0; f <= F2; f += 500) text(String(f), L + f / F2 * W, yb, {size: 18, color: COL.mute, align: 'center'});
+  text('Hz', L + W + 20, yb, {size: 18, color: COL.mute});
+  // Before the log: tooth heights follow the envelope. After: every tooth is the same depth below it.
+  const top3 = 220 + 2 * (PH + GAP);
+  fade(G, P(t, s + d * 0.22, 0.5) * (1 - u), () => text('răng cao thấp khác nhau', L + W - 10, top3 - 18, {size: 22, weight: 600, color: COL.hl, align: 'right'}));
+  fade(G, P(t, s + d * 0.8, 0.6), () => text('= khuôn (nét đứt) + hàng răng sâu đều nhau', L + W - 10, top3 - 18, {size: 22, weight: 600, color: COL.frame, align: 'right'}));
+}
+
+function shotConv(G, t) {
+  heading('Tích chập → nhân → cộng');
+  const s = S('conv'), d = D('conv');
+  const xs = [90, 710, 1330], y0 = 220, w = 500, h = 470;
+  const mini = (x, y, ww, hh, fn, n, col, upto = 1, o = {}) => {
+    const px = Array.from({length: n}, (_, i) => x + i / (n - 1) * ww);
+    line(x, y + hh, x + ww, y + hh, COL.line, 1.5);
+    poly(px, px.map((_, i) => y + hh - fn(i / (n - 1)) * hh), col, o.lw || 2.5, o.dash, upto);
+  };
+  const pulse = u => { const ph = (u * 3) % 1; return ph < 0.02 ? 1 : 0; };
+  const ring = u => { const tt = u * 0.01; return 0.5 + 0.48 * Math.exp(-tt * 900) * (Math.sin(2 * Math.PI * 800 * tt) + 0.6 * Math.sin(2 * Math.PI * 1250 * tt)) / 1.6; };
+  const comb = u => { const f = u * 4000; let v = 0; for (let k = 1; k <= 20; k++) v += DSP.gauss(f, k * 200, 16); return Math.min(1, v) * 0.9; };
+  const env = u => DSP.envA(u * 4000) / 1.06 * 0.9;
+  const lgc = u => (10 * Math.log10(Math.max(comb(u) / 0.9, 0.01)) + 20) / 20 * 0.9;
+  const lge = u => (10 * Math.log10(Math.max(env(u) / 0.9, 0.01)) + 20) / 20 * 0.9;
+  const boxes = [
+    ['sóng âm (thời gian)', 'luồng hơi ∗ ống thanh quản', pulse, ring, '∗', COL.ink, 0],
+    ['phổ', 'lược × khuôn', comb, env, '×', COL.acc, 0.3],
+    ['log phổ', 'log lược + log khuôn', lgc, lge, '+', COL.ok, 0.5],
+  ];
+  boxes.forEach(([ti, fo, f1, f2, op, c, at], j) => fade(G, P(t, s + d * at, 0.6), () => {
+    const x = xs[j];
+    card(x, y0, w, h, j === 2 ? {stroke: COL.ok, lw: 3} : {});
+    text(ti, x + 30, y0 + 42, {size: 26, weight: 700, color: c});
+    text(fo, x + 30, y0 + 84, {size: 26, weight: 600});
+    mini(x + 40, y0 + 130, w - 80, 110, f1, j ? 600 : 900, COL.ink);
+    text(op, x + w / 2, y0 + 278, {size: 34, color: COL.mute, align: 'center'});
+    mini(x + 40, y0 + 310, w - 80, 110, f2, 400, j ? COL.ok : COL.ink);
+  }));
+  [[0, 'FFT', 0.25], [1, 'log', 0.45]].forEach(([j, lab, at]) => fade(G, P(t, s + d * at, 0.5), () => {
+    const xa = xs[j] + w + 12, xb = xs[j + 1] - 12, y = y0 + h / 2;
+    arrow(xa, y, xb, y, COL.frame, 4, 14);
+    text(lab, (xa + xb) / 2, y - 30, {size: 26, weight: 700, color: COL.frame, align: 'center'});
+  }));
+  fade(G, P(t, s + d * 0.72, 0.6), () => {
+    text('xử lý đồng hình (homomorphic processing)', 960, 760, {size: 34, weight: 700, align: 'center'});
+    text('Oppenheim, thập niên 1960: đổi thứ trộn bằng nhân hay tích chập thành phép cộng, rồi mới tách', 960, 812, {size: 24, color: COL.mute, align: 'center'});
+  });
+}
+
+function shotGain(G, t) {
+  heading('Nói to hơn, đổi micro: sau log chỉ là phép cộng');
+  const s = S('louder'), d = D('louder'), sm = S('mic'), dm = D('mic');
+  {
+    card(100, 220, 820, 560);
+    text('Nói to gấp 4 (năng lượng × 4)', 140, 266, {size: 28, weight: 700});
+    const B = {x: 200, y: 330, w: 680, h: 330}, lo = DMX - 64, hi = DMX + 12;
+    const {X, Y} = axes(B, [0.5, 40.5], [lo, hi], {ticksX: [1, 20, 40], xlabel: 'bộ lọc Mel số'});
+    text('dB', B.x - 14, B.y, {size: 20, color: COL.mute, align: 'right'});
+    const ks = a2.ldb.map((_, k) => X(k + 1));
+    poly(ks, a2.ldb.map(Y), COL.acc, 3, null, P(t, s + 0.3, 1.0));
+    const q = P(t, s + d * 0.4, 1.4);
+    if (q > 0) {
+      poly(ks, a2.ldb.map(v => Y(v + LOUD * q)), COL.frame, 3, [9, 6]);
+      [8, 20, 33].forEach(k => arrow(ks[k], Y(a2.ldb[k]) - 4, ks[k], Y(a2.ldb[k] + LOUD * q) + 2, COL.frame, 2, 8));
+      fade(G, P(t, s + d * 0.62, 0.5), () => text(`+ ${vn(LOUD)} dB ở mọi bộ lọc`, B.x + B.w, B.y - 10, {size: 26, weight: 700, color: COL.frame, align: 'right'}));
+    }
+    fade(G, P(t, s + d * 0.78, 0.5), () => text('hình dạng giữ nguyên, chỉ dịch lên', 510, 740, {size: 24, color: COL.mute, align: 'center'}));
+  }
+  if (t < sm - 0.4) return;
+  fade(G, P(t, sm - 0.3, 0.6), () => {
+    card(1000, 220, 820, 560);
+    text('Đổi micro: log-Mel lệch bao nhiêu?', 1040, 266, {size: 28, weight: 700});
+    const B = {x: 1100, y: 330, w: 680, h: 330};
+    const {X, Y} = axes(B, [0.5, 40.5], [-16, 4], {gridY: [-15, -10, -5, 0], fmtY: v => `${v} dB`, ticksX: [1, 20, 40], xlabel: 'bộ lọc Mel số'});
+    const ks = SHIFT_A.map((_, k) => X(k + 1));
+    poly(ks, SHIFT_A.map(Y), COL.acc, 4, null, P(t, sm + dm * 0.15, 1.2));
+    poly(ks, SHIFT_I.map(Y), COL.i, 3, [9, 6], P(t, sm + dm * 0.3, 1.2));
+    fade(G, P(t, sm + dm * 0.15, 0.5), () => {
+      poly([1120, 1160], [350, 350], COL.acc, 4); text('âm "a"', 1172, 350, {size: 22, weight: 600, color: COL.acc});
+      poly([1120, 1160], [390, 390], COL.i, 3, [9, 6]); text('âm "i"', 1172, 390, {size: 22, weight: 600, color: COL.i});
+    });
+    fade(G, P(t, sm + dm * 0.55, 0.5), () => text('gần như trùng nhau: một phần cộng cố định', 1410, 750, {size: 24, weight: 600, color: COL.ok, align: 'center'}));
+  });
+}
+
+function shotOrder(G, t) {
+  heading('Vì sao log đặt sau bộ lọc Mel?');
+  const s = S('order'), d = D('order');
+  const f0 = 1660, f1 = 2040, bins = [...Array(DSP.BINS).keys()].filter(b => b * DSP.BIN_HZ >= f0 && b * DSP.BIN_HZ <= f1);
+  const fq = bins.map(b => b * DSP.BIN_HZ), pmax = Math.max(...FBINS.map(b => a2.pow[b]));
+  const tri = f => FW[Math.round(f / DSP.BIN_HZ)] || 0;
+  // Left: sum energies inside the triangle, then log.
+  fade(G, P(t, s + 0.3, 0.6), () => {
+    card(100, 220, 820, 560, {stroke: COL.ok, lw: 3});
+    text('Cộng năng lượng trước, rồi mới log', 140, 266, {size: 28, weight: 700, color: COL.ok});
+    const B = {x: 170, y: 330, w: 700, h: 280};
+    const {X, Y} = axes(B, [f0, f1], [0, 1.05], {ticksX: [1700, 1800, 1900, 2000], xlabel: 'Hz'});
+    text('năng lượng', B.x, B.y - 22, {size: 20, color: COL.mute});
+    G.beginPath(); G.moveTo(X(DSP.EDGES[FK]), Y(0)); G.lineTo(X(DSP.EDGES[FK + 1]), Y(1)); G.lineTo(X(DSP.EDGES[FK + 2]), Y(0));
+    G.fillStyle = 'rgba(68,131,97,0.10)'; G.fill(); G.strokeStyle = COL.ok; G.lineWidth = 2; G.setLineDash([8, 6]); G.stroke(); G.setLineDash([]);
+    poly(fq.map(X), bins.map(b => Y(a2.pow[b] / pmax)), COL.acc, 3, null, P(t, s + 0.5, 1.0));
+    text('bộ lọc 21', X(DSP.EDGES[FK + 1]), Y(1) - 18, {size: 20, weight: 600, color: COL.ok, align: 'center'});
+    fade(G, P(t, s + d * 0.3, 0.5), () => {
+      text('Σ năng lượng trong tam giác → log', 520, 690, {size: 26, align: 'center'});
+      text(`= ${vn(LOG_OF_SUM)} dB`, 520, 738, {size: 32, weight: 700, color: COL.ok, align: 'center'});
+    });
+  });
+  // Right: log every bin first; the valleys between harmonics drag the value down.
+  fade(G, P(t, s + d * 0.5, 0.6), () => {
+    card(1000, 220, 820, 560, {stroke: COL.hl, lw: 3});
+    text('Nếu log từng bin trước, rồi lấy trung bình', 1040, 266, {size: 28, weight: 700, color: COL.hl});
+    const B = {x: 1090, y: 330, w: 680, h: 280};
+    const {X, Y} = axes(B, [f0, f1], [-50, 15], {gridY: [-40, -20, 0], fmtY: v => `${v} dB`, ticksX: [1700, 1800, 1900, 2000], xlabel: 'Hz'});
+    poly(fq.map(X), bins.map(b => Y(10 * Math.log10(a2.pow[b]))), COL.acc, 3, null, P(t, s + d * 0.55, 1.0));
+    fade(G, P(t, s + d * 0.66, 0.5), () => {
+      const bv = bins.filter(b => tri(b * DSP.BIN_HZ) > 0).reduce((m, b) => a2.pow[b] < a2.pow[m] ? b : m);
+      const x = X(bv * DSP.BIN_HZ), y = Y(10 * Math.log10(a2.pow[bv]));
+      G.beginPath(); G.arc(x, y, 9, 0, 2 * Math.PI); G.strokeStyle = COL.hl; G.lineWidth = 3; G.stroke();
+      text('khe giữa hai răng lược', x + 18, y + 4, {size: 22, weight: 600, color: COL.hl});
+    });
+    fade(G, P(t, s + d * 0.78, 0.5), () => {
+      text('trung bình các log trong tam giác', 1410, 690, {size: 26, align: 'center'});
+      text(`= ${vn(MEAN_OF_LOG)} dB  (lệch ${Math.round(LOG_OF_SUM - MEAN_OF_LOG)} dB)`, 1410, 738, {size: 32, weight: 700, color: COL.hl, align: 'center'});
+    });
+  });
+}
+
+function shotFloor(G, t) {
+  heading('Log của 0 là âm vô cùng: phải chặn dưới');
+  const s = S('floor'), d = D('floor');
+  fade(G, P(t, s + 0.3, 0.6), () => {
+    card(100, 220, 820, 560);
+    const B = {x: 230, y: 290, w: 620, h: 380};
+    const {X, Y} = axes(B, [0, 1], [-80, 0], {gridY: [-80, -60, -40, -20, 0], fmtY: v => `${v} dB`, ticksX: [0, 0.5, 1], fmtX: v => vn(v, 1), xlabel: 'năng lượng (so với đỉnh)'});
+    const xs = Array.from({length: 600}, (_, i) => 1e-9 + (i / 599) ** 4);
+    poly(xs.map(X), xs.map(x => Y(Math.max(-80, 10 * Math.log10(x)))), COL.acc, 4, null, P(t, s + d * 0.08, 1.4));
+    fade(G, P(t, s + d * 0.25, 0.5), () => {
+      arrow(X(0.12), Y(-36), X(0.02), Y(-76), COL.hl, 3, 12);
+      text('năng lượng → 0: log → −∞', X(0.14), Y(-33), {size: 24, weight: 600, color: COL.hl});
+    });
+    fade(G, P(t, s + d * 0.5, 0.5), () => {
+      line(B.x, Y(-60), B.x + B.w, Y(-60), COL.ok, 3, [10, 7]);
+      text('sàn: đỉnh − 60 dB', B.x + B.w, Y(-60) - 22, {size: 24, weight: 700, color: COL.ok, align: 'right'});
+    });
+  });
+  const rows = [
+    ['chặn dưới (floor)', 'log(max(x, sàn))', 0.5],
+    ['cộng epsilon', 'log(x + ε),  ε rất nhỏ', 0.72],
+    ['ví dụ: Whisper', 'sàn 10⁻¹⁰, rồi không thấp hơn đỉnh 80 dB', 0.86],
+  ];
+  fade(G, P(t, s + d * 0.45, 0.6), () => card(1000, 220, 820, 560));
+  rows.forEach(([a, b, at], j) => fade(G, P(t, s + d * at, 0.5), () => {
+    const y = 300 + j * 150;
+    text(a, 1040, y, {size: 28, weight: 700, color: j < 2 ? COL.ok : COL.mute});
+    text(b, 1040, y + 50, {size: 28, mono: true});
+  }));
+}
+
+function shotResult(G, t) {
+  heading('Kết quả bước log: log-Mel (fbank)');
+  const s = S('result'), d = D('result');
+  fade(G, P(t, s + 0.3, 0.6), () => {
+    const x0 = 140, y0 = 260, cw = 7.6, ch = 10;
+    const n = Math.round(100 * P(t, s + 0.3, 2.0));
+    for (let j = 0; j < n; j++) for (let k = 0; k < 40; k++) {
+      G.fillStyle = Clip.heat((SEQ[j][k] - SEQ_LO) / (SEQ_HI - SEQ_LO));
+      G.fillRect(x0 + j * cw, y0 + (39 - k) * ch, cw + 0.5, ch + 0.5);
+    }
+    G.strokeStyle = COL.line2; G.lineWidth = 2; G.strokeRect(x0, y0, 100 * cw, 40 * ch);
+    text('40 bộ lọc', x0 - 16, y0 + 200, {size: 20, color: COL.mute, align: 'right'});
+    text('1 giây = 100 frame', x0 + 380, y0 + 430, {size: 22, color: COL.mute, align: 'center'});
+    text('mỗi frame: 40 số, đơn vị dB', x0 + 380, y0 + 476, {size: 26, weight: 600, align: 'center'});
+  });
+  const items = [
+    ['◐', 'Vướng 1: lược × khuôn', 'đã thành lược + khuôn, chưa tách', COL.frame, 0.4],
+    ['✗', 'Vướng 2: tương quan', 'vẫn còn', COL.hl, 0.6],
+    ['✗', 'Vướng 3: 40 số', 'vẫn còn', COL.hl, 0.7],
+  ];
+  items.forEach(([ic, a, b, c, at], j) => fade(G, P(t, s + d * at, 0.5), () => {
+    const y = 300 + j * 120;
+    text(ic, 1040, y, {size: 40, weight: 700, color: c});
+    text(a, 1100, y - 16, {size: 28, weight: 700});
+    text(b, 1100, y + 24, {size: 24, color: c});
+  }));
+  fade(G, P(t, s + d * 0.86, 0.5), () => chip(G, 1100, 680, 'Phần 3: DCT tách lược khỏi khuôn  →', {fill: COL.accSoft, stroke: COL.acc, color: COL.acc, weight: 700, size: 26}));
+}
+
+const TERMS = [
+  ['lô-ga-rít', 'log, log₁₀', 'đếm số chữ số 0, nhân thành cộng'],
+  ['đề-xi-ben', 'decibel (dB)', '10 × log₁₀(năng lượng)'],
+  ['khoảng giá trị', 'dynamic range', 'lớn nhất so với nhỏ nhất, tính bằng dB'],
+  ['tai nghe theo tỉ lệ', 'Weber - Fechner law', 'cảm nhận ≈ log của kích thích'],
+  ['tích chập', 'convolution (∗)', 'cách nguồn và bộ lọc trộn trên sóng âm'],
+  ['xử lý đồng hình', 'homomorphic processing', 'đổi nhân, tích chập thành cộng'],
+  ['chặn dưới', 'floor, epsilon (ε)', 'tránh log 0 = −∞'],
+  ['log-Mel', 'log-Mel filterbank (fbank)', '40 số dB mỗi frame'],
+];
+function shotTerms(G, t) {
+  heading('Thuật ngữ của phần 2', 130);
+  const s = S('terms'), cx = [170, 640, 1220], y0 = 210, rh = 72;
+  ['Nói thường', 'Thuật ngữ', 'Ý nghĩa'].forEach((h, j) => text(h, cx[j], y0, {size: 24, weight: 600, color: COL.mute}));
+  line(150, y0 + 26, 1770, y0 + 26, COL.line2, 2);
+  TERMS.forEach((r, i) => fade(G, P(t, s + 0.2 + i * 0.45, 0.5), () => {
+    const y = y0 + 64 + i * rh;
+    text(r[0], cx[0], y, {size: 28});
+    text(r[1], cx[1], y, {size: 28, weight: 700, color: COL.acc});
+    text(r[2], cx[2], y, {size: 26, color: COL.mute});
+    line(150, y + rh / 2, 1770, y + rh / 2, '#ecebe8', 1.5);
+  }));
+}
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 9,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'recap', to: 'recap', draw: shotRecap},
+    {from: 'what', to: 'what', draw: shotWhat},
+    {from: 'db', to: 'dbhist', draw: shotDb},
+    {from: 'range', to: 'range2', draw: shotRange},
+    {from: 'ear', to: 'ear', draw: shotEar},
+    {from: 'mult', to: 'mult', draw: shotMult},
+    {from: 'apply', to: 'apply', draw: shotApply},
+    {from: 'conv', to: 'conv', draw: shotConv},
+    {from: 'louder', to: 'mic', draw: shotGain},
+    {from: 'order', to: 'order', draw: shotOrder},
+    {from: 'floor', to: 'floor', draw: shotFloor},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/02-log.wav');
+</script>
+</body>
+</html>

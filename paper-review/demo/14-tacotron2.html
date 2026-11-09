@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tacotron 2</title>
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="pn"></nav>
+<h1>Tacotron 2: encoder-decoder có attention, sinh từng frame Mel</h1>
+<p class="sub">Tacotron (Google, 2017) và Tacotron 2 (Shen và cộng sự, 2018). Đây là mô hình âm học (khối giữa ở trang 13): chữ vào, Mel spectrogram ra. Ý tưởng chính mượn từ trang 11, chỉ đổi chiều: <b>đọc chữ, viết ra frame</b>.</p>
+
+<section>
+<h2><span class="n">1</span>Vấn đề: hệ TTS cũ là một chuỗi mô hình rời</h2>
+<div class="tablewrap"><table>
+<tr><th>Vướng</th><th>Ví dụ</th></tr>
+<tr><td>nhiều mô hình riêng, mỗi cái một mục tiêu</td><td>mô hình độ dài âm, mô hình f0, mô hình phổ, mỗi cái học riêng rồi ghép lại, lỗi cộng dồn</td></tr>
+<tr><td>cần đặc trưng ngôn ngữ do chuyên gia thiết kế</td><td>vị trí âm tiết trong từ, trong câu, loại từ, trọng âm… mỗi ngôn ngữ một bộ</td></tr>
+<tr><td>giọng phẳng, máy móc</td><td>các mô hình thống kê dự đoán "trung bình", làm mất các chi tiết tự nhiên</td></tr>
+</table></div>
+<div class="note blue"><b>Mục tiêu:</b> một mạng duy nhất học thẳng từ các cặp <b>(câu chữ, âm thanh)</b>: tự học mỗi chữ đọc dài bao lâu, lên giọng xuống giọng ra sao, mà không cần ai gán nhãn độ dài hay đặc trưng ngôn ngữ.</div>
+</section>
+
+<section>
+<h2><span class="n">2</span>Cách Tacotron 2 làm: 5 khối</h2>
+<div class="pipe"><span class="done">chữ</span><i>→</i><span class="new">encoder</span><i>→</i><span class="new">attention</span><i>→</i><span class="new">decoder: 1 frame Mel mỗi bước</span><i>→</i><span class="new">post-net</span><i>→</i><span class="done">Mel</span><i>→</i><span class="done">vocoder WaveNet</span></div>
+<div class="tablewrap"><table>
+<tr><th>Khối</th><th>Bên trong (theo bài báo)</th><th>Gỡ vướng gì</th></tr>
+<tr><td><b>encoder</b></td><td>mỗi ký tự thành một vector 512 số, qua 3 lớp convolution (mỗi lớp nhìn 5 ký tự), rồi một LSTM hai chiều</td><td>mỗi chữ "biết" chữ xung quanh: "gh" và "g" đọc khác nhau</td></tr>
+<tr><td><b>attention theo vị trí</b> (location-sensitive)</td><td>như trang 11, nhưng cộng thêm thông tin <b>bước trước đã nhìn ở đâu</b></td><td>tự tìm chữ nào ứng với frame nào; khuyến khích đi tiếp chứ không nhảy lung tung</td></tr>
+<tr><td><b>decoder tự hồi quy</b></td><td>frame Mel vừa sinh qua pre-net (2 lớp, có dropout), vào 2 lớp LSTM, ra frame Mel tiếp theo (80 số) và một <b>xác suất dừng</b> (stop token)</td><td>sinh từng frame, frame sau nối tiếp frame trước; tự quyết độ dài</td></tr>
+<tr><td><b>post-net</b></td><td>5 lớp convolution nhìn cả Mel đã sinh, cộng thêm phần sửa</td><td>làm sắc lại các chi tiết bị mờ</td></tr>
+<tr><td><b>vocoder</b></td><td>WaveNet học riêng trên Mel do Tacotron 2 sinh ra (về sau thường thay bằng HiFi-GAN)</td><td>Mel → sóng âm (trang 13)</td></tr>
+</table></div>
+<p>Kết quả trong bài báo: MOS <b>4,53</b>, trong khi giọng thu âm thật được chấm <b>4,58</b> trong cùng thí nghiệm (tiếng Anh, một người đọc).</p>
+</section>
+
+<section>
+<h2><span class="n">3</span>Một bước của decoder</h2>
+<div class="tablewrap"><table>
+<tr><th>Thứ tự</th><th>Việc</th></tr>
+<tr><td>1</td><td>lấy frame Mel vừa sinh ở bước trước (bước đầu dùng một frame toàn 0), cho qua pre-net</td></tr>
+<tr><td>2</td><td>attention: chấm điểm các vector của encoder, có tính cả trọng số attention cộng dồn từ các bước trước, ra trọng số trên các chữ</td></tr>
+<tr><td>3</td><td>lấy trung bình có trọng số các vector encoder: "đang đọc chữ nào"</td></tr>
+<tr><td>4</td><td>LSTM nhận (pre-net, phần đang đọc), ra frame Mel tiếp theo và xác suất dừng</td></tr>
+<tr><td>5</td><td>nếu xác suất dừng &gt; 0,5 thì dừng; nếu không, quay lại bước 1</td></tr>
+</table></div>
+<p>Khi <b>huấn luyện</b>, bước 1 dùng frame Mel <b>thật</b> thay cho frame vừa sinh (teacher forcing, trang 11), và loss là sai lệch bình phương giữa Mel sinh ra và Mel thật (trước và sau post-net), cộng loss cho xác suất dừng. Khi <b>dùng</b>, mô hình phải dựa vào frame của chính nó. Sai lệch giữa hai chế độ này (exposure bias) là một nguồn lỗi; dropout ở pre-net luôn bật kể cả khi dùng, giúp mô hình chịu được đầu vào không hoàn hảo.</p>
+</section>
+
+<section>
+<h2><span class="n">4</span>Attention lúc tốt và lúc hỏng</h2>
+<p>Câu đầu vào: <b>"xin chào"</b>. Trên: ma trận attention (hàng là chữ, cột là bước decoder). Dưới: Mel spectrogram sinh ra theo từng bước. Chọn một trường hợp rồi bấm <b>Sinh</b>.</p>
+<div class="ctrl">
+  <span class="grp">Trường hợp: <button data-md="good" class="on">tốt</button><button data-md="repeat">lặp chữ</button><button data-md="skip">bỏ chữ</button><button data-md="stuck">không dừng</button></span>
+  <button id="gen">▶ Sinh</button>
+</div>
+<div class="fig"><canvas id="c4"></canvas></div>
+<div class="readout" id="r4"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Tốt: đường đi từ trái trên xuống phải dưới, không quay lui. Mỗi chữ chiếm một số bước khác nhau, tự học ra: đây chính là <b>độ dài</b> của từng âm.
+<br>• Lặp chữ và bỏ chữ: attention nhảy lùi hoặc nhảy cóc. Hay gặp với câu dài, câu lạ, hoặc chữ lặp nhiều lần. Attention theo vị trí giảm được các lỗi này, nhưng không loại bỏ hẳn, vì không có gì <b>bắt buộc</b> đường đi phải đơn điệu.
+<br>• Không dừng: xác suất dừng không vượt 0,5, mô hình lải nhải đến giới hạn số bước.
+<br>• Sinh tuần tự từng frame (khoảng 80 frame mỗi giây âm thanh) nên chậm, và không biết trước câu sẽ dài bao lâu. Trang sau gỡ cả hai vướng này.</div>
+</section>
+
+<section>
+<h2>Tóm tắt</h2>
+<ul>
+<li>Tacotron 2 = encoder (conv + BiLSTM) + attention theo vị trí + decoder tự hồi quy (pre-net, LSTM, Mel 80 kênh, stop token) + post-net + vocoder.</li>
+<li>Học thẳng từ cặp (chữ, âm thanh), tự học độ dài qua attention. MOS gần giọng thật.</li>
+<li>Điểm yếu: attention có thể lặp, bỏ chữ, không dừng; sinh tuần tự nên chậm; khó điều khiển tốc độ, cao độ.</li>
+</ul>
+<h3>Thuật ngữ mới</h3>
+<div class="tablewrap"><table>
+<tr><th>Nói thường</th><th>Thuật ngữ</th></tr>
+<tr><td>attention có nhớ bước trước nhìn đâu</td><td>location-sensitive attention</td></tr>
+<tr><td>xác suất "hết câu"</td><td>stop token</td></tr>
+<tr><td>lớp xử lý frame vừa sinh trước khi vào LSTM</td><td>pre-net</td></tr>
+<tr><td>lớp sửa Mel sau cùng</td><td>post-net (dự đoán phần dư, residual)</td></tr>
+<tr><td>khác biệt giữa lúc học (dùng frame thật) và lúc dùng (frame tự sinh)</td><td>exposure bias</td></tr>
+<tr><td>loại mạng đọc tuần tự có bộ nhớ</td><td>LSTM (Long Short-Term Memory)</td></tr>
+</table></div>
+<p class="muted">Ma trận attention và Mel ở mục 4 là minh họa tự tạo, không lấy từ một mô hình đã huấn luyện.</p>
+</section>
+<nav class="pn"></nav>
+</div>
+<script src="assets/learn.js"></script>
+<script>
+const TXT = [...'xin chào'], NB = 40, MAXS = 90;
+const DUR = [6, 8, 5, 4, 7, 6, 10, 9];
+function pathFor(md) {
+  const seq = idx => idx.flatMap(i => new Array(DUR[i]).fill(i));
+  if (md === 'good') return {path: seq([0, 1, 2, 3, 4, 5, 6, 7]), stop: true};
+  if (md === 'repeat') return {path: seq([0, 1, 2, 3, 4, 5, 4, 5, 6, 7]), stop: true};
+  if (md === 'skip') return {path: seq([0, 1, 4, 5, 6, 7]), stop: true};
+  const p = seq([0, 1, 2, 3, 4, 5, 6, 7]);
+  while (p.length < MAXS) p.push(7);
+  return {path: p, stop: false};
+}
+const TEMPL = TXT.map((ch, i) => {
+  if (ch === ' ') return new Array(NB).fill(0.03);
+  const r = rng(40 + ch.charCodeAt(0)), voiced = 'iaào'.includes(ch) || ch === 'n';
+  const f = [3 + 10 * r(), 12 + 12 * r(), 25 + 10 * r()];
+  return Array.from({length: NB}, (_, b) => voiced ? 0.1 + f.reduce((s, c, k) => s + (0.9 - 0.25 * k) * Math.exp(-0.5 * ((b - c) / 2.2) ** 2), 0) : 0.1 + 0.6 * clamp((b - 20) / 15) * (0.6 + 0.4 * r()));
+});
+let MD = 'good', SHOWN = 0, runT;
+function draw4() {
+  const {path, stop} = pathFor(MD), R = setup('c4', 330), g = R.g, B = {l: 40, t: 8, w: R.w - 60}, cw = B.w / MAXS, rh = 16, mt = B.t + TXT.length * rh + 26, mh = 120;
+  for (let i = 0; i < TXT.length; i++) {
+    for (let s = 0; s < MAXS; s++) {
+      let v = 0;
+      if (s < SHOWN && s < path.length) { const d = Math.abs(path[s] - i); v = d === 0 ? 0.85 : d === 1 ? 0.25 : 0; }
+      box(g, B.l + s * cw, B.t + i * rh, cw, rh - 1, v ? rgb(cmap(v)) : '#f4f4f2');
+    }
+    text(g, TXT[i] === ' ' ? '␣' : TXT[i], B.l - 8, B.t + i * rh + rh / 2, C.ink, 'right', true);
+  }
+  for (let s = 0; s < Math.min(SHOWN, path.length); s++) {
+    const col = TEMPL[path[s]], bh = mh / NB;
+    col.forEach((v, b) => box(g, B.l + s * cw, mt + mh - (b + 1) * bh, cw, bh, rgb(cmap(clamp(v)))));
+  }
+  g.strokeStyle = C.line; g.strokeRect(B.l + .5, mt + .5, B.w, mh);
+  text(g, 'Mel', B.l - 8, mt + mh / 2, C.mute, 'right');
+  for (let s = 0; s <= MAXS; s += 15) text(g, String(s), B.l + s * cw, mt + mh + 12, C.mute, 'center');
+  text(g, 'bước decoder (frame Mel) →', B.l + B.w, mt + mh + 26, C.mute, 'right');
+  const n = Math.min(SHOWN, path.length), read = [];
+  for (let s = 0; s < n; s++) if (!s || path[s] !== path[s - 1]) read.push(TXT[path[s]]);
+  const done = SHOWN >= path.length;
+  const stopP = s => stop ? 1 / (1 + Math.exp(-(s - (path.length - 1.6)) * 2.5)) : 0.05;
+  document.getElementById('r4').innerHTML = `Đã sinh <b>${n}</b> frame. Đọc ra: "<b>${read.join('')}</b>". Xác suất dừng ở bước này: <b>${n ? r2(stopP(n - 1)) : '0.00'}</b>` +
+    (done ? (stop ? ' → vượt 0,5: dừng.' : ` → chưa bao giờ vượt 0,5, bị cắt ở giới hạn ${MAXS} bước.`) : '');
+}
+const stop4 = () => { clearInterval(runT); runT = null; };
+document.getElementById('gen').addEventListener('click', () => {
+  stop4(); SHOWN = 0; const L = pathFor(MD).path.length;
+  runT = setInterval(() => { SHOWN++; draw4(); if (SHOWN >= L) stop4(); }, 45);
+});
+document.addEventListener('click', e => {
+  const b = e.target.closest('button[data-md]');
+  if (b) { stop4(); MD = b.dataset.md; toggle('md', MD); SHOWN = pathFor(MD).path.length; draw4(); }
+});
+SHOWN = pathFor(MD).path.length;
+draw4();
+onResize(draw4);
+</script>
+</body>
+</html>

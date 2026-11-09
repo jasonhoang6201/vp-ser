@@ -1,0 +1,33 @@
+{
+  "clip": "mtl-4-sensevoice",
+  "title": "Học ASR và SER cùng lúc · Phần 4: SenseVoice",
+  "segments": [
+    {"id": "intro",
+     "sub": "Học ASR và SER cùng lúc, phần 4: token chỉ việc, SenseVoice.",
+     "say": "Học nhận dạng lời và cảm xúc cùng lúc, phần bốn: tô ken chỉ việc, với Sen xơ voi."},
+    {"id": "what",
+     "sub": "SenseVoice-Small (Alibaba, 2024) không dùng hai đầu riêng. Encoder không tự hồi quy, huấn luyện bằng CTC.",
+     "say": "Sen xơ voi bản nhỏ, của A li ba ba năm hai nghìn hai mươi bốn, không dùng hai đầu riêng. Nó là một en cô đơ không tự hồi quy, huấn luyện bằng xi ti xi."},
+    {"id": "tokens",
+     "sub": "Thêm 4 vector \"câu hỏi\" vào đầu chuỗi đầu vào: [LID] [SER] [AED] [ITN], rồi đến các frame âm thanh.",
+     "say": "Nó thêm bốn véc tơ câu hỏi vào đầu chuỗi đầu vào: hỏi ngôn ngữ, hỏi cảm xúc, hỏi sự kiện âm thanh, và hỏi chuẩn hóa chữ. Sau đó mới đến các frame âm thanh."},
+    {"id": "out",
+     "sub": "Ở 4 vị trí đầu, mô hình ra: ngôn ngữ (<|vi|>), cảm xúc (<|HAPPY|>), sự kiện như cười, vỗ tay (<|Speech|>), có chuẩn hóa số, dấu câu hay không. Các vị trí còn lại ra chữ bằng CTC.",
+     "say": "Ở bốn vị trí đầu, mô hình lần lượt ra: ngôn ngữ, ví dụ tiếng Việt; cảm xúc, ví dụ vui; sự kiện âm thanh, như tiếng nói, tiếng cười, vỗ tay; và có chuẩn hóa chữ số, dấu câu hay không. Các vị trí còn lại ra chữ bằng xi ti xi."},
+    {"id": "whisper",
+     "sub": "Ý tưởng giống token chỉ việc của Whisper (trang 12), nhưng chạy song song nên nhanh hơn nhiều.",
+     "say": "Ý tưởng giống tô ken chỉ việc của Uýt spơ ở trang mười hai, nhưng chạy song song, nên nhanh hơn nhiều."},
+    {"id": "one",
+     "sub": "Cảm xúc ở đây là một token cho cả câu, đoán cùng lúc với chữ, bởi cùng một mạng.",
+     "say": "Cảm xúc ở đây là một tô ken cho cả câu, được đoán cùng lúc với chữ, bởi cùng một mạng."},
+    {"id": "ft",
+     "sub": "Fine-tune cho dữ liệu mới: chỉ cần cập nhật nhãn của token cảm xúc và chữ trong file huấn luyện.",
+     "say": "Muốn tinh chỉnh cho dữ liệu mới, chỉ cần cập nhật nhãn của tô ken cảm xúc và phần chữ trong file huấn luyện."},
+    {"id": "result",
+     "sub": "Tóm lại: 4 token câu hỏi đầu chuỗi, CTC song song, một mạng ra cả ngôn ngữ, cảm xúc, sự kiện, chữ. Phần 5: transducer có cảm xúc.",
+     "say": "Tóm lại: bốn tô ken câu hỏi ở đầu chuỗi, xi ti xi chạy song song, một mạng ra cả ngôn ngữ, cảm xúc, sự kiện, và chữ. Phần năm: transducer có cảm xúc."},
+    {"id": "terms",
+     "sub": "Thuật ngữ của phần này.",
+     "say": "Các thuật ngữ của phần này."}
+  ]
+}

@@ -1,0 +1,718 @@
+=== page 1 ===
+On the Efficacy and Noise-Robustness of Jointly Learned Speech Emotion and
+Automatic Speech Recognition
+Lokesh Bansal1,2∗, S. Pavankumar Dubagunta1, Malolan Chetlur1,
+Pushpak Jagtap2 and Aravind Ganapathiraju1
+1Uniphore Software Systems, Bengaluru, India
+2Robert Bosch Centre for Cyber-Physical Systems, Indian Institute of Science, Bengaluru, India
+lokeshbansal@iisc.ac.in, pavankumard@uniphore.com
+Abstract
+New-age conversational agent systems perform both speech-
+emotion recognition (SER) and automatic speech recognition
+(ASR) using two separate and often independent approaches for
+real-world applications in noisy environments. In this paper,
+we investigate a joint ASR-SER multitask learning approach
+in a low-resource setting and show that improvements are ob-
+served not only in SER but also in ASR. We also investigate
+the robustness of such jointly trained models to the presence
+of background noise, babble, and music. Experimental results
+on the IEMOCAP dataset show that joint learning can improve
+ASR word error rate (WER) and SER classification accuracy
+by 10.7% and 2.3% respectively in clean scenarios. In noisy
+scenarios, results on data augmented with MUSAN show that
+the joint approach outperforms the independent ASR and SER
+approaches across many noisy conditions. Overall, the joint
+ASR-SER approach yielded more noise-resistant models than
+the independent ASR and SER approaches.
+Index Terms: Speech emotion recognition, automatic speech
+recognition, multitask learning, noise robustness, conversa-
+tional agents.
+1. Introduction
+Nowadays, modern AI-based conversational agents employing
+ASR are also equipped with emotional awareness using SER
+to improve the overall user experience. These agents are in-
+dispensable in real-world applications such as call centers, au-
+tomotive voice assistants, and voice-enabled home automation
+systems. For instance, in call centers, conversational AI agents
+that automatically transcribe the customers’ requests using ASR
+also detect their emotions using SER to ensure customer satis-
+faction. Therefore, it is essential to build reliable systems that
+can perform ASR and SER jointly to simplify the computational
+requirements in scenarios where both tasks are necessary.
+However, integrating ASR and SER presents significant
+challenges, since (i) their underlying approaches have tradition-
+ally been developed separately, (ii) corpora that contain both
+transcriptions and emotion annotations are scarcely available,
+limiting their performance in joint-use scenarios.
+There has
+been limited research in this area, with only a few studies [1, 2].
+The authors of [1] demonstrated that multitasking ASR and
+SER jointly during training can enhance SER performance. In
+[2], the authors showed an improvement in SER performance
+by fusing acoustic embeddings with linguistic embeddings gen-
+erated from the ASR output and jointly training the ASR and
+∗This work was carried out during Bansal’s internship at Uniphore
+Software Systems. He would like to thank Dr. Rajasekhar Bangaru for
+providing valuable suggestions.
+SER end-to-end model. In both works, ASR was considered
+as an auxiliary task to SER, i.e.
+there is no clear emphasis
+on the ASR performance. Moreover, the noise robustness of
+these models has not been studied. Operating in a real-world
+setting requires the models to be robust to background condi-
+tions, most typically noise, music, and babble. While several
+approaches exist that improve the robustness of individual ASR
+and SER systems in noisy environments, the noise robustness
+of joint modeling has not been studied.
+With this motivation, our research presents two main con-
+tributions. Firstly, we utilize a multitask joint ASR-SER learn-
+ing architecture [2], with both of them as primary tasks, with
+a minor modification in the fusion strategy of acoustic and lin-
+guistic information in addition to the existing fusion approach
+in [2]. This approach overcomes the problem of data scarcity
+by utilizing pre-trained models, specifically wav2vec2. Further-
+more, we investigate and present our results on noise robustness
+analysis carried out to assess the resilience of the multitasking
+approach to various typical noise kinds, in comparison to the
+single-tasking baseline approaches.
+The rest of the paper is organized as follows: related work
+is introduced in Sec. 2, the multitask-based joint learning ap-
+proach is described in Sec. 3, the experimental settings and re-
+sults are presented in Sec. 4, analysis is presented in Sec. 5 and
+the conclusions are presented in Sec. 6.
+2. Related Work
+According to the literature [3], ASR can benefit from mod-
+eling variability among data, such as speaker-related (e.g., i-
+vectors, x-vectors) and channel-related information (through
+multi-condition training).
+Several studies have investigated
+multitasking with various speech tasks, including age, gender,
+and speaker verification. In [4], improvements were observed
+in both ASR and text-dependent speaker verification when per-
+formed together. Multitasking with tasks similar to ASR, such
+as phone label, phone context, and state context prediction, can
+also improve ASR performance, as demonstrated in [5] and
+[6]. Thus, one can expect that modeling emotion variability by
+multitasking with emotion recognition can benefit ASR. Cor-
+respondingly, for SER, multi-task learning models have been
+introduced to predict gender, age, accent, and emotion in a joint
+manner, and these models demonstrated an enhanced SER per-
+formance [7, 8, 9, 10]. As mentioned above, although ASR and
+SER have been multitasked with other tasks separately, there is
+also research that combines ASR and SER tasks together which
+has demonstrated to improve the performance of SER task alone
+[1, 2, 11], but the improvements on the ASR side have not been
+systematically evaluated.
+In addition to multitasking ASR and SER using acous-
+arXiv:2305.12540v2  [eess.AS]  25 May 2023
+
+=== page 2 ===
+CTC based 
+Loss
+Transcripts
+Pre-trained
+Wave2vec2
++ ﬁnetuning
+Acousc Features
+CTC  Loss
+a) ASR baseline
+Cross
+Entropy Loss
+Emoon
+Pre-trained
+Wave2vec2
++ ﬁnetuning
+b) SER baseline
+Pre-trained Bert
+Model
+Acousc Features
+Transcripts
+CTC Loss
+Emoon
+MLP
+Concatenaon
+Cross Entropy
+Loss
+c) Joint architecture
+Skip
+connecon
+Pre-trained 
+Wave2vec2
++ ﬁnetuning
+Skip 
+connecon
+Acousc Features
+Avg Pool
+MLP
+Avg Pool
+Avg Pool
+Figure 1: Architectures.
+tic embeddings, recent studies have emphasized the fusion of
+acoustic and linguistic embeddings to improve SER perfor-
+mance.
+Linguistic embeddings offer additional information
+about spoken words, leading to better emotion recognition ac-
+curacy.
+Combining both acoustic and linguistic embeddings
+has been demonstrated to enhance SER classifier performance
+in comparison to using acoustic embeddings alone. Numerous
+fusion methods, including the Gated Bidirectional Alignment
+Network (GBAN) proposed by [12], the deep dual recurrent en-
+coder model proposed by [13], and the fusion techniques pro-
+posed by Sebastian et al. [14], have displayed the potential
+for improving emotion recognition using multiple modalities.
+Following the previous fusion methods, we present a simple
+modification to the architecture by incorporating skip connec-
+tions in conjunction with feed-forward layers. This revised ap-
+proach entails processing the two embeddings separately using
+the skip connection-based feed-forward layer before concate-
+nating them.
+As advancements have been made in ASR and SER for
+noise-free environments, there have also been independent stud-
+ies on ASR and SER in noisy environments. Several techniques
+were proposed to improve noise robustness in ASR, such as the
+interactive feature fusion network (IFF-Net) [15], the multitask-
+based method with dual-channel data augmentation [16], and an
+online speech distortion module with an encoder [17], to name
+a recent few. On the other hand, techniques like the adversarial
+joint training framework with the self-attention mechanism [18]
+and data augmentation techniques, including overlaying back-
+ground noise and loudness variations, have been proposed to
+improve noise robustness in SER models [19]. Additionally, a
+feature selection technique based on the noise robustness of in-
+dividual low-level descriptors in noisy conditions has been pro-
+posed to improve SER performance without using any compen-
+sation methods or a noisy training set [20].
+Since we have observed improvements in ASR-SER mod-
+els through joint training, it is important to investigate the effect
+of joint ASR-SER training on noise robustness in real-world set-
+tings where ASR-SER applications are typically used. In such
+scenarios, it is critical to ensure that ASR-SER joint models are
+able to perform accurately in noisy environments.
+3. Approach
+We begin with the description of the baseline models for ASR
+and SER tasks, which will serve as a point of comparison for the
+joint architecture. Then, we will present the joint architecture
+for a multitask-based joint learning approach. Figure 1 shows
+the overall architecture of the joint multitasking model along
+with the ASR baseline and SER baseline models. In our exper-
+iments, we employed the SpeechBrain toolkit [21] for both the
+joint architecture and baselines, since its recipes are considered
+state-of-the-art. We used the recipes provided by the toolkit as-
+is for the baselines, which included the ASR and SER baselines.
+To implement the joint-training approach, we introduced mod-
+ifications to the same recipe to attain the desired joint architec-
+ture. More comprehensive explanations of these modifications
+will be provided in Sec. 3.2.
+3.1. Baseline for ASR and SER
+The ASR baseline involves performing data augmentation us-
+ing Time Domain Spec Augment with three different speed
+values 95, 100, and 105, followed by acoustic feature extrac-
+tion using the Hugging Face wav2vec2-large-960h-lv60-self
+wav2vec2 model [22]. The wav2vec2 encoder was fine-tuned
+while keeping the convolutional part of the model frozen. The
+training (fine-tuning) was performed using connectionist tem-
+poral classification (CTC) loss [23] and the decoded transcripts
+were obtained using the corresponding decoding algorithm. The
+SER baseline involves acoustic feature extraction using the
+same wav2vec2 encoder, with its fine-tuning with the convo-
+lutional part of the encoder frozen. It is followed by an average
+pooling layer and an output MLP for emotion classification into
+anger, happiness, sadness, and neutral categories.
+3.2. Joint architecture
+The joint multitasking architecture aims to improve the perfor-
+mance of both ASR and SER tasks. Firstly, the ASR baseline
+approach is followed, which involves data augmentation and
+fine-tuning a pre-trained wav2vec2 model as a shared acous-
+tic feature extractor for both tasks, while freezing the convolu-
+tional part of the model. These acoustic feature embeddings are
+then processed through two parallel and interlinked channels,
+one for ASR and the other for SER. The ASR channel utilizes a
+
+=== page 3 ===
+Table 1: Results of 10-fold cross-validation on IEMOCAP dataset for all the models trained on Clean and Noise data and evaluated at
+seven test scenarios. Rel Imp refers to relative improvement (%).
+10 Fold Cross
+Results
+ASR Performance: Metric Word Error Rate (WER)
+SER Performance: Metric - Accuracy
+Trained on Clean
+Trained on Noise
+Trained on Clean
+Trained on Noise
+Test Dataset
+Baseline
+Joint
+Rel Imp
+Baseline
+Joint
+Rel Imp
+Baseline
+Joint
+Rel Imp
+Baseline
+Joint
+Rel Imp
+Clean
+16.8
+15.0
+10.7
+19.8
+15.6
+21.2
+71.9
+74.2
+2.3
+70.2
+71.7
+1.5
+SNR 15 Noise
+22.2
+19.3
+13.1
+19.8
+18.4
+7.1
+69.8
+71.8
+2.0
+69.0
+70.6
+1.6
+SNR 5 Noise
+33.6
+29.3
+12.8
+26.0
+25.8
+0.8
+62.0
+66.8
+4.8
+66.1
+68.7
+2.6
+SNR 15 Music
+21.7
+19.6
+9.9
+19.1
+18.3
+4.3
+68.8
+72.1
+3.3
+68.7
+71.1
+2.4
+SNR 5 Music
+37.4
+35.8
+4.3
+27.9
+29.2
+-4.6
+60.8
+64.2
+3.4
+65.1
+68.4
+3.3
+SNR 15 Speech
+36.9
+42.0
+-13.8
+20.6
+22.4
+-8.6
+66.7
+67.6
+0.9
+67.4
+70.0
+2.6
+SNR 5 Speech
+74.6
+86.4
+-15.8
+36.3
+51.3
+-41.3
+53.3
+52.4
+-0.9
+58.1
+62.3
+4.2
+CTC-based decoder [23] to decode the acoustic features and ob-
+tain speech transcriptions. The transcriptions contain emotional
+content as specified in lexical dictionaries [24, 25, 26, 27]. To
+leverage this information, linguistic embeddings are extracted
+from the ASR transcriptions using a pre-trained BERT encoder,
+which has a greater representation capability than other types of
+embeddings due to its context-aware representations, resulting
+in more robust and accurate embeddings. Then these BERT-
+based linguistic embeddings are used in a fusion network for
+feature-level fusion with the acoustic embeddings. The fusion
+approach we utilized processes linguistic and acoustic embed-
+dings separately through multi-layer perceptron (MLP). To en-
+hance the robustness, and information flow of these layers, we
+incorporate skip connections [28] across them that results in
+more accurate and reliable embeddings. We concatenate the
+processed embeddings to obtain the final embeddings for SER
+classification. Finally, a cross-entropy loss-based emotion clas-
+sifier is used for SER classification. For the training of the joint
+architecture, we used the following multitasking loss function:
+Ljoint = αLSER + (1 −α)LASR
+(1)
+Where LSER is the SER cross-entropy loss, LASR is the
+ASR CTC loss and α is a scaling factor that determines the
+contribution of the SER and ASR components. We used α =
+0.1 that gave the best results (analysis not shown) for both the
+tasks as primary tasks.
+4. Experiments and Results
+4.1. Dataset preparation and Experimental setup
+For our study, we utilized the IEMOCAP dataset [29], which
+consists of approximately 12 hours of data from ten actors in
+five dyadic sessions. The dataset contains 10,039 turns or utter-
+ances, sampled at 16 kHz. We used Speechbrain toolkit [21] for
+experimentation - specifically the ‘IEM4’ categories which in-
+clude happy, sad, angry, and neutral emotions. In total, we used
+5500 utterances in the IEM4 categories for training and evalu-
+ation. Further, to generate noise in the data we used MUSAN
+(Music, Speech, and Noise) dataset [30]. The MUSAN dataset
+is a large-scale corpus of various types of audio signals, such as
+music, speech, and noise. The dataset includes more than 8,000
+audio files, each 10 seconds long, sampled at 16 kHz. The audio
+files are categorized into three groups, namely music, speech,
+and noise, and further sub-categorized based on various proper-
+ties such as genre, language, and type of noise.
+For training the baseline and joint models, we used two
+types of data: clean data and noisy data. The IEMOCAP IEM4
+data was used as the clean set, while the noisy data was cre-
+ated by superimposing the IEM4 data with audio files from the
+MUSAN dataset, resulting in noisy files with speech-to-noise
+ratio (SNR) values ranging from 5 to 35 dB and noise types
+including music, background speech (babble), and background
+noise. Using these two types of datasets, we trained three types
+of models (joint architecture, SER, and ASR baseline), resulting
+in six types of trained models. To evaluate these models, we pre-
+pared seven test scenarios with 15 and 5 dB SNR levels across
+noise types. The joint and baseline methods were evaluated us-
+ing 10-fold cross-validation. Following the standard practice,
+one speaker was excluded for testing in each fold, while the
+remaining nine speakers were used for training. We applied
+this evaluation approach to the IEMOCAP dataset, which con-
+sists of 10 speakers. In each fold of cross-validation, we held
+out one speaker at a time for testing and utilized the remaining
+nine speakers for training. During this process, we collected
+and stored the predictions for emotion and transcription. This
+hold-and-training procedure was repeated for all ten folds, and
+finally, the overall performance was assessed by analyzing the
+predictions.
+4.2. Results
+Table 1 showcases the outcomes of the aforementioned exper-
+iments. The ASR performance is measured in word error rate
+(WER) (the lower the better), while the SER performance is de-
+termined by classification accuracy (the higher the better). The
+relative performance improvement was calculated by compar-
+ing the clean-trained joint model to the clean-trained baseline
+models and the noise-trained joint model to the noise-trained
+baseline models.
+The results of training testing performed on clean data show
+that the joint model significantly outperformed the baseline
+models for both ASR and SER. In terms of ASR, there was a
+10.7% improvement in the WER, from 16.8 to 15, and a 2.3%
+improvement in SER accuracy, from 71.9% to 74.2%.
+5. Analysis
+In this section, we examine the variation in performance be-
+tween the baseline and joint models that were trained on clean
+and noisy data. We use the baseline models trained on clean
+data as the reference point for the other three types of mod-
+els, which include the noise-trained baseline models, the clean-
+trained joint model, and the noise-trained joint model. Fig.2(a)
+and (b) show these comparisons.
+First, we evaluate the impact of noise inclusion in the train-
+ing data for the seven test scenarios. Fig.2(a) shows that, ir-
+
+=== page 4 ===
+Clean
+SNR 15 Noise
+SNR 5 Noise
+SNR 15 Music
+SNR 5 Music
+SNR 15 Speech
+SNR 5 Speech
+20
+10
+0
+10
+20
+30
+40
+50
+Rel imp (%) wrt clean-baseline model
+-17.9
+10.8
+22.6
+12.0
+25.4
+44.2
+51.3
+10.7
+13.1
+12.8
+9.9
+4.3
+-13.8
+-15.8
+7.1
+17.1
+23.2
+15.8
+22.0
+39.4
+31.2
+a) ASR Performance Comparison
+Baseline Model trained on noisy data
+Joint Model trained on clean data
+Joint Model trained on noisy data
+Clean
+SNR 15 Noise
+SNR 5 Noise
+SNR 15 Music
+SNR 5 Music
+SNR 15 Speech
+SNR 5 Speech
+4
+2
+0
+2
+4
+6
+8
+10
+Rel imp (%) wrt clean-baseline model
+-1.7
+-0.8
+4.1
+-0.1
+4.3
+0.7
+4.8
+2.3
+2.0
+4.8
+3.3
+3.4
+0.9
+-0.9
+-0.2
+0.8
+6.7
+2.3
+7.6
+3.3
+9.0
+b) SER Performance Comparison
+Baseline Model trained on noisy data
+Joint Model trained on clean data
+Joint Model trained on noisy data
+Figure 2: Relative comparison among the baseline models and joint architecture trained with the two training strategies: Clean and
+Noisy dataset.
+respective of the baseline or joint model, training on a noisy
+dataset yields better performance in all the ASR test cases, ex-
+cept for clean test speech.
+Furthermore, when we compare the baseline model to the
+joint model, regardless of clean or noisy training data, the joint
+model performs better when there is music and background
+noise mixed with the data, across all levels of SNR except for
+scenario SNR 5 Music, where there is a slight improvement in
+baseline in comparison to the joint model. In Table 1, we can
+observe a significant relative improvement of the clean-trained
+joint model over the clean-trained baseline model in the case of
+noise and music in the background, with a huge improvement
+across all SNR levels, and the highest improvement of 13.1%
+for the SNR 15 noise case. Similarly, for the comparison be-
+tween noise-trained joint and noise-trained baseline models, we
+can see a significant improvement for the clean test as well as
+the noise and music-contaminated test set across all SNR lev-
+els, with a remarkable improvement of 21.2% for the clean data
+and significant improvement across other mentioned data sets.
+Hence, it can be concluded that the joint model always outper-
+forms the baseline model for all SNR levels for music and noise
+speech contamination scenarios. However, in the case of speech
+in the background, the baseline model performs better than the
+joint model, regardless of training type and SNR level. This
+observation requires further investigation.
+In the case of SER, we first focus on the impact of a clean
+versus noisy training approach. As shown in Figure 2(b), with
+the exception of the clean test and SNR 15 noise and SNR 15
+Music scenarios, the noisy training approach outperforms the
+clean training approach for both the joint and baseline mod-
+els. The joint model trained with noisy data exhibits excep-
+tional performance, particularly in the babble scenario and even
+in highly contaminated scenarios such as the SNR 5 level across
+all noise types. The most notable improvement is observed in
+the SNR 5 Noise case, where it outperforms the clean-trained
+joint model by 9.9% and the noise-trained baseline model by
+5.2%. Additionally, the comparison between the noise-trained
+SER baseline and the clean-trained SER baseline indicates a
+trend similar to that found in the joint model’s noise versus
+clean case. This suggests that noise training enhances the noise
+robustness of the model, regardless of the baseline or joint ar-
+chitecture, particularly at low SNR levels and babble scenarios.
+However, in other cases, the clean-trained models perform bet-
+ter than the noise-trained models.
+Finally, we analyze the performance of the joint architec-
+ture versus the baseline architecture for both clean and noise-
+trained scenarios. As shown in the plot, the joint model consis-
+tently outperforms the baseline model with significant margins
+(except for the clean training at SNR 5 speech). This obser-
+vation indicates that the joint architecture is more robust than
+the baseline architecture for all types of noise at all SNR lev-
+els. Overall for SER, the joint architecture demonstrates better
+noise robustness than the baseline model regardless of the train-
+ing strategy.
+6. Conclusions
+The results conclude that joint modeling of ASR-SER improves
+both tasks in clean conditions over the single-tasking baselines.
+In the case of ASR, training on a noisy dataset results in better
+performance for all test scenarios except clean speech, regard-
+less of whether it is a baseline or joint model. Additionally, the
+joint model consistently exhibits better performance than the
+baseline model in most of the test scenarios, except for the bab-
+ble scenario and the SNR 5 Music scenario (when noise training
+is used). For the babble scenario, regardless of the training ap-
+proach, ASR performance degrades at both 15 and 5 SNR, with
+higher degradation at 5 SNR. Further, in the case of SER, noise
+training enhances the noise robustness of the model in low SNR
+levels and babble, and the joint architecture consistently outper-
+forms the baseline architecture for all types of noise and SNR
+levels.
+Finally, we found that joint architectures are generally more
+noise robust than baseline architectures, but there are still some
+scenarios where the baseline outperforms the joint model, par-
+ticularly for ASR tasks having babble test scenarios and Music
+with lower SNR. Further research could investigate why this is
+the case and develop strategies to improve joint models’ perfor-
+mance in these scenarios.
+
+=== page 5 ===
+7. References
+[1] X. Cai, J. Yuan, R. Zheng, L. Huang, and K. Church, “Speech
+emotion recognition with multi-task learning.” in Proceedings of
+Interspeech, 2021, pp. 4508–4512.
+[2] Y. Li, P. Bell, and C. Lai, “Fusing ASR outputs in joint training for
+speech emotion recognition,” in Proceedings of ICASSP.
+IEEE,
+2022, pp. 7362–7366.
+[3] M. Benzeghiba et al., “Automatic speech recognition and speech
+variability: A review,” Speech communication, vol. 49, no. 10-11,
+pp. 763–786, 2007.
+[4] N. Chen, Y. Qian, and K. Yu, “Multi-task learning for text-
+dependent speaker verification,” in Proceedings of Interspeech,
+2015, pp. 185–189.
+[5] M. L. Seltzer and J. Droppo, “Multi-task learning in deep neural
+networks for improved phoneme recognition,” in Proceedings of
+ICASSP.
+IEEE, 2013, pp. 6965–6969.
+[6] V. Arora, A. Lahiri, and H. Reetz, “Phonological Feature Based
+Mispronunciation Detection and Diagnosis Using Multi-Task
+DNNs and Active Learning,” in Proceedings of Interspeech, 2017,
+pp. 1432–1436.
+[7] A. Nediyanchath, P. Paramasivam, and P. Yenigalla, “Multi-head
+attention for speech emotion recognition with auxiliary learning
+of gender recognition,” in ICASSP.
+IEEE, 2020, pp. 7179–7183.
+[8] S. Latif et al., “Multi-task semi-supervised adversarial autoencod-
+ing for speech emotion recognition,” IEEE Transactions on Affec-
+tive Computing, vol. 13, no. 2, pp. 992–1004, 2022.
+[9] H. Zhao, N. Ye, and R. Wang, “Transferring age and gender at-
+tributes for dimensional emotion prediction from big speech data
+using hierarchical deep learning,” in 2018 IEEE 4th International
+Conference on Big Data Security on Cloud (BigDataSecurity),
+IEEE International Conference on High Performance and Smart
+Computing, (HPSC) and IEEE International Conference on Intel-
+ligent Data and Security (IDS), 2018, pp. 20–24.
+[10] J. Kim, G. Englebienne, K. P. Truong, and V. Evers, “Towards
+Speech Emotion Recognition “in the Wild” Using Aggregated
+Corpora and Deep Multi-Task Learning,” in Proceedings of In-
+terspeech, 2017, pp. 1113–1117.
+[11] J. Santoso et al., “Speech emotion recognition based on attention
+weight correction using word-level confidence measure.” in Pro-
+ceedings of Interspeech, 2021, pp. 1947–1951.
+[12] P. Liu, K. Li, and H. Meng, “Group Gated Fusion on Attention-
+Based Bidirectional Alignment for Multimodal Emotion Recog-
+nition,” in Proceedings of Interspeech, 2020, pp. 379–383.
+[13] L. Sun, B. Liu, J. Tao, and Z. Lian, “Multimodal cross-and self-
+attention network for speech emotion recognition,” in Proceed-
+ings of ICASSP.
+IEEE, 2021, pp. 4275–4279.
+[14] J. Sebastian, P. Pierucci et al., “Fusion techniques for utterance-
+level emotion recognition combining speech and transcripts.” in
+Proceedings of Interspeech, 2019, pp. 51–55.
+[15] Y. Hu, N. Hou, C. Chen, and E. S. Chng, “Interactive feature fu-
+sion for end-to-end noise-robust speech recognition,” in Proceed-
+ings of ICASSP.
+IEEE, 2022, pp. 6292–6296.
+[16] D. Ma, N. Hou, H. Xu, E. S. Chng et al., “Multitask-based joint
+learning approach to robust asr for radio communication speech,”
+in Proceedings of Asia-Pacific Signal and Information Process-
+ing Association Annual Summit and Conference (APSIPA ASC).
+IEEE, 2021, pp. 497–502.
+[17] Ravanelli et al., “Multi-task self-supervised learning for robust
+speech recognition,” in Proceedings of ICASSP.
+IEEE, 2020, pp.
+6989–6993.
+[18] L. Li, Y. Kang, Y. Shi, L. K¨urzinger, T. Watzel, and G. Rigoll,
+“Adversarial joint training with self-attention mechanism for ro-
+bust end-to-end speech recognition,” EURASIP Journal on Audio,
+Speech, and Music Processing, vol. 2021, pp. 1–16, 2021.
+[19] E. Lakomkin, M. A. Zamani, C. Weber, S. Magg, and S. Wermter,
+“On the robustness of speech emotion recognition for human-
+robot interaction with deep neural networks,” in Proceedings of
+IEEE/RSJ International Conference on Intelligent Robots and
+Systems (IROS).
+IEEE, 2018, pp. 854–860.
+[20] S.-G. Leem, D. Fulford, J.-P. Onnela, D. Gard, and C. Busso,
+“Not all features are equal: Selection of robust features for speech
+emotion recognition in noisy environments,” in Proceedings of
+ICASSP.
+IEEE, 2022, pp. 6447–6451.
+[21] M. Ravanelli, T. Parcollet, P. Plantinga, A. Rouhe, S. Cornell,
+L. Lugosch, C. Subakan, N. Dawalatabad, A. Heba, J. Zhong
+et al., “Speechbrain: A general-purpose speech toolkit,” arXiv
+preprint arXiv:2106.04624, 2021.
+[22] A. Baevski, Y. Zhou, A. Mohamed, and M. Auli, “wav2vec
+2.0: A framework for self-supervised learning of speech repre-
+sentations,” Advances in neural information processing systems,
+vol. 33, pp. 12 449–12 460, 2020.
+[23] A. Graves, S. Fern´andez, F. Gomez, and J. Schmidhuber, “Con-
+nectionist temporal classification:
+labelling unsegmented se-
+quence data with recurrent neural networks,” in Proceedings of
+the 23rd international conference on Machine learning, 2006, pp.
+369–376.
+[24] C. Whissell, “Using the revised dictionary of affect in language
+to quantify the emotional undertones of samples of natural lan-
+guage,” Psychological reports, vol. 105, no. 2, pp. 509–521, 2009.
+[25] A. B. Warriner, V. Kuperman, and M. Brysbaert, “Norms of va-
+lence, arousal, and dominance for 13,915 english lemmas,” Be-
+havior research methods, vol. 45, pp. 1191–1207, 2013.
+[26] C. Hutto and E. Gilbert, “Vader: A parsimonious rule-based
+model for sentiment analysis of social media text,” in Proceed-
+ings of the international AAAI conference on web and social me-
+dia, vol. 8, no. 1, 2014, pp. 216–225.
+[27] S. Mohammad, “Obtaining reliable human ratings of valence,
+arousal, and dominance for 20,000 english words,” in Proceed-
+ings of the 56th annual meeting of the association for computa-
+tional linguistics (volume 1: Long papers), 2018, pp. 174–184.
+[28] K. He, X. Zhang, S. Ren, and J. Sun, “Deep residual learning for
+image recognition,” in Proccedings of CVPR, 2016, pp. 770–778.
+[29] C. Busso et al., “IEMOCAP: Interactive emotional dyadic motion
+capture database,” Language resources and evaluation, vol. 42,
+pp. 335–359, 2008.
+[30] D. Snyder, G. Chen, and D. Povey, “MUSAN: A Music, Speech,
+and Noise Corpus,” 2015, arXiv:1510.08484v1.
+

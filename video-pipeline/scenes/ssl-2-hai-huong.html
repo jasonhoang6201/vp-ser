@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>SSL 2: Hai hướng</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/ssl-2-hai-huong.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Hai hướng', '3 wav2vec 2.0', '4 HuBERT', '5 Whisper'];
+const MASK = [7, 8, 9, 10, 11, 12];
+
+function frameRow(y, n, o = {}) {
+  for (let k = 0; k < n; k++) {
+    const m = o.mask && o.mask.includes(k);
+    rrect(260 + k * 70, y, 60, 70, 8, m ? COL.soft : COL.accSoft, m ? COL.line2 : COL.acc, m ? 1.5 : 2);
+    if (m) text('?', 290 + k * 70, y + 35, {size: 30, weight: 700, color: COL.mute, align: 'center'});
+    else if (o.codes) text(String(o.codes[k]), 290 + k * 70, y + 35, {size: 24, weight: 700, color: COL.acc, align: 'center'});
+  }
+}
+const CODES = [3, 3, 7, 7, 7, 1, 1, 4, 4, 4, 9, 9, 9, 2, 2, 2, 5, 5, 5, 5];
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('wav2vec 2.0, HuBERT, Whisper', 'Phần 2/5: hai hướng giải quyết vấn đề', 1, PARTS);
+
+function shotSsl(G, t) {
+  const ss = S('ssl'), ds = D('ssl'), sf = S('ft'), df = D('ft');
+  heading('Hướng 1: tự giám sát (SSL)');
+  fade(G, P(t, ss + 0.3, 0.5), () => {
+    frameRow(280, 20, {mask: t > ss + ds * 0.35 ? MASK : null});
+    text('che một đoạn frame, đoán từ phần còn lại', 960, 400, {size: 28, weight: 700, color: COL.frame, align: 'center'});
+    text('không cần chữ', 960, 450, {size: 26, color: COL.ok, align: 'center'});
+  });
+  fade(G, P(t, sf + 0.3, 0.5), () => {
+    chip(G, 300, 560, 'tiền huấn luyện SSL', {size: 28, weight: 700, color: COL.ok, stroke: COL.ok});
+    arrow(620, 586, 720, 586, COL.mute, 3);
+    chip(G, 740, 560, 'tinh chỉnh CTC, ít nhãn', {size: 28, weight: 700, color: COL.acc, stroke: COL.acc});
+  });
+  fade(G, P(t, sf + df * 0.4, 0.5), () => {
+    const xs = UI.chipXs(G, ['wav2vec 2.0 (2020)', 'HuBERT (2021)', 'WavLM (2022)'], {size: 26, weight: 700}, 40);
+    ['wav2vec 2.0 (2020)', 'HuBERT (2021)', 'WavLM (2022)'].forEach((l, j) => chip(G, xs[j], 680, l, {size: 26, weight: 700}));
+  });
+}
+
+function shotWeak(G, t) {
+  const s = S('weak'), d = D('weak');
+  heading('Hướng 2: giám sát yếu ở quy mô lớn');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    for (let k = 0; k < 6; k++) {
+      const x = 260 + k * 240;
+      rrect(x, 290, 210, 130, 10, COL.soft, COL.line2, 1.5);
+      rrect(x + 20, 380, 170, 24, 4, '#00000088');
+      text(['hôm nay trời...', 'xin chào các...', 'and then we...', 'lời bài hát...', 'tin tức sáng...', '[nhạc]'][k], x + 105, 392, {size: 14, color: '#fff', align: 'center'});
+    }
+    text('âm thanh có phụ đề sẵn trên mạng', 960, 470, {size: 28, weight: 700, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.45, 0.5), () => {
+    text('phụ đề không hoàn hảo, nhưng số lượng bù chất lượng', 960, 560, {size: 28, weight: 700, color: COL.frame, align: 'center'});
+    chip(G, 840, 620, 'Whisper (2022)', {size: 30, weight: 700, color: COL.i, stroke: COL.i});
+  });
+}
+
+function shotBert(G, t) {
+  const sb = S('bert'), sw = S('what'), dw = D('what');
+  heading(t < sw ? 'Ý mượn từ văn bản: BERT (2018)' : 'Âm thanh: che cái gì, đoán ra cái gì?');
+  fade(G, P(t, sb + 0.3, 0.5), () => {
+    const ws = ['hôm', 'nay', '[che]', 'mưa', 'rất', 'to'], xs = UI.chipXs(G, ws, {size: 30, weight: 700}, 20);
+    ws.forEach((w, j) => chip(G, xs[j], 280, w, w === '[che]' ? HOT : {size: 30, weight: 700}));
+    text('→ đoán "trời": văn bản có sẵn chữ để đoán', 960, 390, {size: 26, color: COL.mute, align: 'center'});
+  });
+  fade(G, P(t, sw + 0.3, 0.5), () => {
+    frameRow(470, 20, {mask: MASK});
+    text('che: một đoạn frame liên tiếp', 960, 580, {size: 26, weight: 700, color: COL.frame, align: 'center'});
+  });
+  fade(G, P(t, sw + dw * 0.5, 0.5), () => text('đoán chính xác từng số của frame? quá khó, và phần lớn là chi tiết vô ích (nhiễu)', 960, 650, {size: 26, weight: 700, color: COL.hl, align: 'center'}));
+}
+
+function shotUnit(G, t) {
+  const su = S('unit'), du = D('unit'), sh = S('how'), dh = D('how');
+  heading(t < sh ? 'Đổi frame thành mã rời rạc, rồi đoán mã' : 'Mỗi phương pháp lấy mã một cách');
+  if (t < sh) {
+    fade(G, P(t, su + 0.3, 0.5), () => {
+      frameRow(300, 20, {});
+      arrow(960, 390, 960, 450, COL.mute, 3);
+      frameRow(470, 20, {codes: CODES, mask: t > su + du * 0.6 ? MASK : null});
+      text('mã số trong một bảng có hạn: "chữ" của âm thanh', 960, 590, {size: 28, weight: 700, color: COL.acc, align: 'center'});
+    });
+    return;
+  }
+  [['wav2vec 2.0', 'lượng tử hóa, học cùng mạng', 'phần 3', COL.acc], ['HuBERT', 'phân cụm k-means', 'phần 4', COL.ok], ['Whisper', 'hướng khác hẳn: chép lời có sẵn', 'phần 5', COL.i]].forEach(([n, m, p, c], j) =>
+    fade(G, P(t, sh + 0.3 + j * dh * 0.25, 0.5), () => {
+      const x = 220 + j * 520;
+      card(x, 300, 460, 280, {stroke: c, lw: 2.5});
+      text(n, x + 230, 360, {size: 34, weight: 700, color: c, align: 'center'});
+      text(m, x + 230, 440, {size: 24, align: 'center', maxW: 400});
+      text(p, x + 230, 530, {size: 22, color: COL.mute, align: 'center'});
+    }));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['SSL: che rồi đoán mã rời rạc, không cần chữ'], ['tinh chỉnh với ít nhãn'], ['giám sát yếu: rất nhiều nhãn tạm được']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text('✓', 440, 300 + j * 84, {size: 34, weight: 700, color: COL.ok});
+      text(a, 490, 300 + j * 84, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 800, 640, 'Phần 3: wav2vec 2.0  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 2', [
+  ['che rồi đoán, không cần nhãn', 'tự giám sát (SSL), masked prediction', ''],
+  ['nhãn có sẵn, không hoàn hảo', 'giám sát yếu (weak supervision)', 'Whisper'],
+  ['mã số trong bảng có hạn', 'đơn vị rời rạc (discrete unit)', '"chữ" của âm thanh'],
+  ['mô hình che chữ của văn bản', 'BERT (2018)', 'masked language model'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'ssl', to: 'ft', draw: shotSsl},
+    {from: 'weak', to: 'weak', draw: shotWeak},
+    {from: 'bert', to: 'what', draw: shotBert},
+    {from: 'unit', to: 'how', draw: shotUnit},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/ssl-2-hai-huong.wav');
+</script>
+</body>
+</html>

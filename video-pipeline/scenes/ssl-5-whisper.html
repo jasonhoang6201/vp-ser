@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>SSL 5: Whisper</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/ssl-5-whisper.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Hai hướng', '3 wav2vec 2.0', '4 HuBERT', '5 Whisper'];
+const TOK = {fill: COL.accSoft, stroke: COL.acc, color: COL.acc, weight: 700, size: 24};
+
+function tokenRow(y, toks, o = {}) {
+  const st = toks.map(([s, k]) => [s, k === 't' ? TOK : k === 'h' ? HOT : {size: 26, weight: 700}]);
+  G0.font = `700 24px ${Clip.FONT}`;
+  const xs = UI.chipXs(G0, toks.map(t => t[0]), {size: 24, weight: 700}, 14);
+  st.forEach(([s, sty], j) => fade(G0, o.u == null ? 1 : P(o.u, o.at + j * 0.35, 0.3), () => chip(G0, xs[j], y, s, sty)));
+}
+let G0;
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Whisper', 'Phần 5/5: nhiều nhãn "tạm được", nhiều việc trong một mô hình', 4, PARTS);
+
+function shotWhat(G, t) {
+  const sw = S('what'), sd = S('data'), dd = D('data'), si = S('input'), di = D('input');
+  heading(t < sd ? 'Whisper (OpenAI, Radford và cộng sự, 2022)' : t < si ? '680 000 giờ có chép lời từ Internet' : 'Đầu vào: log-Mel 80 kênh, đoạn 30 giây');
+  fade(G, P(t, sw + 0.3, 0.5), () => {
+    rrect(360, 300, 420, 140, 16, COL.accSoft, COL.acc, 3);
+    text('encoder Transformer', 570, 370, {size: 30, weight: 700, color: COL.acc, align: 'center'});
+    arrow(790, 370, 900, 370, COL.mute, 3);
+    rrect(910, 300, 420, 140, 16, '#e8f3ec', COL.ok, 3);
+    text('decoder Transformer', 1120, 370, {size: 30, weight: 700, color: COL.ok, align: 'center'});
+    text('như trang 11, không tự giám sát', 845, 490, {size: 26, color: COL.mute, align: 'center'});
+  });
+  fade(G, P(t, sd + 0.3, 0.5), () => {
+    const B = {x: 1420, y: 230, w: 300, h: 420}, tot = 680, en = 438, other = 117, tr = 125;
+    [[en, 'tiếng Anh', COL.acc], [tr, 'dịch sang Anh', COL.frame], [other, '96 ngôn ngữ khác', COL.ok]].reduce((y, [v, l, c]) => {
+      const h = v / tot * B.h;
+      rrect(B.x, y - h, 120, h - 2, 4, c + 'cc');
+      text(`${v} 000 giờ`, B.x + 135, y - h / 2 - 12, {size: 20, weight: 700, color: c});
+      text(l, B.x + 135, y - h / 2 + 14, {size: 20, color: COL.mute});
+      return y - h;
+    }, B.y + B.h);
+  });
+  fade(G, P(t, si + 0.3, 0.5), () => {
+    for (let k = 0; k < 60; k++) for (let m = 0; m < 16; m++) {
+      const f1 = 12 - 3 * Math.sin(k * 0.12), f2 = 6 + 2 * Math.sin(k * 0.07 + 1), loud = 0.3 + 0.7 * Math.abs(Math.sin(k * 0.05));
+      const v = loud * (Math.exp(-((m - f1) ** 2) / 3) + 0.7 * Math.exp(-((m - f2) ** 2) / 3));
+      rrect(360 + k * 16, 560 + m * 8, 15, 7, 0, Clip.heat(0.08 + 0.75 * v));
+    }
+    text('80 kênh · frame 25 ms · dịch 10 ms · 30 giây', 840, 710, {size: 24, color: COL.mute, align: 'center'});
+    text('= chuỗi xử lý của trang Mel, MFCC', 840, 750, {size: 24, weight: 700, color: COL.acc, align: 'center'});
+  });
+}
+
+function shotTokens(G, t) {
+  G0 = G;
+  const st = S('tokens'), dt = D('tokens'), sk = S('tasks'), dk = D('tasks'), sn = S('nospeech');
+  heading('Việc cần làm ghi bằng token đầu câu');
+  fade(G, P(t, st + 0.3, 0.5), () => {
+    text('chép lời tiếng Việt:', 960, 260, {size: 24, color: COL.mute, align: 'center'});
+    tokenRow(290, [['<|startoftranscript|>', 't'], ['<|vi|>', 't'], ['<|transcribe|>', 't'], ['<|notimestamps|>', 't'], ['hôm nay trời mưa', 'w'], ['<|endoftext|>', 't']], {u: t, at: st + 0.6});
+  });
+  fade(G, P(t, sk + 0.3, 0.5), () => {
+    text('dịch sang tiếng Anh:', 960, 400, {size: 24, color: COL.mute, align: 'center'});
+    tokenRow(430, [['<|startoftranscript|>', 't'], ['<|vi|>', 't'], ['<|translate|>', 'h'], ['<|notimestamps|>', 't'], ["it's raining today", 'w']]);
+  });
+  fade(G, P(t, sk + dk * 0.35, 0.5), () => {
+    text('có mốc thời gian:', 960, 540, {size: 24, color: COL.mute, align: 'center'});
+    tokenRow(570, [['<|startoftranscript|>', 't'], ['<|vi|>', 't'], ['<|transcribe|>', 't'], ['<|0.00|>', 'h'], ['hôm nay trời mưa', 'w'], ['<|1.40|>', 'h']]);
+  });
+  fade(G, P(t, sk + dk * 0.7, 0.5), () => text('mô hình tự viết <|vi|> = nhận diện ngôn ngữ', 960, 690, {size: 26, weight: 700, color: COL.frame, align: 'center'}));
+  fade(G, P(t, sn + 0.3, 0.5), () => text('<|nospeech|>: không có tiếng nói · một mô hình, nhiều việc, không cần tinh chỉnh', 960, 760, {size: 24, weight: 700, color: COL.ok, align: 'center'}));
+}
+
+function shotWeak(G, t) {
+  const sf = S('filter'), sh = S('halluc'), dh = D('halluc');
+  heading(t < sh ? 'Nhãn từ Internet có lỗi: phải lọc' : 'Điểm yếu: bịa chữ (hallucination)');
+  if (t < sh) {
+    fade(G, P(t, sf + 0.3, 0.5), () => {
+      [['bản chép lời do máy tạo (viết hoa hết, không dấu câu)', true], ['chữ khác ngôn ngữ với âm thanh', true], ['chép lời do người, khớp ngôn ngữ', false]].forEach(([l, bad], j) => {
+        const y = 300 + j * 100;
+        rrect(360, y, 1200, 70, 12, bad ? COL.hlSoft : '#e8f3ec', bad ? COL.hl : COL.ok, 2);
+        text((bad ? '✗ bỏ: ' : '✓ giữ: ') + l, 400, y + 35, {size: 26, weight: 700, color: bad ? COL.hl : COL.ok});
+      });
+    });
+    return;
+  }
+  fade(G, P(t, sh + 0.3, 0.5), () => {
+    const xs = [];
+    for (let k = 0; k <= 300; k++) { xs.push(k); }
+    poly(xs.map(k => 360 + k * 4), xs.map(k => 360 + (k > 120 && k < 230 ? 1 : 30) * Math.sin(k * 0.8) * Math.abs(Math.sin(k * 0.05))), COL.mute, 1.5);
+    rrect(360 + 120 * 4, 300, 110 * 4, 120, 8, null, COL.line2, 2, );
+    text('im lặng / nhiễu', 360 + 175 * 4, 450, {size: 22, color: COL.mute, align: 'center'});
+  });
+  fade(G, P(t, sh + dh * 0.35, 0.5), () => {
+    chip(G, 760, 500, '"Cảm ơn các bạn đã theo dõi"', {size: 28, weight: 700, color: COL.hl, stroke: COL.hl});
+    text('decoder là mô hình ngôn ngữ mạnh: viết câu "hợp lý" kể cả khi không nghe thấy gì', 960, 620, {size: 26, weight: 700, color: COL.hl, align: 'center'});
+  });
+}
+
+function shotCompare(G, t) {
+  const sc = S('compare'), sp = S('project'), dp = D('project');
+  heading('So sánh');
+  const cx = [420, 820, 1170, 1520];
+  fade(G, P(t, sc + 0.3, 0.5), () => {
+    ['', 'wav2vec 2.0', 'HuBERT', 'Whisper'].forEach((h, j) => text(h, cx[j], 260, {size: 28, weight: 700, color: [COL.ink, COL.acc, COL.ok, COL.i][j], align: 'center'}));
+    line(240, 288, 1700, 288, COL.line2, 2);
+    [['dữ liệu', 'không nhãn', 'không nhãn', '680 000 giờ có chép lời'], ['đáp án', 'mã lượng tử, chọn 1/101', 'mã k-means', 'câu chữ + token việc'], ['kiến trúc', 'CNN + encoder', 'CNN + encoder', 'encoder-decoder'], ['dùng', 'tinh chỉnh', 'tinh chỉnh', 'dùng ngay']].forEach((r, i) => {
+      const y = 340 + i * 76;
+      r.forEach((c, j) => text(c, cx[j], y, {size: j ? 24 : 24, weight: j ? 400 : 700, color: j ? COL.ink : COL.mute, align: 'center', maxW: 340}));
+      line(240, y + 38, 1700, y + 38, '#ecebe8', 1.5);
+    });
+  });
+  fade(G, P(t, sp + 0.3, 0.5), () => {
+    card(360, 680, 1200, 110, {stroke: COL.frame});
+    text('đặc trưng WavLM, HuBERT, encoder Whisper: đầu vào mạnh cho nhận dạng cảm xúc (SER) ở các trang sau', 960, 735, {size: 24, weight: 700, color: COL.frame, align: 'center', maxW: 1140});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['encoder-decoder trên 680 000 giờ nhãn yếu'], ['token đầu câu chọn ngôn ngữ và việc'], ['dùng ngay, không cần tinh chỉnh'], ['có thể bịa chữ khi im lặng hoặc nhiễu']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.5, 0.6), () => {
+      text(j < 3 ? '✓' : '✗', 440, 290 + j * 84, {size: 34, weight: 700, color: j < 3 ? COL.ok : COL.hl});
+      text(a, 490, 290 + j * 84, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.85, 0.5), () => chip(G, 760, 680, 'Trang sau: TTS và vocoder  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 5', [
+  ['nhãn có sẵn, không hoàn hảo', 'giám sát yếu (weak supervision)', '680 000 giờ'],
+  ['ký hiệu chỉ việc đầu câu', 'special tokens (task tokens)', '<|vi|>, <|transcribe|>'],
+  ['nhiều việc trong một mô hình', 'multitask', 'chép lời, dịch, mốc thời gian'],
+  ['viết chữ không có trong âm thanh', 'hallucination', 'khi im lặng, nhiễu'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'what', to: 'input', draw: shotWhat},
+    {from: 'tokens', to: 'nospeech', draw: shotTokens},
+    {from: 'filter', to: 'halluc', draw: shotWeak},
+    {from: 'compare', to: 'project', draw: shotCompare},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/ssl-5-whisper.wav');
+</script>
+</body>
+</html>

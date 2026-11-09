@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Đánh giá · 2: Bộ quy tắc</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/eval-2-quy-tac.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, arrow} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Quy tắc', '3 Chọn epoch', '4 Tin cậy', '5 Rò rỉ', '6 WER'];
+const RULES = [
+  ['q1', 'ba tập tách biệt', 'train học · dev chọn epoch, siêu tham số, ngưỡng · test chạm một lần ở cuối'],
+  ['q2', 'tách theo người nói', 'IEMOCAP: test một phiên, train các phiên còn lại (đủ thì lặp 5 lần)'],
+  ['q3', 'nhiều seed', '3 đến 5 seed, báo trung bình ± độ lệch chuẩn'],
+  ['q4', 'đủ thước đo', 'SER: WA, UA, macro-F1 (MELD thêm weighted-F1) · ASR: WER, cùng cách chuẩn hóa'],
+  ['q5', 'kiểm tra rò rỉ', 'mô hình học sẵn đã thấy dữ liệu gì; nghi thì ghi chú'],
+  ['q6', 'báo cách làm', 'câu lệnh (audio-LLM), luật đọc nhãn, câu bị loại và lý do'],
+];
+
+const shotIntro = UI.introShot('Đánh giá cho đúng', 'Phần 2/6: sáu quy tắc', 1, PARTS);
+
+function split(G, t) {
+  const y = 820, segs = [['train', 0.7, COL.acc], ['dev', 0.15, COL.frame], ['test', 0.15, COL.hl]];
+  let x = 260;
+  segs.forEach(([l, w, c]) => {
+    const W = 1400 * w;
+    rrect(x, y, W - 8, 60, 8, c + '22', c, 2);
+    text(l, x + W / 2 - 4, y + 38, {size: 24, weight: 700, color: c, align: 'center'});
+    x += W;
+  });
+}
+
+function shotRules(G, t) {
+  const cur = RULES.reduce((k, [id], j) => t >= S(id) ? j : k, 0);
+  heading('Sáu quy tắc');
+  RULES.forEach(([id, a, b], j) => {
+    const y = 210 + j * 92;
+    fade(G, P(t, S(id) + 0.3, 0.5), () => {
+      if (j === cur) rrect(150, y - 8, 1620, 84, 8, COL.accSoft);
+      text(`${j + 1}`, 190, y + 46, {size: 34, weight: 700, color: COL.acc, align: 'center'});
+      text(a, 240, y + 34, {size: 28, weight: 700});
+      text(b, 240, y + 68, {size: 21, color: COL.mute, maxW: 1500});
+    });
+  });
+  if (cur === 0 && t >= S('q1')) fade(G, P(t, S('q1') + 1.2, 0.5), () => split(G, t));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  const labels = ['tách tập', 'theo người nói', 'nhiều seed', 'đủ thước đo', 'rò rỉ', 'cách làm'];
+  fade(G, P(t, s + 0.3, 0.6), () => {
+    const xs = UI.chipXs(G, labels, {size: 26, weight: 700}, 24);
+    labels.forEach((l, j) => chip(G, xs[j], 330, l, {size: 26, weight: 700, color: COL.acc, stroke: COL.acc}));
+  });
+  fade(G, P(t, s + D('result') * 0.6, 0.5), () => chip(G, 620, 560, 'Phần 3: chọn epoch trên test làm số đẹp lên bao nhiêu  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 2', [
+  ['để một phiên ra làm test, lặp lại', 'leave-one-session-out', '5 phiên IEMOCAP'],
+  ['siêu tham số', 'hyperparameter', 'tốc độ học, ngưỡng'],
+  ['độ chính xác theo câu / theo lớp', 'WA / UA', ''],
+  ['F1 trung bình đều các lớp', 'macro-F1', ''],
+  ['tỉ lệ lỗi từ', 'WER', ''],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'q1', to: 'q6', draw: shotRules},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/eval-2-quy-tac.wav');
+</script>
+</body>
+</html>

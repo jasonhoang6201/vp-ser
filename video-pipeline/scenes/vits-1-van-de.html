@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>VITS · 1: Vấn đề</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/vits-1-van-de.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Năm thành phần', '3 VAE và flow', '4 MAS', '5 Độ dài ngẫu nhiên'];
+const PAINS = [
+  ['p1', 'hai mô hình học riêng, lệch nhau', 'vocoder học trên Mel thật, khi dùng nhận Mel dự đoán (mờ hơn): giọng rè'],
+  ['p2', 'Mel là nút thắt do người chọn', '80 kênh Mel chưa chắc là biểu diễn trung gian tốt nhất'],
+  ['p3', 'cần công cụ căn ngoài', 'FastSpeech 2 phải chạy Montreal Forced Aligner trước'],
+  ['p4', 'đọc lần nào cũng y hệt', 'dự đoán độ dài bằng sai lệch bình phương: luôn ra trung bình'],
+];
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('VITS', 'Phần 1/5: hai giai đoạn rời nhau, ngữ điệu đơn điệu', 0, PARTS);
+
+function shotPlace(G, t) {
+  const s = S('place');
+  heading('TTS đến FastSpeech 2: hai mô hình');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    chip(G, 200, 354, 'chữ', {size: 28, weight: 700});
+    arrow(310, 380, 380, 380, COL.mute, 3);
+    rrect(390, 310, 460, 140, 16, COL.accSoft, COL.acc, 3);
+    text('mô hình âm học', 620, 380, {size: 30, weight: 700, color: COL.acc, align: 'center'});
+    arrow(860, 380, 1000, 380, COL.mute, 3);
+    text('Mel', 930, 350, {size: 26, weight: 700, color: COL.frame, align: 'center'});
+    rrect(1010, 310, 400, 140, 16, COL.frameSoft, COL.frame, 3);
+    text('vocoder', 1210, 380, {size: 30, weight: 700, color: COL.frame, align: 'center'});
+    arrow(1420, 380, 1490, 380, COL.mute, 3);
+    chip(G, 1500, 354, 'sóng âm', {size: 28, weight: 700});
+  });
+  fade(G, P(t, s + D('place') * 0.5, 0.5), () => {
+    text('học riêng', 620, 500, {size: 26, color: COL.mute, align: 'center'});
+    text('học riêng', 1210, 500, {size: 26, color: COL.mute, align: 'center'});
+  });
+}
+
+function shotPain(G, t) {
+  heading('Bốn vấn đề');
+  PAINS.forEach(([id, a, b], j) => fade(G, P(t, S(id) + 0.2, 0.5), () => {
+    const y = 210 + j * 150, on = t >= S(id) && t < E(id) + 0.3;
+    card(240, y, 1440, 130, {stroke: on ? COL.hl : COL.line, lw: on ? 3 : 2});
+    text(a, 280, y + 48, {size: 30, weight: 700, color: COL.hl});
+    text(b, 280, y + 98, {size: 24, color: COL.mute, maxW: 1360});
+  }));
+}
+
+function shotGoal(G, t) {
+  const sg = S('goal'), dg = D('goal'), sw = S('who'), dw = D('who');
+  heading(t < sw ? 'Mục tiêu: một mô hình, học một lần' : 'VITS (Kim, Kong, Son, 2021)');
+  if (t < sw) {
+    fade(G, P(t, sg + 0.3, 0.5), () => {
+      chip(G, 260, 330, '(chữ, sóng âm)', {size: 30, weight: 700});
+      arrow(560, 356, 660, 356, COL.mute, 3);
+      rrect(680, 290, 560, 130, 16, COL.frameSoft, COL.frame, 3);
+      text('một mô hình, học chung', 960, 355, {size: 32, weight: 700, color: COL.frame, align: 'center'});
+    });
+    ['tự chọn biểu diễn trung gian (không ép Mel)', 'tự căn chữ với âm thanh khi học', 'độ dài, ngữ điệu có ngẫu nhiên hợp lý'].forEach((l, j) =>
+      fade(G, P(t, sg + dg * 0.3 + j * 1.2, 0.5), () => {
+        text('✓', 560, 510 + j * 64, {size: 30, weight: 700, color: COL.ok});
+        text(l, 610, 510 + j * 64, {size: 28});
+      }));
+    return;
+  }
+  fade(G, P(t, sw + 0.3, 0.5), () => {
+    const parts = [['Conditional Variational Autoencoder', 'bộ tự mã hóa biến phân có điều kiện', COL.acc], ['with Adversarial Learning', 'học đối kháng (GAN)', COL.hl], ['for End-to-End TTS', 'đầu cuối: chữ → sóng âm', COL.ok]];
+    parts.forEach(([a, b, c], j) => fade(G, P(t, sw + 0.5 + j * dw * 0.2, 0.5), () => {
+      text(a, 940, 290 + j * 120, {size: 34, weight: 700, color: c, align: 'right'});
+      text(b, 980, 290 + j * 120, {size: 28, color: COL.ink});
+    }));
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['✗', 'hai giai đoạn lệch nhau, Mel là nút thắt', COL.hl], ['✗', 'cần công cụ căn, đọc y hệt', COL.hl], ['✓', 'VITS: một mô hình, tự căn, có ngẫu nhiên', COL.ok]].forEach(([m, a, c], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text(m, 440, 300 + j * 90, {size: 34, weight: 700, color: c});
+      text(a, 490, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 790, 640, 'Phần 2: năm thành phần  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 1', [
+  ['hai mô hình nối nhau', 'hệ hai giai đoạn (two-stage)', 'âm học + vocoder'],
+  ['một mô hình từ đầu đến cuối', 'end-to-end', 'chữ → sóng âm'],
+  ['học bằng một mạng chấm thật/giả', 'học đối kháng (adversarial, GAN)', 'như HiFi-GAN'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'place', to: 'place', draw: shotPlace},
+    {from: 'p1', to: 'p4', draw: shotPain},
+    {from: 'goal', to: 'who', draw: shotGoal},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/vits-1-van-de.wav');
+</script>
+</body>
+</html>

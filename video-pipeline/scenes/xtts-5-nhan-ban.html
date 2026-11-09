@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>XTTS · 5: Nhân bản giọng</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/xtts-5-nhan-ban.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn khối', '3 Lượng tử hóa', '4 Nhiệt độ', '5 Nhân bản giọng'];
+const STEPS = [
+  ['s1', 'vài giây giọng mẫu → Mel', '(gợi ý khoảng 6 giây)'],
+  ['s2', 'Perceiver Resampler → vector giọng', '+ vector người nói cho decoder'],
+  ['s3', 'GPT: [giọng][chữ] → token âm thanh', 'giống người trong đoạn mở đầu'],
+  ['s4', 'decoder HiFi-GAN → sóng âm', 'vector người nói giữ chất giọng'],
+];
+const GENS = [
+  ['', 'Tacotron 2', 'FastSpeech 2', 'VITS', 'XTTS'],
+  ['sinh', 'tự hồi quy, frame Mel', 'song song, frame Mel', 'song song, ra thẳng sóng', 'tự hồi quy, token âm thanh'],
+  ['độ dài từ', 'attention tự học', 'dự đoán, đáp án MFA', 'ngẫu nhiên, đáp án MAS', 'GPT tự quyết (token kết thúc)'],
+  ['vocoder', 'riêng (WaveNet)', 'riêng (HiFi-GAN)', 'có sẵn bên trong', 'HiFi-GAN bên trong'],
+  ['giọng mới', 'huấn luyện lại', 'huấn luyện lại', 'huấn luyện lại', 'vài giây mẫu'],
+  ['điểm yếu', 'chậm, lặp/bỏ chữ', 'ngữ điệu phẳng', 'vài giờ dữ liệu một giọng', 'chậm hơn, lặp/bỏ/bịa âm'],
+];
+const GC = [COL.mute, COL.acc, COL.ok, COL.i, COL.frame];
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('XTTS', 'Phần 5/5: nhân bản giọng từ vài giây mẫu', 4, PARTS);
+
+function shotSteps(G, t) {
+  heading('Bốn bước nhân bản giọng');
+  STEPS.forEach(([id, a, b], j) => fade(G, P(t, S(id) + 0.2, 0.4), () => {
+    const x = 120 + j * 430, y = 300, on = t >= S(id) && t < E(id) + 0.3;
+    rrect(x, y, 380, 220, 16, on ? COL.frameSoft : COL.card, on ? COL.frame : COL.line2, on ? 3 : 1.5);
+    text(String(j + 1), x + 40, y + 50, {size: 44, weight: 700, color: on ? COL.frame : COL.line2, align: 'center'});
+    text(a, x + 30, y + 110, {size: 25, weight: 700, maxW: 330});
+    text(b, x + 30, y + 190, {size: 21, color: COL.mute, maxW: 330});
+    if (j < 3) arrow(x + 386, y + 110, x + 424, y + 110, COL.mute, 3);
+  }));
+}
+
+function shotCare(G, t) {
+  const sz = S('zs'), sa = S('accent'), se = S('ethic');
+  heading(t < sa ? '"Zero-shot": phụ thuộc mạnh vào mẫu' : t < se ? 'Đọc chéo ngôn ngữ' : 'Dùng có trách nhiệm');
+  if (t < sa) {
+    fade(G, P(t, sz + 0.3, 0.5), () => {
+      [['nhiễu', COL.hl], ['nhạc nền', COL.i], ['vang', COL.acc]].forEach(([l, c], j) => {
+        chip(G, 420, 290 + j * 110, 'mẫu có ' + l, {size: 28, weight: 700, color: c, stroke: c});
+        arrow(760, 316 + j * 110, 1000, 316 + j * 110, COL.mute, 3);
+        chip(G, 1020, 290 + j * 110, 'giọng sinh ra cũng có ' + l, {size: 28, weight: 700, color: c, stroke: c});
+      });
+    });
+    fade(G, P(t, sz + D('zs') * 0.6, 0.5), () => text('không huấn luyện lại ≠ mẫu nào cũng được', 960, 690, {size: 30, weight: 700, color: COL.frame, align: 'center'}));
+    return;
+  }
+  if (t < se) {
+    fade(G, P(t, sa + 0.3, 0.5), () => {
+      chip(G, 300, 330, 'mẫu: tiếng ngôn ngữ A', {size: 28, weight: 700, color: COL.acc, stroke: COL.acc});
+      chip(G, 300, 430, 'câu: ngôn ngữ B', {size: 28, weight: 700, color: COL.ok, stroke: COL.ok});
+      arrow(720, 400, 900, 400, COL.mute, 3);
+      chip(G, 920, 374, 'đọc B mang giọng địa phương (accent) của A', {size: 28, weight: 700, color: COL.frame, stroke: COL.frame});
+    });
+    return;
+  }
+  fade(G, P(t, se + 0.3, 0.5), () => {
+    card(260, 270, 1400, 140, {stroke: COL.hl, lw: 3});
+    text('nhân bản giọng người khác khi chưa được đồng ý', 960, 320, {size: 30, weight: 700, color: COL.hl, align: 'center'});
+    text('vấn đề đạo đức và pháp lý: giả mạo, lừa đảo', 960, 370, {size: 26, align: 'center'});
+  });
+  fade(G, P(t, se + D('ethic') * 0.5, 0.5), () => {
+    const labels = ['xác nhận đồng ý', 'phát hiện giọng giả'], xs = UI.chipXs(G, labels, {size: 28, weight: 700}, 40);
+    labels.forEach((l, j) => chip(G, xs[j], 480, l, {size: 28, weight: 700, color: COL.ok, stroke: COL.ok}));
+  });
+}
+
+function shotGens(G, t) {
+  const sg = S('gen'), sw = S('weak');
+  heading('Bốn thế hệ TTS trong lộ trình');
+  const cx = [160, 420, 790, 1140, 1490], cwid = [240, 350, 330, 330, 360];
+  GENS.forEach((row, i) => {
+    const show = i === 0 ? P(t, sg + 0.3, 0.5) : i < 5 ? P(t, sg + 0.6 + i * 0.9, 0.5) : P(t, sw + 0.3, 0.5);
+    fade(G, show, () => {
+      const y = 240 + i * 96, hot = i === 5 && t >= sw;
+      if (i) line(150, y - 46, 1830, y - 46, COL.line, 1.5);
+      if (hot) rrect(150, y - 44, 1680, 90, 8, COL.hlSoft);
+      row.forEach((c, j) => text(c, cx[j], y, {size: i === 0 ? 28 : 22, weight: i === 0 || j === 0 ? 700 : 400, color: i === 0 ? GC[j] : hot && j ? COL.hl : j ? COL.ink : COL.mute, maxW: cwid[j]}));
+    });
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['✓', 'vài giây mẫu → vector giọng → GPT viết tiếp → HiFi-GAN', COL.ok], ['✓', 'không huấn luyện lại cho giọng mới', COL.ok], ['✗', 'phụ thuộc chất lượng mẫu; cần dùng có trách nhiệm', COL.hl]].forEach(([m, a, c], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text(m, 300, 300 + j * 90, {size: 34, weight: 700, color: c});
+      text(a, 350, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 700, 640, 'Hết phần tổng hợp tiếng nói  ✓', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 5', [
+  ['đoạn giọng mẫu đưa vào đầu', 'reference audio, prompt', 'khoảng 6 giây'],
+  ['giọng địa phương', 'accent', 'mang theo khi đọc chéo ngôn ngữ'],
+  ['vector mô tả người nói', 'speaker embedding', 'giữ chất giọng'],
+  ['phát hiện giọng giả', 'anti-spoofing, deepfake detection', ''],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 's1', to: 's4', draw: shotSteps},
+    {from: 'zs', to: 'ethic', draw: shotCare},
+    {from: 'gen', to: 'weak', draw: shotGens},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/xtts-5-nhan-ban.wav');
+</script>
+</body>
+</html>

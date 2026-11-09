@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>ASR cổ điển 3: Từ điển và triphone</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/asr-3-triphone.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn thành phần', '3 Từ điển, triphone', '4 Mô hình ngôn ngữ', '5 WER'];
+const PH = {m: COL.ok, a: COL.acc, i: COL.i, b: COL.frame, n: COL.hl, 'ư': COL.mute};
+const env = sh => Array.from({length: 41}, (_, k) => { const u = k / 40; return 0.6 * Math.exp(-(((u - 0.25) / 0.09) ** 2)) + 0.45 * Math.exp(-(((u - sh) / 0.08) ** 2)); });
+
+function phone(x, y, p, o = {}) {
+  const c = PH[p] || COL.mute, w = o.w || 70;
+  rrect(x, y, w, o.h || 60, 10, c + '22', c, 2);
+  text(p, x + w / 2, y + (o.h || 60) / 2, {size: o.size || 30, weight: 700, color: c, align: 'center'});
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Hệ ASR cổ điển', 'Phần 3/5: từ điển phát âm, âm vị theo ngữ cảnh', 2, PARTS);
+
+function shotLex(G, t) {
+  const sl = S('lex'), sc = S('concat'), ss = S('share'), ds = D('share');
+  heading('Từ điển phát âm (lexicon)');
+  [['mai', ['m', 'a', 'i']], ['ban', ['b', 'a', 'n']], ['mưa', ['m', 'ư', 'a']]].forEach(([w, ps], j) =>
+    fade(G, P(t, sl + 0.5 + j * 0.7, 0.5), () => {
+      const y = 240 + j * 90, on = j === 0 && t >= sc;
+      text(`"${w}"`, 420, y + 30, {size: 32, weight: 700, color: on ? COL.frame : COL.ink, align: 'right'});
+      arrow(450, y + 30, 520, y + 30, COL.line2, 2.5);
+      ps.forEach((p, k) => phone(540 + k * 90, y, p));
+    }));
+  fade(G, P(t, sc + 0.3, 0.5), () => {
+    text('HMM của "mai" = nối HMM của m, a, i', 960, 560, {size: 28, weight: 700, color: COL.frame, align: 'center'});
+    ['m', 'a', 'i'].forEach((p, k) => {
+      const c = PH[p], x0 = 440 + k * 360;
+      [1, 2, 3].forEach(j => {
+        const x = x0 + (j - 1) * 105;
+        rrect(x, 610, 90, 64, 10, c + '22', c, 2);
+        text(`${p}${'₁₂₃'[j - 1]}`, x + 45, 642, {size: 26, weight: 700, color: c, align: 'center'});
+        if (j < 3 || k < 2) arrow(x + 92, 642, x + (j < 3 ? 103 : 148), 642, COL.mute, 2, 8);
+      });
+    });
+    text('9 trạng thái', 960, 720, {size: 22, color: COL.mute, align: 'center'});
+  });
+  fade(G, P(t, ss + 0.3, 0.5), () => {
+    card(1200, 230, 560, 280, {stroke: COL.ok});
+    text('chỉ cần học', 1230, 280, {size: 24, color: COL.mute});
+    text('~40 mô hình âm vị', 1230, 330, {size: 32, weight: 700, color: COL.ok});
+    fade(G, P(t, ss + ds * 0.35, 0.5), () => {
+      text('từ mới chưa có trong âm thanh:', 1230, 400, {size: 24, color: COL.mute});
+      text('thêm một dòng vào từ điển', 1230, 450, {size: 28, weight: 700, color: COL.ok});
+    });
+  });
+}
+
+function spectra(x, y, w) {
+  [[0.62, '"a" trong "mai"', COL.acc], [0.45, '"a" trong "ban"', COL.frame]].forEach(([sh, l, c], j) => {
+    const e = env(sh), xs = e.map((_, k) => x + j * (w + 80) + k * w / 40), ys = e.map(v => y - v * 200);
+    poly(xs, ys, c, 4);
+    line(x + j * (w + 80), y + 2, x + j * (w + 80) + w, y + 2, COL.line2, 2);
+    text(l, x + j * (w + 80), y + 40, {size: 26, weight: 700, color: c});
+  });
+}
+
+function shotCoart(G, t) {
+  const sc = S('coart'), dc = D('coart'), st = S('tri'), dt = D('tri');
+  heading(t < st ? 'Còn vấn đề: âm đổi theo âm bên cạnh' : 'Triphone: âm vị kèm âm trước, âm sau');
+  if (t < st) {
+    fade(G, P(t, sc + 0.3, 0.5), () => spectra(360, 520, 520));
+    fade(G, P(t, sc + dc * 0.5, 0.5), () => {
+      card(560, 640, 800, 120, {stroke: COL.hl});
+      text('một mô hình "a" chung (monophone) phải mô hình hóa cả hai', 960, 685, {size: 26, weight: 700, color: COL.hl, align: 'center'});
+      text('→ rộng, kém chính xác', 960, 728, {size: 24, color: COL.mute, align: 'center'});
+    });
+    return;
+  }
+  const cx = [360, 760, 1260];
+  fade(G, P(t, st + 0.3, 0.5), () => {
+    ['Từ', 'Monophone', 'Triphone'].forEach((h, j) => text(h, cx[j], 270, {size: 26, weight: 600, color: COL.mute}));
+    line(320, 300, 1640, 300, COL.line2, 2);
+  });
+  [['mai', 'm  a  i', ['m+a', 'm−a+i', 'a−i']], ['ban', 'b  a  n', ['b+a', 'b−a+n', 'a−n']]].forEach(([w, mono, tri], i) =>
+    fade(G, P(t, st + 0.8 + i * dt * 0.25, 0.5), () => {
+      const y = 360 + i * 100;
+      text(`"${w}"`, cx[0], y, {size: 30, weight: 700});
+      text(mono, cx[1], y, {size: 30, mono: true});
+      tri.forEach((s, k) => {
+        const on = k === 1;
+        G.font = `700 28px ${Clip.FONT}`;
+        chip(G, cx[2] + k * 140 + (k === 2 ? 20 : 0), y - 26, s, on ? HOT : {});
+      });
+    }));
+  fade(G, P(t, st + dt * 0.7, 0.5), () => {
+    text('"x−a+y": âm a, đứng sau x, đứng trước y', 960, 620, {size: 28, weight: 700, color: COL.acc, align: 'center'});
+    text('m−a+i và b−a+n là hai mô hình khác nhau', 960, 680, {size: 26, color: COL.mute, align: 'center'});
+  });
+}
+
+function shotCount(G, t) {
+  const s = S('count'), d = D('count');
+  heading('Vấn đề mới: quá nhiều triphone');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    text('40 × 40 × 40 = 64 000 triphone', 960, 290, {size: 52, weight: 700, color: COL.hl, align: 'center'});
+    text('mỗi cái 3 trạng thái', 960, 350, {size: 26, color: COL.mute, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.45, 0.5), () => {
+    const B = {x: 360, y: 420, w: 1200, h: 280}, n = 120, u = P(t, s + d * 0.45, 1.2);
+    for (let k = 0; k < n; k++) {
+      const v = 1 / (1 + k * 0.35) ** 1.1, h = v * B.h * u;
+      rrect(B.x + k * B.w / n, B.y + B.h - h, B.w / n - 2, h, 1, k < 12 ? COL.acc : COL.line2);
+    }
+    line(B.x, B.y + B.h, B.x + B.w, B.y + B.h, COL.line2, 2);
+    text('triphone, xếp từ hay gặp đến hiếm', B.x + B.w, B.y + B.h + 30, {size: 20, color: COL.mute, align: 'right'});
+    text('số lần gặp trong dữ liệu', B.x, B.y - 16, {size: 20, color: COL.mute});
+    text('phần lớn rất hiếm: không đủ dữ liệu để học', B.x + 520, B.y + 120, {size: 26, weight: 700, color: COL.hl});
+  });
+}
+
+const LEAVES = [
+  ['m−a+n', 'b−a+n', 'm−a+m'],
+  ['t−a+n', 'h−a+n'],
+  ['m−a+i', 'b−a+i', 't−a+u'],
+  ['m−a+c', 'b−a+t'],
+];
+function shotTree(G, t) {
+  const s = S('tree'), d = D('tree'), ss = S('senone'), ds = D('senone');
+  heading(t < ss ? 'Gom bằng cây quyết định (decision tree)' : 'Mỗi lá: một senone, dùng chung GMM');
+  const q = (x, y, s0, w = 420) => { rrect(x - w / 2, y, w, 64, 12, COL.accSoft, COL.acc, 2); text(s0, x, y + 32, {size: 24, weight: 700, color: COL.acc, align: 'center'}); };
+  const LX = [330, 750, 1170, 1590], ly = 560;
+  fade(G, P(t, s + 0.3, 0.5), () => q(960, 220, 'âm sau là âm mũi (m, n, ng)?', 460));
+  fade(G, P(t, s + 1.2, 0.5), () => {
+    line(820, 284, 540, 360, COL.line2, 2); line(1100, 284, 1380, 360, COL.line2, 2);
+    text('có', 660, 312, {size: 22, color: COL.ok, weight: 700}); text('không', 1220, 312, {size: 22, color: COL.hl, weight: 700});
+    q(540, 360, 'âm trước là âm môi (b, m, p)?');
+    q(1380, 360, 'âm sau là nguyên âm cao (i, u)?');
+  });
+  fade(G, P(t, s + d * 0.45, 0.5), () => {
+    [[540, 0], [540, 1], [1380, 2], [1380, 3]].forEach(([px, k]) => line(px + (k % 2 ? 80 : -80), 424, LX[k], ly, COL.line2, 2));
+    LEAVES.forEach((lv, k) => {
+      const on = t >= ss;
+      rrect(LX[k] - 170, ly, 340, 70 + lv.length * 40, 14, on ? COL.frameSoft : COL.card, on ? COL.frame : COL.line2, on ? 3 : 2);
+      lv.forEach((tp, j) => text(tp, LX[k], ly + 40 + j * 40, {size: 24, mono: true, align: 'center'}));
+      if (on) text(`senone ${k + 1}  ·  1 GMM`, LX[k], ly + 50 + lv.length * 40, {size: 22, weight: 700, color: COL.frame, align: 'center'});
+    });
+  });
+  fade(G, P(t, s + d * 0.75, 0.5) * (1 - P(t, ss, 0.4)), () => text('trạng thái có phổ giống nhau rơi vào cùng một lá', 960, 800, {size: 26, weight: 700, color: COL.acc, align: 'center'}));
+  fade(G, P(t, ss + ds * 0.55, 0.5), () => {
+    chip(G, 1500, 230, 'b−a+m (hiếm)', {...HOT, size: 24});
+    text('→ rơi vào lá 1, mượn GMM của lá', 1500, 310, {size: 22, weight: 700, color: COL.frame});
+    text('thường vài nghìn senone', 160, 240, {size: 24, weight: 700, color: COL.ok});
+  });
+}
+
+function shotHist(G, t) {
+  const s = S('hist'), d = D('hist');
+  heading('Lịch sử');
+  const X = y => 360 + (y - 1988) / 26 * 1200, Y0 = 480;
+  fade(G, P(t, s + 0.2, 0.5), () => {
+    line(300, Y0, 1640, Y0, COL.line2, 3);
+    [1990, 2000, 2010].forEach(y => { line(X(y), Y0 - 8, X(y), Y0 + 8, COL.line2, 2); text(String(y), X(y), Y0 + 34, {size: 20, color: COL.mute, align: 'center'}); });
+  });
+  [[1992, ['Hwang, Huang'], 'đặt tên "senone"', -1, 0.1],
+   [1994, ['Young, Odell, Woodland'], 'gom bằng cây, thành chuẩn trong HTK', 1, 0.35],
+   [2011, ['Kaldi'], 'bộ công cụ mã nguồn mở', -1, 0.75]].forEach(([y, a, b, side, at]) =>
+    fade(G, P(t, s + d * at, 0.5), () => {
+      const x = X(y), ty = Y0 + side * 130;
+      line(x, Y0, x, Y0 + side * (side < 0 ? 40 : 100), COL.acc, 2);
+      Clip.g.beginPath(); Clip.g.arc(x, Y0, 9, 0, Math.PI * 2); Clip.g.fillStyle = COL.acc; Clip.g.fill();
+      text(String(y), x, ty, {size: 24, weight: 700, color: COL.acc, align: 'center'});
+      text(a[0], x, ty + 36, {size: 25, weight: 700, align: 'center'});
+      text(b, x, ty + 70, {size: 22, color: COL.mute, align: 'center'});
+    }));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['từ điển: nối âm vị thành từ', 'giải quyết "âm ít, từ nhiều"'],
+   ['triphone: âm vị kèm âm trước, âm sau', 'giải quyết "âm đổi theo âm bên cạnh"'],
+   ['cây quyết định: gom thành vài nghìn senone', 'đủ dữ liệu để học']].forEach(([a, b], j) =>
+    fade(G, P(t, s + 0.3 + j * 2, 0.6), () => {
+      text('✓', 360, 300 + j * 100, {size: 34, weight: 700, color: COL.ok});
+      text(a, 410, 300 + j * 100, {size: 32});
+      text(b, 410, 340 + j * 100, {size: 22, color: COL.mute});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 780, 680, 'Phần 4: mô hình ngôn ngữ  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 3', [
+  ['bảng từ → âm vị', 'từ điển phát âm (lexicon)', 'nối HMM âm vị thành HMM từ'],
+  ['một mô hình cho mỗi âm vị', 'monophone', 'không xét âm bên cạnh'],
+  ['âm vị kèm âm trước, âm sau', 'triphone (context-dependent phone)', 'viết x−a+y'],
+  ['cây hỏi có/không về ngữ cảnh', 'cây quyết định (decision tree)', 'gom trạng thái giống nhau'],
+  ['nhóm trạng thái dùng chung GMM', 'senone, tied state', 'thường vài nghìn'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'lex', to: 'share', draw: shotLex},
+    {from: 'coart', to: 'tri', draw: shotCoart},
+    {from: 'count', to: 'count', draw: shotCount},
+    {from: 'tree', to: 'senone', draw: shotTree},
+    {from: 'hist', to: 'hist', draw: shotHist},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/asr-3-triphone.wav');
+</script>
+</body>
+</html>

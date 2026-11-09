@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hệ ASR cổ điển</title>
+<link rel="stylesheet" href="assets/learn.css">
+<style>
+.al{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}
+.al div{border:1px solid var(--line);border-radius:6px;padding:4px 8px;text-align:center;font-size:14px;min-width:54px}
+.al small{display:block;color:var(--mute);font-size:11px}
+.al .S{border-color:var(--frame);background:#fdf1e6}
+.al .D{border-color:var(--hl);background:#fdf3f2}
+.al .I{border-color:var(--i,#9065b0);background:#f4eff8}
+tr.win td{font-weight:700;color:var(--ok)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="pn"></nav>
+<h1>Hệ nhận dạng tiếng nói cổ điển: từ âm đến câu</h1>
+<p class="sub">ASR (Automatic Speech Recognition). Hai trang trước cho ta GMM-HMM nhận ra <b>âm</b>. Trang này ghép thêm hai mảnh nữa để ra <b>câu chữ</b>, và cách đo hệ thống đúng bao nhiêu.</p>
+
+<section>
+<h2><span class="n">1</span>Vấn đề: nhận ra âm chưa đủ để ra câu</h2>
+<div class="tablewrap"><table>
+<tr><th>Vướng</th><th>Ví dụ</th></tr>
+<tr><td>âm thì ít, từ thì nhiều</td><td>tiếng Việt có vài chục âm vị nhưng hàng chục nghìn từ. Không thể học một HMM riêng cho mỗi từ</td></tr>
+<tr><td>nghe giống nhau, nghĩa khác nhau</td><td>"recognize speech" và "wreck a nice beach" gần như cùng một chuỗi âm. "trời mưa" và "trời mua" chỉ khác một thanh</td></tr>
+<tr><td>một âm đổi theo âm bên cạnh</td><td>"a" trong "mai" và "a" trong "ban": miệng đang chuẩn bị âm sau nên phổ khác đi</td></tr>
+<tr><td>cần một con số để so hai hệ thống</td><td>hệ A nghe sai "một chút", hệ B nghe sai "khá nhiều" là chưa đủ</td></tr>
+</table></div>
+<div class="note blue"><b>Mục tiêu:</b> từ chuỗi MFCC, tìm <b>câu chữ</b> hợp lý nhất, dùng cả hai nguồn: <b>nghe giống</b> (âm học) và <b>câu có hợp lý không</b> (ngôn ngữ). Đo kết quả bằng một con số chuẩn.</div>
+</section>
+
+<section>
+<h2><span class="n">2</span>Cách làm: 4 thành phần và một công thức</h2>
+<div class="pipe"><span class="done">âm thanh</span><i>→</i><span class="done">MFCC</span><i>→</i><span class="new">decoder</span><i>→</i><span class="done">câu chữ</span></div>
+<p>Decoder dùng ba nguồn kiến thức:</p>
+<div class="tablewrap"><table>
+<tr><th>Thành phần</th><th>Trả lời câu hỏi</th><th>Gỡ vướng</th><th>Ở mục</th></tr>
+<tr><td><b>mô hình âm học</b> (acoustic model)</td><td>chuỗi âm này nghe giống chuỗi frame này đến đâu? GMM-HMM cho mỗi âm vị, theo ngữ cảnh</td><td>một âm đổi theo âm bên cạnh</td><td>3</td></tr>
+<tr><td><b>từ điển phát âm</b> (lexicon)</td><td>từ này gồm những âm vị nào? "mai" = m + a + i</td><td>âm ít, từ nhiều: nối HMM âm vị thành HMM của từ</td><td>3</td></tr>
+<tr><td><b>mô hình ngôn ngữ</b> (language model, LM)</td><td>chuỗi từ này có hay gặp trong tiếng Việt không?</td><td>nghe giống nhau, nghĩa khác nhau</td><td>4</td></tr>
+<tr><td><b>WER</b> (Word Error Rate)</td><td>câu đoán sai bao nhiêu so với câu đúng?</td><td>cần một con số</td><td>5</td></tr>
+</table></div>
+<p>Decoder tìm câu W cho điểm cao nhất theo <b>công thức Bayes</b>:</p>
+<div class="formula">W* = argmax  P(X | W) × P(W)</div>
+<p>X là chuỗi MFCC. <b>P(X | W)</b>: nếu người ta nói câu W thì nghe ra X có hợp lý không (mô hình âm học + từ điển). <b>P(W)</b>: câu W có hợp lý không, chưa cần nghe gì (mô hình ngôn ngữ). Tách ra như vậy vì hai thứ học từ hai loại dữ liệu khác nhau: âm thanh có chữ thì đắt, còn chữ không có âm thanh thì có rất nhiều.</p>
+</section>
+
+<section>
+<h2><span class="n">3</span>Từ điển phát âm và âm vị theo ngữ cảnh</h2>
+<p>Từ điển cho biết mỗi từ là chuỗi âm vị nào. Nối HMM của các âm vị là ra HMM của từ, nối HMM các từ là ra HMM của câu:</p>
+<div class="formula">"mai"  →  m  a  i  →  [m₁ m₂ m₃] [a₁ a₂ a₃] [i₁ i₂ i₃]   (mỗi âm vị 3 trạng thái)</div>
+<p>Để xử lý "âm đổi theo âm bên cạnh", hệ thống không dùng một mô hình "a" chung, mà dùng <b>triphone</b>: âm vị kèm âm trước và âm sau.</p>
+<div class="tablewrap"><table>
+<tr><th>Từ</th><th>Monophone (1 mô hình "a")</th><th>Triphone</th></tr>
+<tr><td>mai</td><td>m a i</td><td>m+a &nbsp; <b>m−a+i</b> &nbsp; a−i</td></tr>
+<tr><td>ban</td><td>b a n</td><td>b+a &nbsp; <b>b−a+n</b> &nbsp; a−n</td></tr>
+</table></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Với khoảng 40 âm vị thì có tới 40 × 40 × 40 = 64 000 triphone, phần lớn rất hiếm gặp, không đủ dữ liệu để học.
+<br>• Cách xử lý: gom các trạng thái triphone giống nhau thành nhóm dùng chung một GMM, bằng một <b>cây quyết định</b> (decision tree) hỏi các câu như "âm sau có phải âm mũi không?". Các nhóm này gọi là <b>senone</b> (hoặc tied state), thường vài nghìn nhóm.</div>
+</section>
+
+<section>
+<h2><span class="n">4</span>Mô hình ngôn ngữ: câu nào hợp lý hơn</h2>
+<p>Mô hình ngôn ngữ đơn giản nhất là <b>n-gram</b>: đếm trên rất nhiều văn bản xem một từ hay theo sau 1 hoặc 2 từ trước nó đến đâu. Ví dụ bigram (n = 2):</p>
+<div class="formula">P("mưa" | "trời") = số lần gặp "trời mưa" / số lần gặp "trời"</div>
+<p>Dưới đây là 4 câu mà decoder đang phân vân, cho cùng một đoạn âm thanh. Điểm là <b>log</b> (càng ít âm càng tốt). Kéo <b>trọng số LM</b> để thấy câu thắng thay đổi:</p>
+<div class="formula">tổng = điểm âm học + trọng số × điểm ngôn ngữ</div>
+<div class="ctrl"><span class="grp">Trọng số LM <input type="range" id="lw" min="0" max="3" step="0.1" value="0"> <b id="lwv"></b></span></div>
+<div class="tablewrap"><table id="t4"></table></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Trọng số = 0 (chỉ nghe): "trời mua" thắng, vì đoạn âm thanh hơi giống thanh ngang. Tăng trọng số: "trời mưa" thắng, vì câu đó gặp nhiều hơn hẳn trong văn bản.
+<br>• Tăng quá cao: decoder bắt đầu chọn câu "nghe hay" mà không khớp âm thanh ("hôm nay trời nắng"). Cần một chỗ cân bằng, thường được chọn trên tập dev.
+<br>• Trong hệ GMM-HMM thật, trọng số này thường khoảng 10 đến 15, vì điểm âm học cộng trên hàng trăm frame nên rất "tự tin" so với điểm ngôn ngữ.
+<br>• Decoder không thể thử mọi câu có thể. Nó tìm trên một đồ thị ghép cả HMM, từ điển và n-gram, và chỉ giữ các đường đang có điểm cao (<b>beam search</b>).</div>
+</section>
+
+<section>
+<h2><span class="n">5</span>WER: đo bằng cách đếm số lần sửa</h2>
+<p>So câu đoán (hypothesis) với câu đúng (reference), đếm số thao tác <b>ít nhất</b> để biến câu đoán thành câu đúng:</p>
+<div class="formula">WER = (S + D + I) / N</div>
+<p>S: thay thế (substitution), D: thiếu từ (deletion), I: thừa từ (insertion), N: số từ của câu đúng. Gõ thử:</p>
+<div class="ctrl">
+  <span class="grp">Câu đúng <input type="text" id="ref" value="hôm nay trời mưa rất to"></span>
+  <span class="grp">Câu đoán <input type="text" id="hyp" value="hôm nay trời mua to lắm"></span>
+</div>
+<div id="al" class="al"></div>
+<div class="readout" id="r5"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Căn hai câu bằng quy hoạch động, giống Viterbi ở trang trước: mỗi ô giữ cách căn rẻ nhất tới đó.
+<br>• Thử câu đoán dài hơn hẳn câu đúng: WER có thể <b>vượt 100%</b>, vì số từ thừa không bị giới hạn.
+<br>• Tiếng Việt viết tách âm tiết nên WER tính trên âm tiết. Với tiếng Trung, tiếng Nhật (không có dấu cách) thì dùng <b>CER</b> (Character Error Rate), cùng công thức nhưng tính trên ký tự.</div>
+</section>
+
+<section>
+<h2>Tóm tắt</h2>
+<ul>
+<li>W* = argmax P(X | W) · P(W): mô hình âm học (GMM-HMM, triphone gom thành senone) + từ điển phát âm + mô hình ngôn ngữ (n-gram).</li>
+<li>Trọng số LM cân giữa "nghe giống" và "câu hợp lý". Decoder tìm bằng beam search.</li>
+<li>WER = (S + D + I) / N, căn bằng quy hoạch động, có thể vượt 100%.</li>
+<li>Hệ kiểu này (ví dụ bộ công cụ HTK, Kaldi) là chuẩn trong khoảng 1990 đến 2010. Các trang sau lần lượt thay từng mảnh bằng mạng nơ-ron.</li>
+</ul>
+<h3>Thuật ngữ mới</h3>
+<div class="tablewrap"><table>
+<tr><th>Nói thường</th><th>Thuật ngữ</th></tr>
+<tr><td>phần nghe giống</td><td>mô hình âm học (acoustic model), P(X | W)</td></tr>
+<tr><td>bảng từ → âm vị</td><td>từ điển phát âm (lexicon, pronunciation dictionary)</td></tr>
+<tr><td>âm vị kèm âm trước, âm sau</td><td>triphone, âm vị theo ngữ cảnh (context-dependent phone)</td></tr>
+<tr><td>nhóm trạng thái dùng chung GMM</td><td>senone, tied state</td></tr>
+<tr><td>phần câu có hợp lý không</td><td>mô hình ngôn ngữ (language model), P(W), n-gram</td></tr>
+<tr><td>chỉ giữ các đường điểm cao khi tìm</td><td>beam search</td></tr>
+<tr><td>câu đúng, câu đoán</td><td>reference, hypothesis</td></tr>
+<tr><td>tỉ lệ lỗi từ</td><td>WER (Word Error Rate), CER (Character Error Rate)</td></tr>
+</table></div>
+<p class="muted">Điểm số ở mục 4 là số minh họa, chọn để thấy rõ hiệu ứng của trọng số, không lấy từ một hệ thống thật.</p>
+</section>
+<nav class="pn"></nav>
+</div>
+<script src="assets/learn.js"></script>
+<script>
+const CANDS = [['hôm nay trời mưa', -120.8, -9.1], ['hôm nay trời mua', -119.6, -13.4], ['hôm nay chời mưa', -120.5, -17.8], ['hôm nay trời nắng', -124.5, -7.6]];
+let LW = 0;
+function draw4() {
+  document.getElementById('lwv').textContent = r1(LW);
+  const rows = CANDS.map(([s, a, l]) => ({s, a, l, t: a + LW * l})).sort((x, y) => y.t - x.t);
+  document.getElementById('t4').innerHTML = '<tr><th>Câu</th><th>Điểm âm học</th><th>Điểm ngôn ngữ</th><th>Tổng</th></tr>' +
+    rows.map((r, j) => `<tr class="${j ? '' : 'win'}"><td>${j ? '' : '✓ '}${r.s}</td><td>${r1(r.a)}</td><td>${r1(r.l)}</td><td>${r1(r.t)}</td></tr>`).join('');
+}
+document.getElementById('lw').addEventListener('input', e => { LW = +e.target.value; draw4(); });
+
+function align(ref, hyp) {
+  const n = ref.length, m = hyp.length, D = Array.from({length: n + 1}, (_, i) => Array.from({length: m + 1}, (_, j) => i === 0 ? j : j === 0 ? i : 0));
+  for (let i = 1; i <= n; i++) for (let j = 1; j <= m; j++)
+    D[i][j] = Math.min(D[i - 1][j - 1] + (ref[i - 1] === hyp[j - 1] ? 0 : 1), D[i - 1][j] + 1, D[i][j - 1] + 1);
+  const ops = [];
+  let i = n, j = m;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && D[i][j] === D[i - 1][j - 1] + (ref[i - 1] === hyp[j - 1] ? 0 : 1)) { ops.push([ref[i - 1] === hyp[j - 1] ? 'C' : 'S', ref[i - 1], hyp[j - 1]]); i--; j--; }
+    else if (i > 0 && D[i][j] === D[i - 1][j] + 1) { ops.push(['D', ref[i - 1], '']); i--; }
+    else { ops.push(['I', '', hyp[j - 1]]); j--; }
+  }
+  return ops.reverse();
+}
+const esc = s => s.replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'})[c]);
+function draw5() {
+  const ref = document.getElementById('ref').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const hyp = document.getElementById('hyp').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const ops = align(ref, hyp), cnt = {C: 0, S: 0, D: 0, I: 0}, name = {C: 'đúng', S: 'thay', D: 'thiếu', I: 'thừa'};
+  ops.forEach(o => cnt[o[0]]++);
+  document.getElementById('al').innerHTML = ops.map(([t, r, h]) => `<div class="${t}"><small>đúng</small>${esc(r) || '·'}<small>đoán</small>${esc(h) || '·'}<small>${name[t]}</small></div>`).join('');
+  const N = ref.length;
+  document.getElementById('r5').innerHTML = N ? `S = <b>${cnt.S}</b>, D = <b>${cnt.D}</b>, I = <b>${cnt.I}</b>, N = <b>${N}</b> → WER = (${cnt.S} + ${cnt.D} + ${cnt.I}) / ${N} = <b>${r1(100 * (cnt.S + cnt.D + cnt.I) / N)}%</b>` : 'Nhập câu đúng.';
+}
+['ref', 'hyp'].forEach(id => document.getElementById(id).addEventListener('input', draw5));
+draw4(); draw5();
+</script>
+</body>
+</html>

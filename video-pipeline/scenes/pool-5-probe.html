@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Từ frame đến câu · 5: Probe hay fine-tune</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/pool-5-probe.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn công cụ', '3 Pooling', '4 Trộn tầng', '5 Probe / fine-tune', '6 emotion2vec'];
+
+// Encoder drawn as 12 stacked layers; `learn` says which layers are trained (lit), the head is always trained.
+function stack(x, y, learn, title, c) {
+  text(title, x + 160, y - 30, {size: 30, weight: 700, color: c, align: 'center'});
+  for (let k = 0; k < 12; k++) {
+    const on = learn(k), yy = y + (11 - k) * 30;
+    rrect(x, yy, 320, 24, 5, on ? c : COL.soft, on ? null : COL.line2, 1.5);
+  }
+  text('encoder 12 tầng', x - 16, y + 180, {size: 20, color: COL.mute, align: 'right'});
+  rrect(x + 60, y + 370, 200, 50, 10, COL.ok);
+  text('trộn tầng + pooling + phân loại', x + 160, y + 445, {size: 18, color: COL.ok, align: 'center'});
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Từ frame đến cả câu', 'Phần 5/6: probe hay fine-tune', 4, PARTS);
+
+function shotMain(G, t) {
+  const sp = S('probe'), s2 = S('probe2'), sf = S('ft'), s4 = S('ft2'), sm = S('mid');
+  heading(t < sf ? 'Probe: đóng băng encoder' : t < sm ? 'Fine-tune: học lại cả encoder' : 'Ở giữa: vài tầng trên, adapter, LoRA');
+  fade(G, P(t, sp + 0.3, 0.5), () => stack(200, 260, () => false, 'probe', COL.acc));
+  if (t >= sf) fade(G, P(t, sf + 0.3, 0.5), () => stack(800, 260, () => true, 'fine-tune', COL.hl));
+  if (t >= sm) fade(G, P(t, sm + 0.3, 0.5), () => stack(1400, 260, k => k >= 9, 'vài tầng trên', COL.frame));
+  const note = (x, rows, c, s0) => fade(G, P(t, s0 + 0.3, 0.5), () => rows.forEach((r, j) => text(r, x, 770 + j * 34, {size: 21, color: j ? COL.mute : c, weight: j ? 400 : 700, maxW: 520})));
+  if (t >= s2 && t < sm) note(120, ['vài nghìn đến vài triệu tham số', 'tính đặc trưng một lần, học vài phút', 'giới hạn bởi encoder có sẵn'], COL.acc, s2);
+  if (t >= s4 && t < sm) note(720, ['hàng trăm triệu tham số, cần GPU mạnh', 'dữ liệu nhỏ: học thuộc', 'quên kiến thức cũ (catastrophic forgetting)'], COL.hl, s4);
+  if (t >= sm) fade(G, P(t, sm + 1, 0.5), () => text('tốn ít hơn fine-tune, thường tốt hơn probe', 960, 790, {size: 28, weight: 700, color: COL.frame, align: 'center'}));
+}
+
+function shotLora(G, t) {
+  const s = S('lora'), d = D('lora');
+  heading('LoRA: học thêm hai ma trận mỏng');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    rrect(300, 280, 320, 320, 8, COL.soft, COL.line2, 2);
+    text('W (giữ nguyên)', 460, 440, {size: 26, weight: 700, color: COL.mute, align: 'center'});
+    text('1024 × 1024', 460, 480, {size: 22, color: COL.mute, align: 'center'});
+    text('+', 700, 440, {size: 50, weight: 700, align: 'center'});
+    rrect(780, 280, 40, 320, 6, COL.frame);
+    text('B', 800, 640, {size: 26, weight: 700, color: COL.frame, align: 'center'});
+    text('×', 870, 440, {size: 40, weight: 700, align: 'center'});
+    rrect(920, 420, 320, 40, 6, COL.frame);
+    text('A', 1080, 500, {size: 26, weight: 700, color: COL.frame, align: 'center'});
+    text('hạng 8: 1024 × 8 và 8 × 1024', 1080, 560, {size: 22, color: COL.mute, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.55, 0.5), () => {
+    text('16 384 tham số', 1500, 400, {size: 40, weight: 700, color: COL.frame, align: 'center'});
+    text('thay vì 1 048 576', 1500, 460, {size: 30, color: COL.mute, align: 'center'});
+    text('≈ 1,6%', 1500, 520, {size: 30, weight: 700, color: COL.ok, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['probe: rẻ, nhanh, an toàn với dữ liệu nhỏ', COL.acc], ['fine-tune: mạnh hơn, nhưng tốn và dễ học thuộc', COL.hl], ['adapter, LoRA: ở giữa', COL.frame]].forEach(([a, c], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text('●', 400, 300 + j * 90, {size: 30, color: c});
+      text(a, 450, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 810, 640, 'Phần 6: emotion2vec  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 5', [
+  ['đóng băng encoder, chỉ học phần sau', 'linear probe, frozen features', ''],
+  ['học lại cả encoder', 'fine-tuning', ''],
+  ['thêm ít tham số nhỏ để học', 'adapter, LoRA (Low-Rank Adaptation)', ''],
+  ['quên việc cũ khi học việc mới', 'catastrophic forgetting', ''],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'probe', to: 'mid', draw: shotMain},
+    {from: 'lora', to: 'lora', draw: shotLora},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/pool-5-probe.wav');
+</script>
+</body>
+</html>

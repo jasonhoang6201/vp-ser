@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>SER · 5: Thước đo</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/ser.js"></script>
+<script src="../build/ser-5-do.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp, heat} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn thành phần', '3 Nhãn và dấu hiệu', '4 Dữ liệu', '5 Thước đo'];
+const G0 = {x: 360, y: 250, c: 66};
+const pct = v => (100 * v).toFixed(1).replace('.', ',') + '%';
+
+function matrix(R, hiCol) {
+  const mx = 1256;
+  text('thật \\ đoán', G0.x - 20, G0.y - 30, {size: 18, color: COL.mute, align: 'right'});
+  SER.CL.forEach((l, i) => {
+    text(l, G0.x - 14, G0.y + (i + 0.5) * G0.c, {size: 20, weight: 700, align: 'right'});
+    Clip.g.save(); Clip.g.translate(G0.x + (i + 0.5) * G0.c, G0.y - 12); Clip.g.rotate(-0.6);
+    text(l, 0, 0, {size: 18, color: COL.mute});
+    Clip.g.restore();
+    R.M[i].forEach((v, j) => {
+      const q = Math.sqrt(v / mx);
+      rrect(G0.x + j * G0.c, G0.y + i * G0.c, G0.c - 3, G0.c - 3, 4, heat(q * 0.85), hiCol && j === 0 ? COL.frame : null, 2);
+      text(String(Math.round(v)), G0.x + (j + 0.5) * G0.c, G0.y + (i + 0.5) * G0.c, {size: 17, weight: i === j ? 700 : 400, color: q > 0.6 ? '#fff' : COL.ink, align: 'center'});
+    });
+    text(pct(R.rec[i]).replace(',0%', '%'), G0.x + 7 * G0.c + 46, G0.y + (i + 0.5) * G0.c, {size: 19, weight: 700, color: R.rec[i] < 0.3 ? COL.hl : COL.ok, align: 'center'});
+  });
+  text('recall', G0.x + 7 * G0.c + 46, G0.y - 20, {size: 18, color: COL.mute, align: 'center'});
+}
+
+function meters(R, show) {
+  const rows = [['WA', R.WA, COL.acc], ['UA', R.UA, COL.frame], ['macro-F1', R.mF1, COL.i], ['weighted-F1', R.wF1, COL.ok]].slice(0, show);
+  rows.forEach(([l, v, c], j) => {
+    const y = 300 + j * 110, x = 1100;
+    text(l, x, y, {size: 28, weight: 700, color: c});
+    rrect(x, y + 24, 560, 36, 8, COL.soft);
+    rrect(x, y + 24, 560 * v, 36, 8, c);
+    text(pct(v), x + 576, y + 42, {size: 26, weight: 700});
+  });
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('SER: đoán cảm xúc từ giọng nói', 'Phần 5/5: thước đo, vì sao cần UA', 4, PARTS);
+
+function shotCm(G, t) {
+  const sc = S('cm'), sw = S('wa'), su = S('ua'), sb = S('bias'), sa = S('all'), sf = S('f1');
+  const bias = t >= sa ? lerp(0.6, 1, P(t, sa + 0.3, 1.5)) : t >= sb ? lerp(0, 0.6, P(t, sb + 0.3, 2)) : 0;
+  const R = SER.cm(bias);
+  heading(t < sw ? 'Bảng nhầm lẫn (số câu tập test MELD)' : t < sb ? 'WA và UA' : t < sf ? `Thiên về trung tính: ${bias.toFixed(2).replace('.', ',')}` : 'Thêm hai thước đo F1');
+  fade(G, P(t, sc + 0.3, 0.5), () => matrix(R, t >= sb));
+  const show = t >= sf ? 4 : t >= su ? 2 : t >= sw ? 1 : 0;
+  if (show) fade(G, P(t, sw + 0.3, 0.5), () => meters(R, show));
+  if (t >= sw && t < sb) fade(G, P(t, (t >= su ? su : sw) + 0.6, 0.5), () => text(t >= su ? 'UA = trung bình recall 7 lớp: mỗi lớp nặng như nhau' : 'WA = số câu đúng / tổng số câu', 1100, 560, {size: 24, weight: 700, color: t >= su ? COL.frame : COL.acc, maxW: 700}));
+  if (t >= sa && t < sf) fade(G, P(t, sa + 2, 0.5), () => text('luôn đoán trung tính: vô dụng, mà WA vẫn 48%', 1100, 560, {size: 26, weight: 700, color: COL.hl, maxW: 700}));
+}
+
+function shotReal(G, t) {
+  const sr = S('real'), dr = D('real'), sw = S('weight');
+  heading(t < sw ? 'Số liệu trên trang 18' : 'Chữa lệch lớp: class weight');
+  if (t < sw) {
+    const rows = [['emotion2vec+ (MELD, zero-shot)', 45.9, 30.1], ['SenseVoice-Small (MELD, zero-shot)', 52.2, 28.6], ['SenseVoice fine-tune (IEMOCAP 4 lớp)', 71.9, 73.7]];
+    rows.forEach(([l, wa, ua], j) => fade(G, P(t, sr + 0.5 + j * dr * 0.25, 0.5), () => {
+      const y = 270 + j * 160, x = 760;
+      text(l, x - 30, y + 40, {size: 24, weight: 700, align: 'right', maxW: 520});
+      [[wa, COL.acc, 'WA'], [ua, COL.frame, 'UA']].forEach(([v, c, n], k) => {
+        rrect(x, y + k * 50, v / 100 * 900, 40, 6, c);
+        text(`${n} ${String(v).replace('.', ',')}`, x + v / 100 * 900 + 12, y + k * 50 + 20, {size: 22, weight: 700, color: c});
+      });
+    }));
+    return;
+  }
+  fade(G, P(t, sw + 0.3, 0.5), () => {
+    text('loss mỗi lớp × trọng số ∝ 1 / số câu của lớp', 960, 280, {size: 32, weight: 700, align: 'center', mono: true});
+    SER.CL.forEach((l, j) => {
+      const w = 1256 / SER.CNT[j], x = 300 + j * 190, h = Math.min(300, w * 12);
+      rrect(x, 680 - h, 120, h, 8, COL.frame);
+      text('× ' + w.toFixed(1).replace('.', ','), x + 60, 680 - h - 22, {size: 20, weight: 700, color: COL.frame, align: 'center'});
+      text(l, x + 60, 710, {size: 20, align: 'center'});
+    });
+    text('UA tăng, WA thường giảm', 960, 780, {size: 28, weight: 700, color: COL.ok, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['✗', 'WA dễ bị lớp đông thổi phồng', COL.hl], ['✓', 'UA, macro-F1: mọi lớp như nhau', COL.ok], ['✓', 'bài báo SER phải báo UA hoặc macro-F1', COL.ok]].forEach(([m, a, c], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text(m, 480, 300 + j * 90, {size: 34, weight: 700, color: c});
+      text(a, 530, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 770, 640, 'Trang sau: từ frame đến câu  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 5', [
+  ['bảng nhãn thật × nhãn đoán', 'confusion matrix', ''],
+  ['tỉ lệ đúng trong một lớp', 'recall', 'UA = trung bình recall'],
+  ['tỉ lệ đúng trong số câu đoán là lớp đó', 'precision', ''],
+  ['trung bình điều hòa P và R', 'F1 (macro / weighted)', ''],
+  ['trọng số loss theo lớp', 'class weight', '∝ 1 / số câu'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'cm', to: 'f1', draw: shotCm},
+    {from: 'real', to: 'weight', draw: shotReal},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/ser-5-do.wav');
+</script>
+</body>
+</html>

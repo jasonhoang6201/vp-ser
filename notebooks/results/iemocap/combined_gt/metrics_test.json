@@ -1,0 +1,88 @@
+{
+  "name": "combined_gt",
+  "dataset": "iemocap",
+  "split": "test",
+  "notes": "SenseVoice-FT ASR + roberta-large fine-tuned (5 ep, lr 1e-05); train text gt, eval text gt, ctx 0, audio none; 3-seed ensemble; GROUND-TRUTH text (upper bound)",
+  "ser": {
+    "wa": 0.7066881547139404,
+    "ua": 0.7173177444054545,
+    "macro_f1": 0.7056283546202902,
+    "weighted_f1": 0.708022370292002,
+    "recall_by_emotion": {
+      "neutral": 0.6770833333333334,
+      "joy": 0.6923076923076923,
+      "anger": 0.7529411764705882,
+      "sadness": 0.746938775510204
+    },
+    "n": 1241,
+    "n_invalid_pred": 0,
+    "labels": [
+      "neutral",
+      "joy",
+      "anger",
+      "sadness"
+    ],
+    "confusion": [
+      [
+        260,
+        48,
+        32,
+        44
+      ],
+      [
+        76,
+        306,
+        19,
+        41
+      ],
+      [
+        21,
+        6,
+        128,
+        15
+      ],
+      [
+        34,
+        17,
+        11,
+        183
+      ]
+    ]
+  },
+  "seeds": [
+    {
+      "seed": 0,
+      "best_epoch": 4,
+      "dev_ua": 0.7226871129480209,
+      "test_ua": 0.7035883704443315,
+      "test_wf1": 0.69615251527255,
+      "gate": null
+    },
+    {
+      "seed": 1,
+      "best_epoch": 3,
+      "dev_ua": 0.7120045212718865,
+      "test_ua": 0.7211036578092775,
+      "test_wf1": 0.707355114580637,
+      "gate": null
+    },
+    {
+      "seed": 2,
+      "best_epoch": 3,
+      "dev_ua": 0.732144081317353,
+      "test_ua": 0.7071805044133038,
+      "test_wf1": 0.6927732583558468,
+      "gate": null
+    }
+  ],
+  "config": {
+    "train": "gt",
+    "eval": "gt",
+    "ctx": 0,
+    "audio": false
+  },
+  "ua_mean": 0.7106241775556376,
+  "ua_std": 0.009251512654835573,
+  "wf1_mean": 0.6987602960696778,
+  "wf1_std": 0.007632694364018226
+}

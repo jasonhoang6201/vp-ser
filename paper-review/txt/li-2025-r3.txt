@@ -1,0 +1,588 @@
+=== page 1 ===
+Revise, Reason, and Recognize: LLM-Based Emotion Recognition
+via Emotion-Specific Prompts and ASR Error Correction
+Yuanchao Li1, Yuan Gong∗2, Chao-Han Huck Yang3, Peter Bell1, Catherine Lai1
+1University of Edinburgh, 2MIT CSAIL, 3NVIDIA Research
+yuanchao.li@ed.ac.uk
+Abstract—Annotating and recognizing speech emotion using
+prompt engineering has recently emerged with the advance-
+ment of Large Language Models (LLMs), yet its efficacy and
+reliability remain questionable. In this paper, we conduct a
+systematic study on this topic, beginning with the proposal of
+novel prompts that incorporate emotion-specific knowledge from
+acoustics, linguistics, and psychology. Subsequently, we examine
+the effectiveness of LLM-based prompting on Automatic Speech
+Recognition (ASR) transcription, contrasting it with ground-truth
+transcription. Furthermore, we propose a REVISE-REASON-
+RECOGNIZE prompting pipeline for robust LLM-based emotion
+recognition from spoken language with ASR errors. Additionally,
+experiments on context-aware learning, in-context learning, and
+instruction tuning are performed to examine the usefulness of
+LLM training schemes in this direction. Finally, we investigate
+the sensitivity of LLMs to minor prompt variations. Experimental
+results demonstrate the efficacy of the emotion-specific prompts,
+ASR error correction, and LLM training schemes for LLM-based
+emotion recognition. Our study aims to refine the use of LLMs
+in emotion recognition and related domains.
+Index Terms—Emotion Recognition, LLM, ASR, Acoustics,
+Linguistics, Psychology
+I. INTRODUCTION
+Recent studies have suggested that Large Language Models
+(LLMs) have the ability to reason about emotional content [1].
+This finding has encouraged researchers to further explore the
+“emotional intelligence” (e.g., emotion recognition, interpreta-
+tion, and understanding) of LLMs. For example, [2] developed
+a psychometric assessment focusing on emotion understanding
+to compare the emotional intelligence of LLMs and humans.
+They found that most LLMs achieved above-average Emo-
+tional Quotient (EQ) scores, with GPT-4 surpassing 89% of
+human participants with an EQ of 117.
+Therefore, the use of LLMs in text-based emotion recog-
+nition has emerged as a resource-efficient and effort-saving
+alternative to human annotators and traditional emotion clas-
+sifiers for two main reasons: 1) Emotion recognition requires
+substantial human effort. Typically, multiple annotators are
+needed for each sample to reach a majority vote, ensuring
+accurate assessment. Although platforms like Amazon Me-
+chanical Turk provide a relatively efficient solution, concerns
+persist regarding privacy leaks, subjective bias, and the re-
+liability of annotations [3]. 2) Despite the advancements of
+state-of-the-art deep learning technologies, training an emotion
+classifier involves multiple steps, including feature extraction
+∗Work done at MIT, now with xAI Corp.
+and model building, which require careful consideration of
+which features, models, and algorithms to use.
+To this end, researchers have recently started exploring and
+utilizing LLMs for emotion annotation and recognition. Their
+work includes various approaches, such as using multiple-step
+prompting with LLMs [4], examining prompt sensitivity [5],
+integrating outputs from multiple LLMs [3], and incorporating
+acoustic information [6]. Despite these efforts, understanding
+of the usage, efficacy, and reliability of LLM-based approaches
+remains limited, especially on Automatic Speech Recognition
+(ASR) transcription. Therefore, building upon existing litera-
+ture, we conduct various experiments on LLM-based emotion
+recognition to investigate effective prompting practices. Our
+major contributions are:
+• We propose novel prompts for LLM-based emotion
+recognition, integrating emotion-specific knowledge from
+acoustics, linguistics, and psychology.
+• We propose the REVISE-REASON-RECOGNIZE (R3)
+prompt for emotion recognition on imperfect text, ad-
+dressing the limitations of prior methods on ground-truth
+text.
+• We experiment on LLM training schemes, evaluating the
+efficacy of context-aware learning, in-context learning,
+and instruction tuning for LLM-based emotion recogni-
+tion, and investigate the sensitivity of LLMs to minor
+prompt variations.
+II. RELATED WORK
+Interest in LLM-based emotion recognition has surged re-
+cently, with the availability of pre-trained models. Studies in
+this area have explored a variety of approaches. [7] inferred
+emotion labels using three different prompting approaches:
+text generation, mask filling, and textual entailment, employ-
+ing a fine-grained emotion taxonomy. [3] proposed an en-
+semble approach that integrates outputs from multiple LLMs,
+leveraging a Mixture of Experts (MoE) reasoning model.
+They trained emotion classifiers using MoE-generated emotion
+labels from both ground-truth and ASR transcriptions, and
+tested these classifiers on ground-truth labels, demonstrating
+comparable performance in emotion classification. [4] em-
+ployed a multi-step prompting technique with few training
+samples for text emotion recognition. [6] and [8] incorporated
+textual acoustic feature descriptors into prompts. [9] investi-
+gated several approaches,including in-context learning, few-
+shot learning, accuracy, generalization, and explanation. [5]
+arXiv:2409.15551v2  [eess.AS]  30 Apr 2025
+
+=== page 2 ===
+examined various prompting techniques, including chain-of-
+thought, role-play, and their variations.
+Despite these advancements, we argue that each approach
+has its limitations, leaving several concerns unaddressed. For
+example, [9] did not study prompting, [4] only proposed a
+multi-step prompting without further exploration. The prompt-
+ing techniques tested by [5] were not specifically designed for
+emotion. [6] and [8] only considered basic acoustic features,
+without incorporating more emotion-related properties. Fur-
+thermore, both [3] and [7] used ASR transcriptions generated
+by Whisper, whose output has been shown to be robust in
+emotion recognition even with ASR errors [10]. However,
+this setting is not ideal for LLMs handling challenging ASR
+transcriptions in real-world emotion applications.
+III. METHODOLOGY
+To address the issues above, we 1) Develop prompts that
+incorporate emotion-specific knowledge; 2) Incorporate ASR
+Error Correction (AEC) to refine transcriptions for robust
+emotion recognition; and 3) Explore LLM training schemes
+to further improve the performance.
+A. Prompting with Emotion-Specific Knowledge
+In light of the relationship between emotion and relevant
+disciplines, we extract useful knowledge from acoustics, lin-
+guistics, and psychology, to develop emotion-specific prompts
+for emotion recognition. The prompts are presented in Fig. 1.
+Acoustic information plays a crucial role in distinguishing
+speech emotions. Features like energy, pitch, and speaking rate
+have proven useful when been incorporated into prompts as
+textual descriptors [6]. Similarly, gender information, which is
+highly correlated with pitch, has also been shown to be useful
+[8], [11]. However, these features are insufficient to fully
+describe fine-grained differences in emotions beyond the Big
+Four. Hence, we hypothesize that additional acoustic features
+can enhance LLMs’ emotion recognition ability. We propose
+including pitch range, jitter, and shimmer to incorporate mid-
+level prosody (between frame-level and utterance-level) and
+voice quality.
+Linguistic structure is essential for understanding emotion
+in text. For example, [12] investigated the impact of part-
+of-speech, affective score, and utterance length on emotion.
+However, to our knowledge, only one work [13] has uti-
+lized linguistics via identifying emotion triggers (i.e., words
+that elicit the emotion) when prompting LLMs for emotion
+prediction. Thus, we hypothesize that LLM-based emotion
+recognition can benefit from more linguistic knowledge as LLM
+processing is inherently text-based. We propose including ASR-
+emotion relationships among emotion category, Word Error
+Rate (WER), and utterance length as outlined in [12].
+Psychological theories, such as self-monitoring, social cog-
+nitive theory, and cognitive emotion regulation have proven
+effective in improved LLMs’ performance across various tasks
+[14], [15]. Therefore, we hypothesize that LLMs’ emotion
+recognition ability can resonate with their emotional intel-
+ligence and thus be enhanced. We propose incorporating
+Fig. 1. Emotion-specific prompts used in this work.
+positive and negative stimuli from [14], [15], as well as create
+our novel competitive stimuli.
+B. Emotion Recognition with ASR Error Correction
+Traditional emotion recognition often struggles with im-
+perfect text [10]. We argue that it is more challenging to
+prompt LLMs for emotion recognition on ASR transcription
+compared to human transcription, due to the presence of
+word errors. Therefore, we propose the R3 prompting pipeline
+to perform emotion recognition with AEC and reasoning on
+ASR transcriptions. The R3 pipeline involves three steps:
+Revise, where ASR errors are corrected based on N-best hy-
+potheses; Reason, where the LLMs self-explain based on the
+corrected transcriptions and emotion-specific knowledge; and
+Recognize, where the emotion is recognized. To incorporate
+AEC into our prompts, we follow an AEC-specific Alpaca
+prompt [16], which uses the “You are an ASR error corrector”
+instruction, guiding the LLMs to perform error correction. As
+LLMs have proven their ability in both AEC and emotion
+recognition [17], this format is expected to facilitate seamless
+integration with our emotion prompting, instructing the LLMs
+to function simultaneously as both an ASR error corrector and
+an emotion recognizer.
+C. Exploring LLM Training Schemes
+To understand how LLM training schemes contribute to
+emotion recognition, we explore context-aware learning, in-
+context learning, and instruction tuning. For context-aware
+learning, we organize the sentences in the conversation order
+and compare different context windows (i.e., the number of
+sentences preceding the sentence to be recognized). For in-
+context learning, we test and compare several few-shot cases.
+For instruction tuning, we apply Parameter-Efficient Fine-
+Tuning (PEFT) using LoRA [18]. We set learning rate, weight
+decay, and epoch to 1e-4, 1e-5, and 5, respectively, and remain
+LoRA configuration at its default settings (code available).
+
+=== page 3 ===
+IV. EXPERIMENTS
+A. Datasets and Models
+For the datasets, we use IEMOCAP [19] and the Test1
+set of MSP-Podcast [20]. We combine excited with happy
+and use the Big Four classes (angry, happy, neutral, sad) for
+IEMOCAP. For MSP-Podcast, we remove other and use the
+eight classes (angry, happy, neutral, sad, disgusted, surprised,
+fearful, contemptuous). For the ASR models, we adopt ten
+popular ones from [10] to generate diverse transcripts to form
+10-best ASR hypotheses. For the LLMs, we utilize Llama-2
+(7b-chat-hf & 13b-chat-hf) and Falcon (7b-instruct). Temperature
+and max token are set as 1e-4 and 100. Due to limited
+space, we mainly present the results on IEMOCAP using
+Llama-2 and omit the full prompting message, presenting only
+the core text following the literature in Sec. II. Results of
+using the other model and dataset are presented in necessary
+experiments.
+B. Results and Discussions
+We present the results and discussions based on the follow-
+ing exploration tasks. We replace responses that fall outside
+the emotion classes with neutral. Unweighted Accuracy (UA)
+is used to measure the results.
+1. Do WERs have an impact on LLM prompting?
+In this task, we use the baseline no reasoning prompt:
+Predict the emotion from {the emotion classes}. Do not
+show your explanation. From Table I, we see that WERs
+do impact LLM prompting. Even the best-performing ASR
+transcription (i.e., from Whisper large) shows more than a 4%
+loss compared to ground-truth text. This finding contradicts a
+previous claim that LLM-based emotion recognition is robust
+to ASR errors [3]. We believe this discrepancy arises from their
+(i) use of Whisper large, which provides relatively accurate
+transcriptions, and (ii) introduction of a fifth emotion class,
+‘other’, to filter out unconfident labels. However, our setup is
+more inline with real-world scenarios where emotion recog-
+nition is more challenging due to various speaking styles and
+unconfident labels cannot be filtered. Furthermore, LLM-based
+performance remains relatively stable within certain WER
+ranges. The accuracy decrease does not linearly correlate with
+the WER increase, as seen in traditional deep learning model-
+based emotion recognition [12]. Finally, LLMs benefit from
+more parameters as the 13b model consistently outperforms
+the 7b model.
+2. Does emotion-specific knowledge help?
+In this task, we use each of the emotion-specific prompts
+and their combinations for emotion recognition and compare
+their effectiveness on both ground-truth and ASR transcrip-
+tions. For brevity, we use one ASR transcription, whose WER
+ranked in the middle, as the representative (i.e., HuBERT
+large). Results are presented in Table. II.
+We can see that: 1) All emotion-specific prompts improve
+the performance, demonstrating the efficacy of our proposed
+TABLE I
+EMOTION RECOGNITION ACCURACY ON TRANSCRIPTIONS OF
+INCREASING WER. ↑: HIGHER THE BETTER. ↓: LOWER THE BETTER.
+WER%↓(Transcription source)
+UA%↑
+7b-chat-hf
+13b-chat-hf
+0.00 (Ground-truth)
+44.50
+47.43
+12.3 (Whisper large)
+41.77
+44.27
+14.4 (Whisper small)
+41.47
+43.98
+20.2 (Whisper base)
+41.16
+43.70
+21.9 (W2V960 large self)
+41.12
+43.59
+23.8 (HuBERT large)
+41.36
+43.88
+26.9 (Whisper tiny)
+40.80
+43.14
+27.9 (W2V960 large)
+40.49
+43.10
+32.3 (W2V960)
+40.00
+43.01
+39.1 (Wavlm plus)
+38.01
+40.12
+40.3 (W2V100)
+38.09
+40.19
+Data: IEMOCAP. LLM: Llama-2.
+TABLE II
+EMOTION RECOGNITION ACCURACY BY USING EMOTION-SPECIFIC
+PROMPTS. ↑: HIGHER THE BETTER.
+Prompt
+UA%↑
+Ground-truth
+HuBERT large
+Baseline
+1) No reasoning
+44.50
+41.36
+2) Reasoning
+43.83 (−0.70)
+40.07 (−1.29)
+Acoustics
+3) Gender
+45.59 (+1.09)
+42.22 (+0.86)
+4) Paraling
+46.25 (+1.75)
+43.02 (+1.66)
+Linguistics
+5) Trigger
+46.80 (+2.30)
+43.45 (+2.09)
+6) ASR relation
+/
+44.10 (+2.74)
+Psychology
+7) Pos stimuli
+45.90 (+1.40)
+42.35 (+0.99)
+8) Neg stimuli
+47.43 (+2.93)
+42.76 (+1.40)
+9) Cpt stimuli
+45.81 (+1.31)
+41.98 (+0.65)
+Majority voting
+45.72 (+1.22)
+42.94 (+1.58)
+4 + 5 + 8
+48.96 (+4.46)
+44.30 (+2.94)
+4 + 5 + 6 + 8
+/
+44.47 (+3.11)
+Data: IEMOCAP. LLM: Llama-2-7b-chat-hf.
+approach by incorporating emotion-specific knowledge. How-
+ever, the improvement is less pronounced on ASR transcrip-
+tion, highlighting the necessity for AEC. 2) Our proposed
+paralinguistic information improves on [6], verifying our hy-
+pothesis that additional paralinguistic features are beneficial.
+Furthermore, the improvement in 8-class is more significant,
+confirming that these additional features help in distinguishing
+finer-grained emotions (see Table III). 3) Linguistic knowledge
+generally contributes the most, even on ASR transcription.
+This means that LLMs benefit from identifying emotional
+trigger words and understanding the ASR-emotion relation-
+ship. This ASR-emotion does apply to ground-truth text, as
+it is specifically developed for ASR transcription. 4) The
+steady improvement from psychological knowledge confirms
+our hypothesis that LLMs’ emotion recognition ability can
+be affected by psychological setting. Interestingly, among the
+psychological prompts, stimuli with negative affect perform
+the best. 5) Surprisingly, the baseline reasoning prompt does
+not improve performance. By investigating the responses,
+however, we found this is likely due to the LLM hallucinations,
+where they often described the (acoustic) tone despite having
+only text input. 6) Majority voting underperforms most single
+prompts, aligning with the finding of [6]. Finally, identifying
+
+=== page 4 ===
+TABLE III
+ACCURACY COMPARISON WITH AND WITHOUT PITCH RANGE (PR),
+JITTER (JI), AND SHIMMER (SH). ↑: HIGHER THE BETTER.
+Prompt
+UA%↑
+IEMOCAP
+MSP-Podcast
+Baseline no explanation
+44.50
+35.70
+Para info
+46.25 (+1.75)
+37.37 (+1.67)
+– w/o Pr, Ji, Sh
+45.89 (+1.39)
+36.73 (+1.03)
+LLM: Llama-2-7b-chat-hf.
+Fig. 2. Examples of LLM reasoning with emotion-specific knowledge.
+the best prompt combination for both ground-truth and ASR
+transcriptions, we see that linguistics contributes the most to
+the latter by having both trigger words and ASR relationships.
+3. Does the proposed R3 prompt work?
+In this task, we use the R3 prompt: You are an ASR error
+corrector and emotion recognizer. Generate the most likely
+transcript from {the 10-best ASR hypotheses} and predict the
+emotion from {the emotion classes} with reasoning based
+on the provided knowledge. For comparison, we conduct an
+ablation study, removing AEC or reasoning. We use 4+5+6+8
+as the emotion knowledge since it has proven the best.
+TABLE IV
+PERFORMANCE COMPARISON. ↑: HIGHER THE BETTER.
+Prompt
+UA%↑
+Llama-2-7b
+Llama-2-13b
+Falcon-7b
+R3
+49.72
+52.27
+47.24
+– w/o AEC
+43.29
+47.20
+43.00
+– w/o reasoning
+47.48
+50.01
+45.49
+Data: 10-best of IEMOCAP. Models: -chat-hf & -instruct.
+As shown in Table IV, both AEC and reasoning contribute
+to the effectiveness of our R3 prompt. Moreover, when incor-
+porating our proposed emotion-specific knowledge, reasoning
+improves the performance, in contrast to the decrease observed
+when emotion-specific knowledge was not provided (see Ta-
+ble II). This suggests that emotion recognition is particularly
+challenging for LLMs to reason without relevant information.
+The examples in Fig. 2 illustrate how the R3 prompt helps
+LLMs in reasoning with emotion-specific knowledge, regard-
+less of whether the recognition is correct.
+4. Do LLM training schemes help?
+In this task, we apply the R3 prompt with context-aware
+learning (windows of 5 and 25), in-context learning (5- and
+10-shot), and instruction tuning. For instruction tuning, we
+perform cross-validation by applying PEFT on every four
+sessions, testing on the remaining session, and then averaging.
+We do not compare performance across these three approaches
+due to their different settings.
+TABLE V
+PERFORMANCE VIA LLM TRAINING. ↑: HIGHER THE BETTER.
+Context-aware
+In-context
+Tuning
+5
+25
+5
+10
+PEFT
+UA%↑
+54.35
+62.46
+50.74
+54.36
+64.67
+Data: 10-best of IEMOCAP. Model: Llama-2-7b-chat-hf.
+From Table V, it is evident that each LLM training scheme
+improves the baseline performance of using R3 on 10-best
+ASR hypotheses (49.72 in Table IV). For context-aware learn-
+ing and in-context few-shot learning, longer context windows
+and more samples yield higher accuracy. Instruction tuning
+leads to the highest performance. Notably, a long context
+window also results in UA greater than 60%, indicating the
+potential to utilize conversational knowledge in real-world
+LLM-based emotion recognition without tuning the models.
+5. Are LLMs sensitive to minor prompt variations?
+In this task, we investigate whether LLM-based emotion
+recognition is sensitive to minor prompt variations. During our
+experiments, we observed that prompts with slight differences
+but the same meaning, such as variations in word choice or
+the order of provided emotion classes, can largely impact
+task performance. In Table VI, we modify the baseline no
+reasoning prompt by changing either the word Predict to
+Select or the order of the emotion classes.
+TABLE VI
+PERFORMANCE COMPARISON OF PROMPT VARIATIONS. (A: ANGRY,
+H:HAPPY, N: NEUTRAL, S: SAD). ↑: HIGHER THE BETTER.
+Word usage
+Emotion order
+Predict
+Select
+A, H, N, S
+H, N, A, S
+UA%↑
+44.50
+41.12
+44.50
+40.87
+Data: IEMOCAP. LLM: Llama-2-7b-chat-hf.
+This aligns with recent findings that LLMs can behave
+differently due to subtle changes in prompt formatting, such as
+separators and case, regardless of model size, number of few-
+shot examples, or instruction tuning [21]. We believe this issue
+is a major factor hindering the widespread use of LLMs for
+emotion recognition and similar tasks, thus suggest that future
+studies evaluating LLMs with prompts would better report the
+performance across plausible prompt variations.
+V. CONCLUSION
+In this work, we propose emotion-specific prompts by
+incorporating relevant knowledge from acoustics, linguistics,
+and psychology. We also compare LLM-based emotion recog-
+nition on both ground-truth and ASR transcriptions, confirm-
+ing the necessity of AEC. Consequently, we develop the
+REVISE-REASON-RECOGNIZE prompting pipeline that inte-
+grates AEC, reasoning, and emotion recognition, which proves
+effective. Additionally, by investigating several LLM training
+schemes, we confirm the value of longer context windows,
+more few-shot samples, and instruction tuning. Finally, we
+uncover the sensitivity of LLMs to minor prompt variations.
+This research is expected to bridge the gap between existing
+studies on LLMs and emotion recognition.
+
+=== page 5 ===
+ACKNOWLEDGMENT
+We thank Pinzhen Chen (UoE) for his help with LLM
+training and Tiantian Feng (USC) for his feedback on LLM
+selection.
+REFERENCES
+[1] Maarten Sap, Hannah Rashkin, Derek Chen, Ronan Le Bras, and Yejin
+Choi, “Social IQa: Commonsense reasoning about social interactions,”
+in EMNLP-IJCNLP, 2019, pp. 4463–4473.
+[2] Xuena Wang, Xueting Li, Zi Yin, Yue Wu, and Jia Liu, “Emotional in-
+telligence of large language models,” Journal of Pacific Rim Psychology,
+2023.
+[3] Tiantian Feng and Shrikanth Narayanan, “Foundation model assisted
+automatic speech emotion recognition: Transcribing, annotating, and
+augmenting,” in ICASSP 2024. IEEE, 2024, pp. 12116–12120.
+[4] Kenta Hama, Atsushi Otsuka, and Ryo Ishii, “Emotion recognition in
+conversation with multi-step prompting using large language model,”
+in International Conference on Human-Computer Interaction. Springer,
+2024, pp. 338–346.
+[5] Mostafa M Amin and Bj¨orn W Schuller,
+“On prompt sensitivity of
+chatgpt in affective computing,” arXiv preprint arXiv:2403.14006, 2024.
+[6] Jennifer Santoso, Kenkichi Ishizuka, and Taiichi Hashimoto,
+“Large
+language model-based emotional speech annotation using context and
+acoustic feature for speech emotion recognition,” in ICASSP 2024. IEEE,
+2024, pp. 11026–11030.
+[7] Taesik Gong, Josh Belanich, Krishna Somandepalli, Arsha Nagrani,
+Brian Eoff, and Brendan Jou,
+“LanSER: Language-model supported
+speech emotion recognition,” Interspeech 2023, 2023.
+[8] Siddique Latif, Muhammad Usama, Mohammad Ibrahim Malik, and
+Bj¨orn W Schuller,
+“Can large language models aid in annotating
+speech emotional data? uncovering new frontiers,”
+arXiv preprint
+arXiv:2307.06090, 2023.
+[9] Zixing Zhang, Liyizhe Peng, Tao Pang, Jing Han, Huan Zhao, and
+Bj¨orn W Schuller, “Refashioning emotion recognition modelling: The
+advent of generalised large models,” IEEE Transactions on Computa-
+tional Social Systems, 2024.
+[10] Yuanchao Li, Peter Bell, and Catherine Lai, “Speech emotion recogni-
+tion with ASR transcripts: A comprehensive study on word error rate and
+fusion techniques,” 2024 IEEE Spoken Language Technology Workshop
+(SLT). IEEE, 2024.
+[11] Yuanchao Li, Tianyu Zhao, and Tatsuya Kawahara,
+“Improved end-
+to-end speech emotion recognition using self attention mechanism and
+multitask learning.,” in Interspeech, 2019, pp. 2803–2807.
+[12] Yuanchao Li, Zeyu Zhao, Ondrej Klejch, Peter Bell, and Catherine Lai,
+“ASR and emotional speech: A word-level investigation of the mutual
+impact of speech and emotion recognition,” in Interspeech 2023, 2023.
+[13] Smriti Singh, Cornelia Caragea, and Junyi Jessy Li, “Language models
+(mostly) do not consider emotion triggers when predicting emotion,”
+NAACL 2024, 2024.
+[14] Cheng Li, Jindong Wang, Yixuan Zhang, Kaijie Zhu, Wenxin Hou,
+Jianxun Lian, Fang Luo, Qiang Yang, and Xing Xie, “Large language
+models understand and can be enhanced by emotional stimuli,” arXiv
+preprint arXiv:2307.11760, 2023.
+[15] Xu Wang, Cheng Li, Yi Chang, Jindong Wang, and Yuan Wu, “Negative-
+prompt: Leveraging psychology for large language models enhancement
+via negative emotional stimuli,” IJCAI 2024, 2024.
+[16] Chao-Han Huck Yang, Yile Gu, Yi-Chieh Liu, Shalini Ghosh, Ivan
+Bulyko, and Andreas Stolcke,
+“Generative speech recognition error
+correction with large language models and task-activating prompting,”
+in IEEE ASRU 2023. IEEE, 2023, pp. 1–8.
+[17] Chao-Han Huck Yang, Taejin Park, Yuan Gong, Yuanchao Li, Zhehuai
+Chen, Yen-Ting Lin, Chen Chen, Yuchen Hu, Kunal Dhawan, Piotr
+˙Zelasko, et al., “Large language model based generative error correction:
+A challenge and baselines for speech recognition, speaker tagging, and
+emotion recognition,” arXiv preprint arXiv:2409.09785, 2024.
+[18] Edward J Hu, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean
+Wang, Lu Wang, Weizhu Chen, et al., “LoRA: Low-rank adaptation
+of large language models,” in International Conference on Learning
+Representations (ICLR), 2022.
+[19] Carlos Busso, Murtaza Bulut, Chi-Chun Lee, Abe Kazemzadeh, Emily
+Mower, Samuel Kim, Jeannette N Chang, Sungbok Lee, and Shrikanth S
+Narayanan, “IEMOCAP: Interactive emotional dyadic motion capture
+database,” Language resources and evaluation, vol. 42, pp. 335–359,
+2008.
+[20] Reza Lotfian and Carlos Busso,
+“Building naturalistic emotionally
+balanced speech corpus by retrieving emotional speech from existing
+podcast recordings,” IEEE Transactions on Affective Computing, vol.
+10, no. 4, pp. 471–483, 2017.
+[21] Melanie Sclar, Yejin Choi, Yulia Tsvetkov, and Alane Suhr, “Quantifying
+language models’ sensitivity to spurious features in prompt design
+or: How I learned to start worrying about prompt formatting,”
+in
+International Conference on Learning Representations (ICLR), 2024.
+

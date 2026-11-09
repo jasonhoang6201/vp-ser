@@ -1,0 +1,76 @@
+{
+  "name": "cascade_text_asr_probe_f2",
+  "dataset": "iemocap",
+  "split": "test",
+  "notes": "single; predictions = 1-seed ensemble",
+  "asr": {
+    "wer": 0.1152073732718894,
+    "n_utts": 1020,
+    "n_ref_words": 14105,
+    "n_empty_ref_skipped": 3,
+    "wer_by_emotion": {
+      "anger": 0.07664233576642336,
+      "joy": 0.12977272727272726,
+      "neutral": 0.1330783168914838,
+      "sadness": 0.08723404255319149
+    }
+  },
+  "ser": {
+    "wa": 0.6832844574780058,
+    "ua": 0.7088520202257453,
+    "macro_f1": 0.6909849489834892,
+    "weighted_f1": 0.6818807757920535,
+    "recall_by_emotion": {
+      "neutral": 0.6243093922651933,
+      "joy": 0.6819571865443425,
+      "anger": 0.8540145985401459,
+      "sadness": 0.6751269035532995
+    },
+    "n": 1023,
+    "n_invalid_pred": 0,
+    "labels": [
+      "neutral",
+      "joy",
+      "anger",
+      "sadness"
+    ],
+    "confusion": [
+      [
+        226,
+        66,
+        28,
+        42
+      ],
+      [
+        54,
+        223,
+        16,
+        34
+      ],
+      [
+        13,
+        5,
+        117,
+        2
+      ],
+      [
+        37,
+        17,
+        10,
+        133
+      ]
+    ]
+  },
+  "seeds": [
+    {
+      "seed": 0,
+      "dev_ua": 0.6788113215972258,
+      "test_ua": 0.7088520202257453,
+      "test_wf1": 0.6818807757920535
+    }
+  ],
+  "ua_mean": 0.7088520202257453,
+  "ua_std": NaN,
+  "wf1_mean": 0.6818807757920535,
+  "wf1_std": NaN
+}

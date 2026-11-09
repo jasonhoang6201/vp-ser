@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TTS và vocoder</title>
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="pn"></nav>
+<h1>Tổng hợp tiếng nói (TTS) và vocoder: đi ngược từ chữ ra sóng âm</h1>
+<p class="sub">TTS (Text-to-Speech). Các trang trước đi từ sóng âm → spectrogram → Mel → chữ. Nhánh này đi ngược lại. Trang này nói về <b>khung chung</b> của mọi hệ TTS hiện đại và <b>mảnh cuối cùng</b>: dựng lại sóng âm từ Mel.</p>
+
+<section>
+<h2><span class="n">1</span>Vấn đề: tạo ra sóng âm nghe tự nhiên rất khó</h2>
+<div class="tablewrap"><table>
+<tr><th>Cách cũ</th><th>Làm thế nào</th><th>Vướng</th></tr>
+<tr><td><b>ghép đoạn</b> (concatenative, unit selection)</td><td>thu âm một người đọc nhiều giờ, cắt thành đoạn nhỏ, chọn và ghép các đoạn khớp với câu cần đọc</td><td>chỗ nối hay bị giật; muốn giọng khác, cảm xúc khác thì phải thu lại cả kho</td></tr>
+<tr><td><b>tham số thống kê</b> (HMM-based)</td><td>HMM sinh ra các tham số phổ, rồi một vocoder tín hiệu cổ điển tạo sóng</td><td>mượt nhưng nghe "rè", "đục", máy móc</td></tr>
+</table></div>
+<p>Ngoài ra còn ba khó khăn gốc:</p>
+<ul>
+<li><b>Một chữ, nhiều cách đọc</b> (one-to-many): cùng câu "trời mưa" có thể đọc nhanh hay chậm, cao hay trầm, vui hay buồn. Mô hình không biết nên chọn cách nào.</li>
+<li><b>Sóng âm quá dài</b>: 1 giây ở 22 050 Hz là 22 050 số. Một câu 3 giây là 66 000 số, và chúng phải khớp nhau rất chính xác.</li>
+<li><b>Chữ viết không phải cách đọc</b>: "25/12" đọc là "hai mươi lăm tháng mười hai", "TP.HCM" đọc là "thành phố Hồ Chí Minh".</li>
+</ul>
+<div class="note blue"><b>Mục tiêu:</b> chia bài toán thành các bước nhỏ hơn, mỗi bước dễ học, và có một mảnh chuyên lo việc <b>tạo sóng âm chất lượng cao</b>.</div>
+</section>
+
+<section>
+<h2><span class="n">2</span>Khung chung: 3 khối</h2>
+<div class="pipe"><span class="done">chữ</span><i>→</i><span class="new">xử lý văn bản</span><i>→</i><span class="done">âm vị</span><i>→</i><span class="new">mô hình âm học</span><i>→</i><span class="done">Mel spectrogram</span><i>→</i><span class="new">vocoder</span><i>→</i><span class="done">sóng âm</span></div>
+<div class="tablewrap"><table>
+<tr><th>Khối</th><th>Làm gì</th><th>Gỡ vướng gì</th><th>Ở trang</th></tr>
+<tr><td><b>xử lý văn bản</b> (text frontend)</td><td>chuẩn hóa (số, ngày tháng, viết tắt thành chữ), đổi chữ thành âm vị (G2P, grapheme-to-phoneme), gắn thanh điệu</td><td>chữ viết không phải cách đọc</td><td>(ý chính ở đây)</td></tr>
+<tr><td><b>mô hình âm học</b> (acoustic model)</td><td>từ chuỗi âm vị, sinh ra Mel spectrogram: mỗi âm dài bao nhiêu frame, formant ở đâu, f0 lên xuống ra sao</td><td>phần "đọc thế nào"</td><td>14, 15</td></tr>
+<tr><td><b>vocoder</b></td><td>từ Mel spectrogram, dựng lại sóng âm</td><td>sóng âm quá dài, Mel đã mất pha</td><td>3, 4 ở trang này</td></tr>
+</table></div>
+<p>Vì sao đi qua <b>Mel</b> mà không sinh thẳng sóng âm? Mel gọn (80 số mỗi frame thay vì 220 mẫu sóng), mượt, và đã bỏ những chi tiết tai không quan tâm, nên mô hình âm học dễ học hơn nhiều. Cái giá: Mel <b>đã mất thông tin</b> (trang 04: lossy) và <b>không có pha</b>. Vocoder phải đoán lại phần đã mất.</p>
+</section>
+
+<section>
+<h2><span class="n">3</span>Pha: thứ mà spectrogram vứt đi</h2>
+<p>FFT của một frame cho mỗi bin hai thông tin: <b>độ lớn</b> (magnitude, cái ta vẽ trong spectrogram) và <b>pha</b> (phase: sóng đó bắt đầu ở điểm nào trong chu kỳ). Mọi trang trước chỉ giữ độ lớn. Thử dựng lại một âm "a" chỉ từ độ lớn, với các loại pha khác nhau:</p>
+<div class="ctrl">
+  <button data-ph="orig">▶ Gốc</button><button data-ph="true">▶ Độ lớn + pha thật</button><button data-ph="zero">▶ Độ lớn + pha = 0</button><button data-ph="rand">▶ Độ lớn + pha ngẫu nhiên</button>
+</div>
+<div class="fig"><canvas id="c3"></canvas></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Pha thật: giống hệt gốc. Spectrogram cộng pha là đủ thông tin.
+<br>• Pha = 0: hình sóng méo hẳn so với gốc và nhỏ đi khoảng 4 lần, vì các frame chồng nhau không còn khớp, triệt tiêu lẫn nhau. Nghe rè, đục.
+<br>• Pha ngẫu nhiên: các frame chồng nhau cộng lẫn trừ lung tung, nghe như vọng trong ống, mất hẳn độ trong của giọng.
+<br>• Kết luận: <b>độ lớn giống nhau mà pha sai thì nghe rất tệ</b>. Vocoder phải tạo ra pha hợp lý, sao cho các frame chồng lên nhau khớp nhau.</div>
+</section>
+
+<section>
+<h2><span class="n">4</span>Griffin-Lim: đoán pha bằng cách lặp</h2>
+<p>Griffin-Lim (1984) là cách cổ điển, không cần học: bắt đầu từ pha ngẫu nhiên, rồi lặp:</p>
+<ol>
+<li>Dựng sóng âm từ (độ lớn đã biết + pha hiện tại).</li>
+<li>Lấy FFT từng frame của sóng vừa dựng. Vì các frame chồng nhau, kết quả đã "bị ép" cho khớp nhau hơn.</li>
+<li>Giữ <b>pha mới</b>, bỏ độ lớn mới, thay lại bằng độ lớn đã biết. Quay lại bước 1.</li>
+</ol>
+<div class="ctrl"><span class="grp">Số vòng lặp <input type="range" id="gl" min="0" max="100" step="1" value="0"> <b id="glv"></b></span><button id="playgl">▶ Nghe kết quả</button></div>
+<div class="fig"><canvas id="c4"></canvas></div>
+<div class="readout" id="r4"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Sai lệch giảm rất nhanh trong 5 vòng đầu (từ khoảng 60% xuống khoảng 23%), sau đó giảm chậm dần (khoảng 9% ở vòng 100). Nghe ở 0, 10, 100 vòng: âm thanh trong dần nhưng vẫn còn tiếng "kim loại", "rè" đặc trưng của Griffin-Lim.
+<br>• Ở đây ta còn có <b>độ lớn đầy đủ 257 bin</b>. Nếu chỉ có 80 số Mel thì phải đoán ngược lại 257 bin trước (đã mất chi tiết), kết quả còn tệ hơn.
+<br>• Tacotron (2017) bản đầu dùng Griffin-Lim, và chất lượng âm bị giới hạn chính ở bước này. Vì vậy cần vocoder học từ dữ liệu.</div>
+</section>
+
+<section>
+<h2><span class="n">5</span>Vocoder nơ-ron: học cách tạo sóng từ Mel</h2>
+<div class="tablewrap"><table>
+<tr><th>Vocoder</th><th>Ý chính</th><th>Điểm mạnh / yếu</th></tr>
+<tr><td><b>WaveNet</b> (DeepMind, 2016)</td><td>sinh <b>từng mẫu một</b>: mẫu tiếp theo dựa trên vài nghìn mẫu trước đó (convolution giãn nở, dilated causal convolution) và Mel</td><td>chất lượng rất cao lúc ra đời; nhưng 1 giây = hàng chục nghìn bước tuần tự, rất chậm</td></tr>
+<tr><td><b>WaveGlow</b> (2019)</td><td>normalizing flow: một phép biến đổi khả nghịch đổi nhiễu ngẫu nhiên thành sóng âm, chạy song song</td><td>nhanh hơn WaveNet nhiều; mô hình nặng</td></tr>
+<tr><td><b>HiFi-GAN</b> (2020)</td><td>GAN: một mạng <b>tạo</b> (generator) phóng Mel lên thành sóng bằng các lớp tăng độ dài; các mạng <b>phân biệt</b> (discriminator) chấm "thật hay giả" ở nhiều chu kỳ và nhiều độ phân giải</td><td>chất lượng gần WaveNet, nhanh hơn thời gian thực nhiều lần, kể cả trên CPU. Thành lựa chọn mặc định</td></tr>
+</table></div>
+<p><b>GAN</b> (Generative Adversarial Network) học như một trò chơi hai bên. Generator cố tạo sóng giống thật. Discriminator cố phân biệt sóng thật với sóng do generator tạo. Discriminator càng giỏi bắt lỗi thì generator càng bị ép tạo ra chi tiết thật hơn, kể cả pha. Trong HiFi-GAN, discriminator nhìn sóng theo nhiều <b>chu kỳ</b> (2, 3, 5, 7, 11 mẫu) để bắt các mẫu tuần hoàn của giọng, và ở nhiều độ phân giải.</p>
+</section>
+
+<section>
+<h2><span class="n">6</span>Đo chất lượng giọng tổng hợp</h2>
+<div class="tablewrap"><table>
+<tr><th>Thước đo</th><th>Cách làm</th></tr>
+<tr><td><b>MOS</b> (Mean Opinion Score)</td><td>nhiều người nghe chấm từ 1 (rất tệ) đến 5 (rất tự nhiên), lấy trung bình. Luôn so với giọng thu âm thật trong cùng thí nghiệm</td></tr>
+<tr><td>CER/WER qua một hệ ASR</td><td>cho hệ nhận dạng nghe giọng tổng hợp, xem chép lại đúng không: đo độ rõ, bắt lỗi bỏ chữ, lặp chữ</td></tr>
+<tr><td>độ giống người nói</td><td>so vector đặc trưng người nói (speaker embedding) của giọng tổng hợp và giọng mẫu, dùng khi nhân bản giọng</td></tr>
+</table></div>
+</section>
+
+<section>
+<h2>Tóm tắt</h2>
+<ul>
+<li>TTS hiện đại: xử lý văn bản → mô hình âm học (âm vị → Mel) → vocoder (Mel → sóng).</li>
+<li>Spectrogram và Mel không có pha. Pha sai thì nghe tệ dù độ lớn đúng.</li>
+<li>Griffin-Lim đoán pha bằng cách lặp, nghe rè. Vocoder nơ-ron (WaveNet, WaveGlow, HiFi-GAN) học cách tạo sóng; HiFi-GAN nhanh và tốt, dùng rộng rãi nhất.</li>
+<li>Đo bằng MOS, kèm CER qua ASR và độ giống người nói.</li>
+</ul>
+<h3>Thuật ngữ mới</h3>
+<div class="tablewrap"><table>
+<tr><th>Nói thường</th><th>Thuật ngữ</th></tr>
+<tr><td>đổi chữ thành âm vị</td><td>G2P (grapheme-to-phoneme)</td></tr>
+<tr><td>đổi số, viết tắt thành chữ đọc</td><td>chuẩn hóa văn bản (text normalization)</td></tr>
+<tr><td>phần dựng sóng âm từ phổ</td><td>vocoder</td></tr>
+<tr><td>độ lớn / điểm bắt đầu trong chu kỳ</td><td>magnitude / phase</td></tr>
+<tr><td>dựng sóng từ các frame chồng nhau</td><td>ISTFT, overlap-add</td></tr>
+<tr><td>một mạng tạo, một mạng bắt lỗi</td><td>GAN: generator, discriminator</td></tr>
+<tr><td>điểm nghe trung bình 1 đến 5</td><td>MOS (Mean Opinion Score)</td></tr>
+</table></div>
+<p class="muted">Âm thanh trên trang được tạo trong trình duyệt: âm "a" giả lập, 16 kHz, frame 25 ms, dịch 10 ms, cửa sổ Hann, FFT 512 điểm, dùng độ lớn đủ 257 bin (không qua Mel).</p>
+</section>
+<nav class="pn"></nav>
+</div>
+<script src="assets/learn.js"></script>
+<script>
+const SR = 16000, WIN = 400, HOP = 160, NFFT = 512, LEN = Math.round(0.9 * SR);
+const hann = Float64Array.from({length: WIN}, (_, n) => 0.5 - 0.5 * Math.cos(2 * Math.PI * n / WIN));
+const gauss = (f, c, w) => Math.exp(-0.5 * ((f - c) / w) ** 2);
+const env = f => 0.03 + gauss(f, 750, 130) + 0.7 * gauss(f, 1200, 160) + 0.25 * gauss(f, 2600, 220);
+const SIG = (() => {
+  const x = new Float32Array(LEN);
+  let ph = 0;
+  for (let n = 0; n < LEN; n++) {
+    const t = n / SR, f0 = 130 + 25 * t + 3 * Math.sin(2 * Math.PI * 5 * t);
+    ph += 2 * Math.PI * f0 / SR;
+    let s = 0;
+    for (let k = 1; k * f0 < 4000; k++) s += env(k * f0) / Math.sqrt(k) * Math.sin(k * ph + 0.3 * k * k);
+    x[n] = s;
+  }
+  const fade = 800;
+  let mx = 0;
+  for (let n = 0; n < LEN; n++) { x[n] *= Math.min(1, n / fade, (LEN - n) / fade); mx = Math.max(mx, Math.abs(x[n])); }
+  for (let n = 0; n < LEN; n++) x[n] *= 0.5 / mx;
+  return x;
+})();
+const NFR = Math.floor((LEN - WIN) / HOP) + 1;
+function stft(x) {
+  const out = [];
+  for (let f = 0; f < NFR; f++) {
+    const re = new Float64Array(NFFT), im = new Float64Array(NFFT);
+    for (let n = 0; n < WIN; n++) re[n] = x[f * HOP + n] * hann[n];
+    fft(re, im);
+    out.push({re, im});
+  }
+  return out;
+}
+function istft(S) {
+  const y = new Float64Array(LEN), wsum = new Float64Array(LEN);
+  S.forEach(({re, im}, f) => {
+    // Inverse FFT via conjugation: ifft(X) = conj(fft(conj(X))) / N.
+    const r = Float64Array.from(re), i = Float64Array.from(im, v => -v);
+    fft(r, i);
+    for (let n = 0; n < WIN; n++) { y[f * HOP + n] += r[n] / NFFT * hann[n]; wsum[f * HOP + n] += hann[n] * hann[n]; }
+  });
+  const out = new Float32Array(LEN);
+  for (let n = 0; n < LEN; n++) out[n] = wsum[n] > 1e-3 ? y[n] / wsum[n] : 0;
+  return out;
+}
+function withPhase(S, phaseOf) {
+  return S.map(({re, im}, f) => {
+    const R = new Float64Array(NFFT), I = new Float64Array(NFFT);
+    for (let k = 0; k <= NFFT / 2; k++) {
+      const m = Math.hypot(re[k], im[k]), p = phaseOf(f, k, re[k], im[k]);
+      R[k] = m * Math.cos(p); I[k] = m * Math.sin(p);
+      if (k > 0 && k < NFFT / 2) { R[NFFT - k] = R[k]; I[NFFT - k] = -I[k]; }
+    }
+    I[0] = 0; I[NFFT / 2] = 0;
+    return {re: R, im: I};
+  });
+}
+const S0 = stft(SIG);
+const MAG = S0.map(({re, im}) => Float64Array.from({length: NFFT / 2 + 1}, (_, k) => Math.hypot(re[k], im[k])));
+const rr = rng(77);
+const RANDPH = S0.map(() => Float64Array.from({length: NFFT / 2 + 1}, () => 2 * Math.PI * rr()));
+const VERS = {
+  orig: SIG,
+  true: istft(withPhase(S0, (f, k, a, b) => Math.atan2(b, a))),
+  zero: istft(withPhase(S0, () => 0)),
+  rand: istft(withPhase(S0, (f, k) => RANDPH[f][k])),
+};
+let SHOW = 'orig';
+function draw3() {
+  const R = setup('c3', 200), g = R.g, B = {l: 50, t: 10, w: R.w - 70, h: 160}, n0 = Math.round(0.4 * SR), n1 = n0 + 480;
+  const sig = VERS[SHOW], X = n => B.l + (n - n0) / (n1 - n0) * B.w, Y = v => B.t + B.h / 2 - v * B.h * 0.9;
+  hline(g, B.l, B.l + B.w, B.t + B.h / 2, C.line);
+  poly(g, Array.from({length: n1 - n0}, (_, j) => X(n0 + j)), Array.from({length: n1 - n0}, (_, j) => Y(VERS.orig[n0 + j])), alpha(C.grey, 0.6), 1.5);
+  poly(g, Array.from({length: n1 - n0}, (_, j) => X(n0 + j)), Array.from({length: n1 - n0}, (_, j) => Y(sig[n0 + j])), C.frame, 1.8);
+  text(g, 'xám: sóng gốc; cam: ' + {orig: 'gốc', true: 'độ lớn + pha thật', zero: 'độ lớn + pha = 0', rand: 'độ lớn + pha ngẫu nhiên'}[SHOW], B.l, B.t + B.h + 16, C.ink, 'left', true);
+  text(g, '30 ms ở giữa đoạn âm', B.l + B.w, B.t + B.h + 16, C.mute, 'right');
+}
+
+const GL = [{x: VERS.rand, err: null}];
+const specErr = x => { const S = stft(x); let a = 0, b = 0; S.forEach(({re, im}, f) => { for (let k = 0; k <= NFFT / 2; k++) { const m = Math.hypot(re[k], im[k]); a += (m - MAG[f][k]) ** 2; b += MAG[f][k] ** 2; } }); return Math.sqrt(a / b); };
+GL[0].err = specErr(GL[0].x);
+for (let it = 1; it <= 100; it++) {
+  const S = stft(GL[it - 1].x), x = istft(withPhase(S, (f, k, a, b) => Math.atan2(b, a)).map(({re, im}, f) => {
+    const R = new Float64Array(NFFT), I = new Float64Array(NFFT);
+    for (let k = 0; k <= NFFT / 2; k++) { const m = Math.hypot(re[k], im[k]) || 1e-12; R[k] = re[k] / m * MAG[f][k]; I[k] = im[k] / m * MAG[f][k]; if (k > 0 && k < NFFT / 2) { R[NFFT - k] = R[k]; I[NFFT - k] = -I[k]; } }
+    I[0] = 0; I[NFFT / 2] = 0;
+    return {re: R, im: I};
+  }));
+  GL.push({x, err: specErr(x)});
+}
+let NIT = 0;
+function draw4() {
+  document.getElementById('glv').textContent = NIT;
+  const R = setup('c4', 200), g = R.g, B = {l: 50, t: 10, w: R.w - 70, h: 160}, mx = GL[0].err * 1.05;
+  const X = i => B.l + i / 100 * B.w, Y = v => B.t + B.h - v / mx * B.h;
+  hline(g, B.l, B.l + B.w, B.t + B.h, C.grey);
+  poly(g, GL.map((_, i) => X(i)), GL.map(o => Y(o.err)), C.acc, 2);
+  dot(g, X(NIT), Y(GL[NIT].err), 6, C.frame, '#fff');
+  for (let i = 0; i <= 100; i += 20) text(g, String(i), X(i), B.t + B.h + 14, C.mute, 'center');
+  text(g, 'vòng lặp', B.l + B.w, B.t + B.h + 30, C.mute, 'right');
+  text(g, 'sai lệch độ lớn', B.l + 4, B.t + 6, C.mute, 'left');
+  document.getElementById('r4').innerHTML = `Sau <b>${NIT}</b> vòng: sai lệch giữa độ lớn của sóng dựng lại và độ lớn đã biết = <b>${r0(100 * GL[NIT].err)}%</b> <span class="muted">(0 vòng là pha ngẫu nhiên)</span>`;
+}
+document.getElementById('gl').addEventListener('input', e => { NIT = +e.target.value; draw4(); });
+document.getElementById('playgl').addEventListener('click', () => play(GL[NIT].x));
+document.addEventListener('click', e => {
+  const b = e.target.closest('button[data-ph]');
+  if (b) { SHOW = b.dataset.ph; toggle('ph', SHOW); draw3(); play(VERS[SHOW]); }
+});
+function drawAll() { draw3(); draw4(); }
+drawAll();
+onResize(drawAll);
+</script>
+</body>
+</html>

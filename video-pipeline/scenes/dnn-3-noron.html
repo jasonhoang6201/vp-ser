@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>DNN-HMM 3: Một nơ-ron</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../lib/nn.js"></script>
+<script src="../build/dnn-3-noron.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, axes, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Mạng trong khung HMM', '3 Một nơ-ron', '4 Nhiều lớp', '5 Ghép vào HMM'];
+const CCOL = [COL.frame, COL.acc, COL.i];
+const NETS = {0: NN.train(0, [3000])[3000].net, 8: NN.train(8, [200])[200].net};
+
+function circle(x, y, r, fill, stroke, lw = 2.5) { const g = Clip.g; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); if (fill) { g.fillStyle = fill; g.fill(); } if (stroke) { g.strokeStyle = stroke; g.lineWidth = lw; g.stroke(); } }
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('DNN-HMM', 'Phần 3/5: một nơ-ron làm gì?', 2, PARTS);
+
+function neuronDiagram(t, s, o = {}) {
+  const ins = [['x₁', 300], ['x₂', 420], ['x₃', 540]], ws = ['w₁', 'w₂', 'w₃'];
+  ins.forEach(([l, y], k) => fade(Clip.g, P(t, s + 0.3 + k * 0.2, 0.4), () => {
+    circle(360, y, 34, COL.accSoft, COL.acc);
+    text(l, 360, y, {size: 28, weight: 700, color: COL.acc, align: 'center'});
+    arrow(396, y, 780, 420 + (y - 420) * 0.15, COL.mute, 2.5);
+    text(ws[k], 560, y + (420 - y) * 0.45 - 22, {size: 26, weight: 700, color: COL.frame, align: 'center'});
+  }));
+  fade(Clip.g, P(t, s + 1.2, 0.5), () => {
+    circle(840, 420, 60, COL.card, COL.ink, 3);
+    text('Σ', 840, 420, {size: 48, weight: 700, align: 'center'});
+    text('+ b', 840, 520, {size: 26, weight: 700, color: COL.frame, align: 'center'});
+    arrow(902, 420, 1000, 420, COL.mute, 3);
+    text('z', 950, 395, {size: 26, weight: 700, align: 'center'});
+  });
+  if (o.f) fade(Clip.g, P(t, o.f, 0.5), () => {
+    rrect(1010, 370, 120, 100, 14, COL.frameSoft, COL.frame, 3);
+    text('f', 1070, 420, {size: 40, weight: 700, color: COL.frame, align: 'center'});
+    arrow(1140, 420, 1240, 420, COL.mute, 3);
+    text('đầu ra = f(z)', 1260, 420, {size: 30, weight: 700});
+  });
+}
+
+function shotSum(G, t) {
+  const s = S('sum'), d = D('sum'), sa = S('act');
+  heading(t < sa ? 'Một nơ-ron: cộng có trọng số' : 'Rồi qua hàm kích hoạt');
+  neuronDiagram(t, s, {f: sa + 0.3});
+  fade(G, P(t, s + d * 0.55, 0.5), () => text('z = w₁x₁ + w₂x₂ + w₃x₃ + b', 960, 680, {size: 40, weight: 700, color: COL.acc, align: 'center'}));
+  fade(G, P(t, s + d * 0.8, 0.5), () => text('b: độ lệch (bias)', 960, 740, {size: 24, color: COL.mute, align: 'center'}));
+}
+
+function shotMel(G, t) {
+  const s = S('mel'), d = D('mel');
+  heading('Giống bộ lọc Mel, nhưng trọng số được học');
+  const bars = (x, ws, c, label, sub) => {
+    ws.forEach((w, k) => rrect(x + k * 34, 560 - w * 220, 26, w * 220, 3, c));
+    line(x - 10, 562, x + ws.length * 34, 562, COL.line2, 2);
+    text(label, x, 620, {size: 28, weight: 700, color: c});
+    text(sub, x, 660, {size: 24, color: COL.mute});
+  };
+  fade(G, P(t, s + 0.3, 0.5), () => bars(260, [0, 0.25, 0.5, 0.75, 1, 0.75, 0.5, 0.25, 0, 0, 0, 0, 0], COL.acc, 'bộ lọc tam giác (trang Mel)', 'trọng số cố định, người chọn'));
+  fade(G, P(t, s + d * 0.45, 0.5), () => {
+    const r = GMM.rng(4), ws = Array.from({length: 13}, () => 0.1 + 0.85 * r());
+    bars(1060, ws, COL.frame, 'một nơ-ron', 'trọng số học từ dữ liệu');
+  });
+}
+
+function shotAct(G, t) {
+  const s = S('tanh'), d = D('tanh');
+  heading('Hàm kích hoạt (activation)');
+  const plot = (B, f, c, name, sub, s0) => fade(G, P(t, s0, 0.5), () => {
+    const {X, Y} = axes(B, [-3, 3], [-1.2, 3], {});
+    line(X(0), B.y, X(0), B.y + B.h, COL.line, 1.5); line(B.x, Y(0), B.x + B.w, Y(0), COL.line2, 1.5);
+    const zs = Array.from({length: 121}, (_, k) => -3 + k * 0.05);
+    poly(zs.map(X), zs.map(z => Y(f(z))), c, 5, null, P(t, s0 + 0.2, 1));
+    text(name, B.x + 20, B.y + 30, {size: 34, weight: 700, color: c});
+    text(sub, B.x, B.y + B.h + 60, {size: 24, color: COL.mute});
+    text('z', B.x + B.w + 16, Y(0), {size: 22, color: COL.mute});
+  });
+  plot({x: 260, y: 250, w: 600, h: 400}, Math.tanh, COL.acc, 'tanh', 'ép về khoảng −1 đến 1', s + 0.3);
+  plot({x: 1060, y: 250, w: 600, h: 400}, z => Math.max(0, z), COL.frame, 'ReLU', 'số âm thành 0, số dương giữ nguyên; phổ biến từ ~2010', s + d * 0.4);
+}
+
+function shotLine(G, t) {
+  const sl = S('line'), sm = S('move'), dm = D('move');
+  heading(t < sm ? 'Một nơ-ron chia mặt phẳng bằng một đường thẳng' : 'Học: xoay và dịch đường thẳng');
+  const B = {x: 560, y: 220, w: 800, h: 560}, r = 2.2;
+  const X = v => B.x + (v + r) / (2 * r) * B.w, Y = v => B.y + B.h / 2 - v / (2 * r) * B.w;
+  // Angle sweeps during the first half of `move`, offset during the second.
+  const ang = lerp(0.35, 1.1, Clip.ease(P(t, sm + 0.5, dm * 0.4))), b = lerp(0, 0.9, Clip.ease(P(t, sm + dm * 0.55, dm * 0.35)));
+  const w = [Math.cos(ang), Math.sin(ang)];
+  fade(G, P(t, sl + 0.3, 0.5), () => {
+    const g = Clip.g;
+    g.save(); g.beginPath(); g.rect(B.x, B.y, B.w, B.h); g.clip();
+    for (let px = 0; px < B.w; px += 10) for (let py = 0; py < B.h; py += 10) {
+      const x = [-r + (px + 5) / B.w * 2 * r, (B.h / 2 - py - 5) / B.w * 2 * r], z = w[0] * x[0] + w[1] * x[1] + b;
+      g.fillStyle = z > 0 ? COL.acc + '22' : COL.frame + '22'; g.fillRect(B.x + px, B.y + py, 10, 10);
+    }
+    const p0 = [-b * w[0], -b * w[1]], dir = [-w[1], w[0]];
+    line(X(p0[0] - 5 * dir[0]), Y(p0[1] - 5 * dir[1]), X(p0[0] + 5 * dir[0]), Y(p0[1] + 5 * dir[1]), COL.ink, 4);
+    g.restore();
+    rrect(B.x, B.y, B.w, B.h, 4, null, COL.line2, 2);
+    text('z > 0', B.x + B.w - 30, B.y + 40, {size: 28, weight: 700, color: COL.acc, align: 'right'});
+    text('z < 0', B.x + 30, B.y + B.h - 40, {size: 28, weight: 700, color: COL.frame});
+    text('z = 0', B.x + B.w + 20, B.y + B.h / 2, {size: 24, weight: 700});
+  });
+  fade(G, P(t, sm + 0.3, 0.5), () => {
+    text('đổi w: xoay', 300, 400, {size: 28, weight: 700, color: t < sm + dm * 0.5 ? COL.frame : COL.mute, align: 'center'});
+    text('đổi b: dịch', 300, 470, {size: 28, weight: 700, color: t >= sm + dm * 0.5 ? COL.frame : COL.mute, align: 'center'});
+  });
+}
+
+function fieldBox(N, B, key) {
+  if (!fieldBox[key]) fieldBox[key] = NN.field(N, B, CCOL);
+  Clip.g.drawImage(fieldBox[key], B.x, B.y);
+  rrect(B.x, B.y, B.w, B.h, 4, null, COL.line2, 2);
+  const r = 2.2, g = Clip.g;
+  NN.DATA.forEach(({x, y}) => { g.beginPath(); g.arc(B.x + (x[0] + r) / (2 * r) * B.w, B.y + B.h - (x[1] + r) / (2 * r) * B.h, 3.5, 0, Math.PI * 2); g.fillStyle = CCOL[y]; g.fill(); });
+}
+
+function shotLinear(G, t) {
+  const sl = S('linear'), dl = D('linear'), sb = S('bend');
+  heading(t < sb ? 'Vì sao cần hàm kích hoạt phi tuyến?' : 'Có hàm kích hoạt phi tuyến: các lớp vẽ được đường cong');
+  if (t < sb) {
+    fade(G, P(t, sl + 0.3, 0.5), () => {
+      text('không có hàm kích hoạt phi tuyến:', 960, 290, {size: 28, color: COL.mute, align: 'center'});
+      text('lớp 2 ( lớp 1 (x) )  =  W₂(W₁x + b₁) + b₂', 960, 380, {size: 38, weight: 700, align: 'center'});
+    });
+    fade(G, P(t, sl + dl * 0.45, 0.5), () => {
+      text('=  (W₂W₁) x + (W₂b₁ + b₂)', 960, 470, {size: 38, weight: 700, color: COL.hl, align: 'center'});
+      text('vẫn chỉ là một tổng có trọng số → vẫn chỉ ra đường thẳng', 960, 570, {size: 28, weight: 700, color: COL.hl, align: 'center'});
+    });
+    return;
+  }
+  fade(G, P(t, sb + 0.3, 0.5), () => {
+    fieldBox(NETS[0], {x: 260, y: 240, w: 520, h: 520}, 'h0');
+    text('chỉ đường thẳng', 520, 800, {size: 26, weight: 700, color: COL.hl, align: 'center'});
+  });
+  fade(G, P(t, sb + D('bend') * 0.4, 0.5), () => {
+    fieldBox(NETS[8], {x: 1140, y: 240, w: 520, h: 520}, 'h8');
+    text('một lớp ẩn tanh: đường cong', 1400, 800, {size: 26, weight: 700, color: COL.ok, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['nơ-ron = tổng có trọng số + bias, qua hàm kích hoạt'], ['một nơ-ron: một đường thẳng chia mặt phẳng'], ['học = tìm w, b đặt đường đúng chỗ'], ['hàm kích hoạt cho phép nhiều lớp vẽ đường cong']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.5, 0.6), () => {
+      text('✓', 380, 290 + j * 84, {size: 34, weight: 700, color: COL.ok});
+      text(a, 430, 290 + j * 84, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 760, 680, 'Phần 4: nhiều lớp  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 3', [
+  ['hệ số nhân mỗi đầu vào', 'trọng số (weight), w', 'được học từ dữ liệu'],
+  ['số cộng thêm', 'độ lệch (bias), b', 'dịch đường ranh giới'],
+  ['hàm phi tuyến sau tổng', 'hàm kích hoạt (activation)', 'tanh, ReLU, sigmoid'],
+  ['đường chia z = 0', 'ranh giới quyết định (decision boundary)', 'một nơ-ron: đường thẳng'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'sum', to: 'sum', draw: shotSum},
+    {from: 'mel', to: 'mel', draw: shotMel},
+    {from: 'act', to: 'act', draw: shotSum},
+    {from: 'tanh', to: 'tanh', draw: shotAct},
+    {from: 'line', to: 'move', draw: shotLine},
+    {from: 'linear', to: 'bend', draw: shotLinear},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/dnn-3-noron.wav');
+</script>
+</body>
+</html>

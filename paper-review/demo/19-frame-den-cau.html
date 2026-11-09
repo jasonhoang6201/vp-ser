@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Từ frame đến cả câu</title>
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="pn"></nav>
+<h1>Từ frame đến cả câu: pooling, chọn layer, probe hay fine-tune, emotion2vec</h1>
+<p class="sub">Trang 12 cho ta các encoder học sẵn (wav2vec 2.0, HuBERT, WavLM). Chúng ra <b>một vector cho mỗi frame</b>. SER lại cần <b>một nhãn cho cả câu</b>. Trang này nối hai đầu đó.</p>
+
+<section>
+<h2><span class="n">1</span>Vấn đề: encoder ra quá nhiều vector, ở quá nhiều tầng</h2>
+<div class="tablewrap"><table>
+<tr><th>Vướng</th><th>Ví dụ</th></tr>
+<tr><td>một câu 3 giây ra 150 vector (mỗi 20 ms một vector)</td><td>bộ phân loại cần đúng một vector đầu vào</td></tr>
+<tr><td>cảm xúc có thể chỉ nằm ở một đoạn</td><td>"Ừ… được thôi. <b>NHƯNG LẦN SAU THÌ ĐỪNG!</b>": giận chỉ ở nửa sau</td></tr>
+<tr><td>encoder có 12 hoặc 24 tầng (layer), mỗi tầng giữ thông tin khác nhau</td><td>tầng cuối của mô hình học cho ASR thường giữ <b>nội dung</b> mà bớt đi <b>cách nói</b></td></tr>
+<tr><td>huấn luyện lại cả encoder thì tốn</td><td>WavLM-large hơn 300 triệu tham số, trong khi IEMOCAP chỉ có 5 531 câu: dễ học thuộc</td></tr>
+</table></div>
+<div class="note blue"><b>Mục tiêu:</b> gộp các frame thành một vector câu mà không làm loãng đoạn có cảm xúc, chọn đúng tầng chứa thông tin cảm xúc, và quyết định nên huấn luyện bao nhiêu phần của encoder.</div>
+</section>
+
+<section>
+<h2><span class="n">2</span>Bốn công cụ</h2>
+<div class="pipe"><span class="done">sóng âm</span><i>→</i><span class="done">encoder (L tầng)</span><i>→</i><span class="new">trộn các tầng</span><i>→</i><span class="new">pooling theo thời gian</span><i>→</i><span class="done">bộ phân loại</span><i>→</i><span class="done">nhãn</span></div>
+<div class="tablewrap"><table>
+<tr><th>Công cụ</th><th>Là gì</th><th>Gỡ vướng gì</th><th>Ở mục</th></tr>
+<tr><td><b>pooling</b></td><td>gộp T vector thành 1: lấy trung bình (mean), hoặc trung bình có trọng số học được (attention pooling)</td><td>nhiều frame, một nhãn</td><td>3</td></tr>
+<tr><td><b>trộn các tầng</b> (weighted layer sum)</td><td>lấy tổng có trọng số của mọi tầng, trọng số học được</td><td>không biết tầng nào chứa cảm xúc</td><td>4</td></tr>
+<tr><td><b>probe hay fine-tune</b></td><td>đóng băng encoder và chỉ học phần phía sau (probe), hoặc học lại cả encoder (fine-tune)</td><td>tốn kém, dễ học thuộc</td><td>5</td></tr>
+<tr><td><b>emotion2vec</b></td><td>một encoder học sẵn riêng cho cảm xúc</td><td>encoder chung học cho nội dung nhiều hơn cảm xúc</td><td>6</td></tr>
+</table></div>
+</section>
+
+<section>
+<h2><span class="n">3</span>Pooling: trung bình làm loãng, attention thì không</h2>
+<p>Mỗi cột là một frame. Chiều cao là mức "bằng chứng giận" mà frame đó mang (minh họa bằng một số cho dễ thấy; thật ra là cả một vector). Đoạn cam là đoạn giận. Ngưỡng quyết định: 0,5.</p>
+<div class="ctrl">
+  <span class="grp">Độ dài đoạn giận <input type="range" id="len" min="2" max="60" step="1" value="12"> <b id="lenv"></b></span>
+  <span class="grp">Độ "gắt" của attention <input type="range" id="sh" min="0" max="8" step="0.5" value="4"> <b id="shv"></b></span>
+</div>
+<div class="fig"><canvas id="c3"></canvas></div>
+<div class="readout" id="r3"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Mean pooling: mọi frame nặng như nhau. Đoạn giận ngắn thì bị các frame bình thường "pha loãng", trung bình nằm dưới ngưỡng.
+<br>• Attention pooling: một vector query học được (trang 11) chấm điểm từng frame, softmax ra trọng số (đường xanh), rồi lấy trung bình có trọng số. Frame mang nhiều thông tin được nặng hơn, nên đoạn ngắn vẫn nhận ra được.
+<br>• Độ gắt = 0 thì attention giống hệt trung bình. Mô hình tự học độ gắt này.
+<br>• Một biến thể hay dùng: ghép trung bình với độ lệch chuẩn theo thời gian (statistics pooling), để giữ cả mức độ dao động.</div>
+</section>
+
+<section>
+<h2><span class="n">4</span>Trộn các tầng: để mô hình tự chọn tầng</h2>
+<div class="formula">h = Σ<sub>l</sub> softmax(w)<sub>l</sub> × LayerNorm(h<sub>l</sub>)</div>
+<p>Mỗi tầng l có một con số w<sub>l</sub> học được; softmax biến chúng thành trọng số cộng lại bằng 1. Đây là cách làm chuẩn trong benchmark SUPERB. Chọn việc để xem trọng số thường học ra trông thế nào:</p>
+<div class="ctrl"><span class="grp">Việc: <button data-tk="asr" class="on">ASR (nội dung)</button><button data-tk="ser">SER (cảm xúc)</button><button data-tk="spk">nhận dạng người nói</button></span></div>
+<div class="fig"><canvas id="c4"></canvas></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Xu hướng thường được báo cáo cho các encoder tự giám sát: thông tin <b>người nói</b> và <b>cách nói</b> đậm ở các tầng thấp và giữa; thông tin <b>nội dung</b> (âm vị, từ) đậm ở các tầng cao. Cảm xúc nằm đâu đó giữa hai thứ đó. Hình là minh họa theo xu hướng này, không phải số đo của một mô hình cụ thể.
+<br>• Vì vậy lấy <b>tầng cuối</b> cho SER thường kém hơn trộn mọi tầng.
+<br>• <b>LayerNorm</b> trước khi trộn: các tầng có độ lớn rất khác nhau. Không chuẩn hóa thì tầng có số to nhất lấn át, và trọng số học được gần như vô nghĩa.</div>
+</section>
+
+<section>
+<h2><span class="n">5</span>Probe hay fine-tune</h2>
+<div class="tablewrap"><table>
+<tr><th></th><th>Probe (đóng băng encoder)</th><th>Fine-tune</th></tr>
+<tr><td>học gì</td><td>chỉ trọng số trộn tầng, pooling, bộ phân loại (vài nghìn đến vài triệu tham số)</td><td>cả encoder (hàng trăm triệu tham số) và phần sau</td></tr>
+<tr><td>chi phí</td><td>tính đặc trưng một lần, lưu lại, huấn luyện vài phút</td><td>mỗi bước phải chạy encoder cả xuôi lẫn ngược, cần GPU mạnh</td></tr>
+<tr><td>rủi ro</td><td>bị giới hạn bởi những gì encoder đã có sẵn</td><td>học thuộc khi dữ liệu nhỏ; quên kiến thức cũ (catastrophic forgetting)</td></tr>
+<tr><td>dùng khi</td><td>so sánh nhanh nhiều encoder; dữ liệu ít</td><td>cần điểm cao nhất, có đủ dữ liệu và GPU</td></tr>
+</table></div>
+<p>Ở giữa có nhiều cách: chỉ fine-tune vài tầng trên cùng; hoặc thêm các ma trận nhỏ vào encoder và chỉ học chúng (adapter, LoRA). Các cách này tốn ít hơn fine-tune mà thường tốt hơn probe.</p>
+</section>
+
+<section>
+<h2><span class="n">6</span>emotion2vec: encoder học sẵn cho cảm xúc</h2>
+<p>emotion2vec (Ma và cộng sự, Findings of ACL 2024) học theo kiểu <b>thầy và trò</b> (self-distillation, giống data2vec):</p>
+<div class="tablewrap"><table>
+<tr><th>Bước</th><th>Việc</th></tr>
+<tr><td>1</td><td>"thầy" và "trò" là hai bản của cùng một mạng. Thầy là bản trung bình trượt (EMA) của trò qua các bước học, nên thay đổi chậm và ổn định hơn</td></tr>
+<tr><td>2</td><td>thầy nghe câu <b>đầy đủ</b>; trò nghe câu <b>bị che</b> nhiều đoạn (như trang 12)</td></tr>
+<tr><td>3</td><td>trò phải đoán lại <b>vector của thầy</b> ở các frame bị che (loss mức frame), và đoán vector trung bình của cả câu qua một token riêng (loss mức câu)</td></tr>
+</table></div>
+<p>Không cần nhãn. Điểm khác wav2vec 2.0, HuBERT: đáp án là vector liên tục của thầy, không phải mã rời rạc; và dữ liệu tiền huấn luyện tập trung vào giọng nói có cảm xúc. Bài báo cho thấy chỉ một bộ phân loại tuyến tính trên đặc trưng đóng băng đã cho kết quả mạnh trên nhiều bộ dữ liệu.</p>
+<p><b>emotion2vec+</b> là bản sau: tiếp tục huấn luyện với nhãn cảm xúc trên lượng dữ liệu lớn hơn nhiều, nên dùng được ngay như một bộ phân loại (zero-shot). Cái giá: nó có thể đã thấy chính các bộ dữ liệu ta dùng để kiểm tra (trang 24).</p>
+</section>
+
+<section>
+<h2>Tóm tắt</h2>
+<ul>
+<li>Encoder → trộn các tầng (LayerNorm + trọng số softmax) → pooling theo thời gian (mean, statistics, attention) → bộ phân loại.</li>
+<li>Attention pooling không làm loãng đoạn cảm xúc ngắn. Trộn tầng để mô hình tự tìm tầng có cảm xúc.</li>
+<li>Probe: rẻ, nhanh, an toàn với dữ liệu nhỏ. Fine-tune: mạnh hơn nhưng tốn và dễ học thuộc. Adapter/LoRA ở giữa.</li>
+<li>emotion2vec: tự giám sát kiểu thầy-trò trên giọng có cảm xúc. emotion2vec+: thêm nhãn, dùng zero-shot được, cẩn thận rò rỉ.</li>
+</ul>
+<h3>Thuật ngữ mới</h3>
+<div class="tablewrap"><table>
+<tr><th>Nói thường</th><th>Thuật ngữ</th></tr>
+<tr><td>gộp các frame thành một vector</td><td>pooling: mean, statistics, attentive pooling</td></tr>
+<tr><td>tổng có trọng số các tầng</td><td>weighted layer sum (kiểu SUPERB, s3prl)</td></tr>
+<tr><td>đóng băng encoder, chỉ học phần sau</td><td>linear probe, frozen features</td></tr>
+<tr><td>học lại cả encoder</td><td>fine-tuning</td></tr>
+<tr><td>thêm ít tham số nhỏ để học</td><td>adapter, LoRA (Low-Rank Adaptation)</td></tr>
+<tr><td>bản trung bình trượt của mạng</td><td>EMA (exponential moving average) teacher</td></tr>
+<tr><td>mạng tự dạy chính nó</td><td>self-distillation</td></tr>
+<tr><td>quên việc cũ khi học việc mới</td><td>catastrophic forgetting</td></tr>
+</table></div>
+<div class="note exp"><b>Gắn với thực nghiệm:</b> notebook 11 (MTL CTC + SER) lúc đầu có đầu SER sập về một lớp (dev UA 14 = 1/7). Sửa bằng cách thêm <b>LayerNorm cho từng tầng trước khi trộn</b>, đúng như mục 4. Notebook 21 dùng WavLM-large với trọng số tầng học được. Probe emotion2vec+ trên MELD có UA khoảng 30.9, thấp hơn nhánh chữ.</div>
+</section>
+<nav class="pn"></nav>
+</div>
+<script src="assets/learn.js"></script>
+<script>
+const T = 75;
+let LEN = 12, SH = 4;
+function evid() {
+  const r = rng(9), s0 = Math.max(0, T - LEN - 6);
+  return Array.from({length: T}, (_, t) => {
+    const ang = t >= s0 && t < s0 + LEN;
+    return {ang, v: clamp((ang ? 0.85 : 0.12) + 0.08 * randn(r), 0, 1)};
+  });
+}
+function draw3() {
+  document.getElementById('lenv').textContent = `${LEN} frame (${LEN * 20} ms / ${T * 20} ms)`;
+  document.getElementById('shv').textContent = r1(SH);
+  const E = evid(), R = setup('c3', 220), g = R.g, B = {l: 50, t: 14, w: R.w - 70, h: 160}, cw = B.w / T;
+  const w = softmax(E.map(e => SH * e.v)), mean = E.reduce((s, e) => s + e.v, 0) / T, att = E.reduce((s, e, t) => s + w[t] * e.v, 0);
+  const Y = v => B.t + B.h - v * B.h;
+  E.forEach((e, t) => box(g, B.l + t * cw + 0.5, Y(e.v), cw - 1, B.t + B.h - Y(e.v), e.ang ? alpha(C.frame, 0.85) : '#d6d5d1'));
+  const wm = Math.max(...w);
+  poly(g, w.map((_, t) => B.l + (t + 0.5) * cw), w.map(v => Y(v / wm)), C.acc, 2);
+  hline(g, B.l, B.l + B.w, Y(0.5), C.hl);
+  text(g, 'ngưỡng 0,5', B.l + B.w, Y(0.5) - 8, C.hl, 'right');
+  poly(g, [B.l, B.l + B.w], [Y(mean), Y(mean)], C.ink, 2, [6, 4]);
+  text(g, `trung bình ${r2(mean)}`, B.l + 4, Y(mean) - 8, C.ink, 'left', true, true);
+  text(g, 'trọng số attention (thu cho vừa khung)', B.l + 4, B.t + 6, C.acc, 'left', true);
+  hline(g, B.l, B.l + B.w, B.t + B.h, C.grey);
+  text(g, '1', B.l - 6, Y(1), C.mute, 'right'); text(g, '0', B.l - 6, Y(0), C.mute, 'right');
+  const say = v => v >= 0.5 ? '<b style="color:#d9730d">giận</b>' : '<b>không giận</b>';
+  document.getElementById('r3').innerHTML = `Mean pooling = <b>${r2(mean)}</b> → ${say(mean)}. &nbsp; Attention pooling = <b>${r2(att)}</b> → ${say(att)}.`;
+}
+document.getElementById('len').addEventListener('input', e => { LEN = +e.target.value; draw3(); });
+document.getElementById('sh').addEventListener('input', e => { SH = +e.target.value; draw3(); });
+
+const PEAK = {asr: [9.5, 2.2], ser: [6, 2.8], spk: [4, 2.2]};
+let TK = 'asr';
+function draw4() {
+  const L = 12, [mu, sd] = PEAK[TK], raw = Array.from({length: L}, (_, l) => -((l + 1 - mu) ** 2) / (2 * sd * sd) + (TK === 'asr' && l === L - 1 ? -0.3 : 0));
+  const w = softmax(raw, 0.6), R = setup('c4', 200), g = R.g, B = {l: 50, t: 14, w: R.w - 70, h: 150}, bw = B.w / L, mx = Math.max(...w) * 1.15;
+  w.forEach((v, l) => {
+    const h = v / mx * B.h;
+    box(g, B.l + l * bw + 4, B.t + B.h - h, bw - 8, h, alpha({asr: C.acc, ser: C.frame, spk: C.i}[TK], 0.85));
+    text(g, String(l + 1), B.l + (l + 0.5) * bw, B.t + B.h + 12, C.mute, 'center');
+    text(g, r2(v), B.l + (l + 0.5) * bw, B.t + B.h - h - 8, C.ink, 'center');
+  });
+  text(g, 'tầng của encoder (12 tầng) →', B.l + B.w, B.t + B.h + 28, C.mute, 'right');
+  text(g, 'trọng số', B.l - 6, B.t + 6, C.mute, 'right');
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('button[data-tk]');
+  if (b) { TK = b.dataset.tk; toggle('tk', TK); draw4(); }
+});
+function drawAll() { draw3(); draw4(); }
+drawAll();
+onResize(drawAll);
+</script>
+</body>
+</html>

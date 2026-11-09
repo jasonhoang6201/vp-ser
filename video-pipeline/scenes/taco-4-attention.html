@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Tacotron 2 · 4: Attention tốt và hỏng</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../lib/taco.js"></script>
+<script src="../build/taco-4-attention.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Năm khối', '3 Một bước decoder', '4 Attention tốt và hỏng'];
+const B = {x: 300, y: 220, w: 1350, mh: 190};
+const MODES = [['good', 'Tốt', COL.ok], ['repeat', 'Lặp chữ', COL.hl], ['skip', 'Bỏ chữ', COL.hl], ['nostop', 'Không dừng', COL.hl]];
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Tacotron 2', 'Phần 4/4: attention lúc tốt và lúc hỏng', 3, PARTS);
+
+function shotAtt(G, t) {
+  const ss = S('setup'), sg = S('good'), sr = S('repeat'), sk = S('skip'), sw = S('why'), sn = S('nostop');
+  const md = t >= sn ? 'nostop' : t >= sk && t < sw ? 'skip' : t >= sr && t < sw ? 'repeat' : t >= sw ? 'repeat' : 'good';
+  const s0 = {good: sg, repeat: sr, skip: sk, nostop: sn}[md];
+  const [, label, col] = MODES.find(m => m[0] === md);
+  heading(t < sg ? 'Câu "xin chào": attention (trên), Mel (dưới)' : `Trường hợp: ${label}`);
+  const shown = t < sg ? 0 : Math.floor(TACO.MAXS * P(t, s0 + 0.3, Math.min(D(md === 'nostop' ? 'nostop' : md === 'good' ? 'good' : md === 'repeat' ? 'repeat' : 'skip') * 0.7, 4)));
+  fade(G, P(t, ss + 0.3, 0.5), () => {
+    const r = TACO.draw(B, md, shown);
+    if (t >= sg) {
+      const done = shown >= r.total;
+      text(`đã sinh ${r.n} frame · đọc ra: "${r.read}"`, B.x, r.mt + r.mh + 60, {size: 28, weight: 700, color: done ? col : COL.ink});
+      if (done && md !== 'good') text(md === 'nostop' ? '✗ không dừng: lặp mãi chữ cuối' : '✗ sai, đúng là "xin chào"', B.x + B.w, r.mt + r.mh + 60, {size: 26, weight: 700, color: COL.hl, align: 'right'});
+      if (done && md === 'good') text('✓ đường đi đơn điệu, mỗi chữ một độ dài', B.x + B.w, r.mt + r.mh + 60, {size: 26, weight: 700, color: COL.ok, align: 'right'});
+    }
+  });
+  if (t >= sw && t < sn) fade(G, P(t, sw + 0.3, 0.5), () => {
+    card(300, 770, 1350, 70, {stroke: COL.frame});
+    text('câu dài, câu lạ, chữ lặp: hay hỏng · attention theo vị trí giảm, không loại bỏ hẳn', 975, 805, {size: 22, weight: 700, color: COL.frame, align: 'center'});
+  });
+}
+
+function shotSlow(G, t) {
+  const s = S('slow'), sp = S('page'), dp = D('page');
+  heading(t < sp ? 'Thêm hai hạn chế' : 'Tóm tắt trang Tacotron 2');
+  if (t < sp) {
+    fade(G, P(t, s + 0.3, 0.5), () => {
+      card(220, 280, 700, 300, {stroke: COL.hl});
+      text('chậm', 250, 340, {size: 32, weight: 700, color: COL.hl});
+      text('sinh tuần tự ~80 frame mỗi giây âm thanh', 250, 400, {size: 24, maxW: 640});
+      card(1000, 280, 700, 300, {stroke: COL.hl});
+      text('khó điều khiển', 1030, 340, {size: 32, weight: 700, color: COL.hl});
+      text('không biết trước câu dài bao lâu; khó chỉnh tốc độ, cao độ', 1030, 400, {size: 24, maxW: 640});
+    });
+    return;
+  }
+  fade(G, P(t, sp + 0.3, 0.5), () => {
+    const xs = UI.chipXs(G, ['encoder', 'attention theo vị trí', 'decoder tự hồi quy', 'post-net', 'vocoder'], {size: 26, weight: 700}, 20);
+    ['encoder', 'attention theo vị trí', 'decoder tự hồi quy', 'post-net', 'vocoder'].forEach((l, j) => chip(G, xs[j], 320, l, {size: 26, weight: 700}));
+    text('học thẳng từ (chữ, âm thanh) · MOS gần giọng thật', 960, 460, {size: 30, weight: 700, color: COL.ok, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['attention có thể lặp, bỏ chữ, không dừng'], ['sinh tuần tự: chậm'], ['khó điều khiển tốc độ, cao độ']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text('✗', 460, 300 + j * 84, {size: 34, weight: 700, color: COL.hl});
+      text(a, 510, 300 + j * 84, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 760, 640, 'Trang sau: FastSpeech 2 giải quyết các vấn đề này  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 4', [
+  ['đường attention chỉ tiến', 'monotonic alignment', 'không quay lui, không bỏ qua'],
+  ['đọc lại chữ', 'repetition', 'attention nhảy lùi'],
+  ['bỏ qua chữ', 'skipping', 'attention bỏ qua'],
+  ['không dừng', 'failure to stop (babbling)', 'stop token không vượt 0,5'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'setup', to: 'nostop', draw: shotAtt},
+    {from: 'slow', to: 'page', draw: shotSlow},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/taco-4-attention.wav');
+</script>
+</body>
+</html>

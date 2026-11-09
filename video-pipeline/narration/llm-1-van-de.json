@@ -1,0 +1,33 @@
+{
+  "clip": "llm-1-van-de",
+  "title": "Audio-LLM · Phần 1: Vấn đề",
+  "segments": [
+    {"id": "intro",
+     "sub": "Audio-LLM: hỏi một mô hình ngôn ngữ lớn bằng âm thanh. Phần 1: mỗi việc một đầu ra, không giải thích được.",
+     "say": "Âu đi ô eo eo em: hỏi một mô hình ngôn ngữ lớn bằng âm thanh. Phần một: mỗi việc một đầu ra, và không giải thích được."},
+    {"id": "place",
+     "sub": "Ví dụ chính: Qwen2-Audio (Alibaba, 2024). Cùng họ: SALMONN, WavLLM. Thay vì một đầu ra cho mỗi việc, ta hỏi bằng lời.",
+     "say": "Ví dụ chính là Quen hai âu đi ô, của A li ba ba năm hai nghìn hai mươi bốn. Cùng họ có Xa mơn và Quây vờ eo eo em. Thay vì huấn luyện một đầu ra cho mỗi việc, ta hỏi bằng lời: chép lại câu này, và cho biết người nói đang cảm thấy thế nào."},
+    {"id": "p1",
+     "sub": "Vấn đề 1: mỗi việc mới cần thêm đầu ra và dữ liệu có nhãn. Muốn thêm \"đoán tuổi người nói\" là phải huấn luyện lại.",
+     "say": "Vấn đề thứ nhất: mỗi việc mới cần thêm một đầu ra và dữ liệu có nhãn. Muốn thêm việc đoán tuổi người nói là phải huấn luyện lại."},
+    {"id": "p2",
+     "sub": "Vấn đề 2: chỉ ra nhãn, không ra lý do. \"anger\" mà không biết vì giọng hay vì lời.",
+     "say": "Vấn đề thứ hai: chỉ ra nhãn, không ra lý do. Mô hình nói giận, mà không biết vì giọng hay vì lời."},
+    {"id": "p3",
+     "sub": "Vấn đề 3: không có hiểu biết chung về thế giới. Không biết \"đậu đại học\" thường là tin vui.",
+     "say": "Vấn đề thứ ba: không có hiểu biết chung về thế giới. Mô hình không biết đậu đại học thường là tin vui."},
+    {"id": "idea",
+     "sub": "LLM đã có hiểu biết rộng về ngôn ngữ và thế giới, làm theo câu lệnh bằng lời. Nếu cho chúng \"nghe\" được, một mô hình làm được rất nhiều việc mà không cần thêm đầu ra.",
+     "say": "Các mô hình ngôn ngữ lớn đã có hiểu biết rộng về ngôn ngữ và thế giới, và làm theo được câu lệnh bằng lời. Nếu cho chúng nghe được, thì một mô hình làm được rất nhiều việc, mà không cần thêm đầu ra nào."},
+    {"id": "goal",
+     "sub": "Mục tiêu: nối một encoder âm thanh vào một LLM sẵn có, để LLM đọc âm thanh như đọc chữ, và làm theo câu lệnh bằng lời.",
+     "say": "Mục tiêu: nối một en cô đơ âm thanh vào một mô hình ngôn ngữ lớn sẵn có, sao cho nó đọc âm thanh như đọc chữ, và làm theo câu lệnh bằng lời."},
+    {"id": "result",
+     "sub": "Tóm lại: mỗi việc một đầu ra, không lý do, không hiểu thế giới; LLM đã có cả ba, chỉ thiếu khả năng nghe âm thanh. Phần 2: cách làm.",
+     "say": "Tóm lại: mỗi việc một đầu ra, không có lý do, không hiểu thế giới. Mô hình ngôn ngữ lớn đã có cả ba, chỉ thiếu khả năng nghe âm thanh. Phần hai: cách làm."},
+    {"id": "terms",
+     "sub": "Thuật ngữ của phần này.",
+     "say": "Các thuật ngữ của phần này."}
+  ]
+}

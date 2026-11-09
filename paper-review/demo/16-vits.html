@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VITS</title>
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="pn"></nav>
+<h1>VITS: một mô hình từ chữ ra thẳng sóng âm</h1>
+<p class="sub">VITS (Kim, Kong, Son, 2021: <i>Conditional Variational Autoencoder with Adversarial Learning for End-to-End Text-to-Speech</i>). Gộp mô hình âm học và vocoder thành <b>một</b>, tự tìm độ dài mà không cần công cụ căn ngoài, và cho phép mỗi lần đọc một kiểu.</p>
+
+<section>
+<h2><span class="n">1</span>Vấn đề: hai giai đoạn rời nhau, ngữ điệu đơn điệu</h2>
+<div class="tablewrap"><table>
+<tr><th>Vướng</th><th>Ví dụ</th></tr>
+<tr><td>hai mô hình học riêng: âm học (→ Mel) và vocoder (Mel →)</td><td>vocoder học trên Mel <b>thật</b>, nhưng khi dùng lại nhận Mel <b>dự đoán</b> (thường mờ hơn). Lệch nhau thì giọng rè, phải tinh chỉnh vocoder thêm</td></tr>
+<tr><td>Mel là một nút thắt do người chọn</td><td>80 kênh Mel chưa chắc là cách biểu diễn trung gian tốt nhất cho việc tạo sóng</td></tr>
+<tr><td>cần công cụ căn ngoài</td><td>FastSpeech 2 cần Montreal Forced Aligner chạy trước để có độ dài</td></tr>
+<tr><td>đọc lần nào cũng y hệt</td><td>bộ dự đoán độ dài học sai lệch bình phương nên luôn ra giá trị trung bình</td></tr>
+</table></div>
+<div class="note blue"><b>Mục tiêu:</b> học <b>chung một lần</b> từ (chữ, sóng âm), để mô hình tự chọn cách biểu diễn trung gian; tự căn chữ với âm thanh trong lúc học; và sinh ra độ dài, ngữ điệu <b>có ngẫu nhiên hợp lý</b>.</div>
+</section>
+
+<section>
+<h2><span class="n">2</span>Cách VITS làm: 5 mảnh ghép</h2>
+<div class="tablewrap"><table>
+<tr><th>Mảnh</th><th>Là gì</th><th>Gỡ vướng gì</th><th>Ở mục</th></tr>
+<tr><td><b>VAE</b> (variational autoencoder)</td><td>một bộ <b>nén</b> (posterior encoder) đổi spectrogram thành biến ẩn z, một bộ <b>giải nén</b> (decoder, kiến trúc HiFi-GAN) đổi z thẳng ra sóng âm</td><td>bỏ Mel làm nút thắt; z do mô hình tự học</td><td>3</td></tr>
+<tr><td><b>prior từ chữ + flow</b></td><td>text encoder đoán phân phối của z từ chữ; một <b>normalizing flow</b> (phép biến đổi khả nghịch) làm phân phối đó đủ linh hoạt để khớp z thật</td><td>khi dùng không có âm thanh: lấy z từ chữ</td><td>3</td></tr>
+<tr><td><b>MAS</b> (Monotonic Alignment Search)</td><td>quy hoạch động tìm cách căn chữ với các frame của z, đơn điệu từ trái sang phải. Mượn từ Glow-TTS</td><td>không cần công cụ căn ngoài</td><td>4</td></tr>
+<tr><td><b>dự đoán độ dài ngẫu nhiên</b> (stochastic duration predictor)</td><td>học <b>phân phối</b> của độ dài thay vì một con số; khi dùng thì bốc mẫu</td><td>mỗi lần đọc một nhịp khác nhau</td><td>5</td></tr>
+<tr><td><b>GAN</b></td><td>discriminator của HiFi-GAN chấm sóng âm thật hay giả</td><td>sóng âm sắc nét, như trang 13</td><td>13</td></tr>
+</table></div>
+<p>Theo bài báo, trên bộ LJSpeech (tiếng Anh, một người đọc): VITS đạt MOS <b>4,43</b>, giọng thật <b>4,46</b>, cao hơn các hệ hai giai đoạn được so sánh (Tacotron 2 + HiFi-GAN, Glow-TTS + HiFi-GAN).</p>
+</section>
+
+<section>
+<h2><span class="n">3</span>VAE và flow: lúc học khác lúc dùng</h2>
+<div class="tablewrap"><table>
+<tr><th></th><th>Lúc học (có cả chữ lẫn âm thanh)</th><th>Lúc dùng (chỉ có chữ)</th></tr>
+<tr><td>z lấy từ đâu</td><td><b>posterior encoder</b> nén spectrogram thật thành z</td><td>text encoder cho phân phối của từng âm vị, kéo giãn theo độ dài, bốc mẫu, đi <b>ngược</b> qua flow ra z</td></tr>
+<tr><td>sóng âm</td><td>decoder dựng lại sóng từ z, so với sóng thật (sai lệch trên Mel + GAN)</td><td>decoder dựng sóng từ z</td></tr>
+<tr><td>khớp hai bên</td><td>đẩy z (đi xuôi qua flow) về gần phân phối mà chữ dự đoán (KL divergence), theo cách căn do MAS tìm ra</td><td></td></tr>
+</table></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• <b>Autoencoder</b>: nén rồi giải nén, học sao cho giải nén ra giống bản gốc. Chữ "variational" nghĩa là z không phải một điểm cố định mà là một phân phối (có trung bình và độ tản), nên có thể bốc mẫu.
+<br>• Vì sao cần <b>flow</b>? Phân phối text encoder đoán ra đơn giản (Gauss). Phân phối z thật của giọng nói phức tạp hơn nhiều. Flow là chuỗi phép biến đổi <b>khả nghịch</b>: đi xuôi thì đổi z phức tạp thành dạng đơn giản để so; đi ngược thì đổi mẫu đơn giản thành z phức tạp để dùng.
+<br>• Phần "một chữ nhiều cách đọc" được gánh bởi tính ngẫu nhiên của z: cùng một chữ, bốc mẫu khác thì ra cách đọc khác một chút.</div>
+</section>
+
+<section>
+<h2><span class="n">4</span>MAS: tự căn chữ với frame, không cần công cụ ngoài</h2>
+<p>Mỗi ô là điểm khớp giữa một âm vị (hàng) và một frame của z (cột): z ở frame đó có hợp với phân phối mà âm vị đó dự đoán không. MAS tìm đường đi <b>tổng điểm lớn nhất</b>, với ràng buộc: bắt đầu ở góc trên trái, kết thúc ở góc dưới phải, mỗi frame <b>ở lại</b> âm vị cũ hoặc <b>sang</b> âm vị kế, không quay lui, không bỏ âm vị.</p>
+<div class="formula">Q(âm vị i, frame j) = điểm(i, j) + max( Q(i, j−1), Q(i−1, j−1) )</div>
+<div class="ctrl">
+  <span class="grp">Nhiễu <input type="range" id="nz" min="0" max="2" step="0.1" value="0.8"> <b id="nzv"></b></span>
+  <button id="re4">Dữ liệu mới</button>
+</div>
+<div class="fig"><canvas id="c4"></canvas></div>
+<div class="readout" id="r4"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Đây <b>chính là Viterbi</b> ở trang 07, chỉ bỏ xác suất chuyển. Ý tưởng từ HMM những năm 1980 quay lại trong mô hình 2021.
+<br>• Đếm số frame mỗi âm vị trên đường đi là ra <b>độ dài</b>. Độ dài này làm đáp án để học bộ dự đoán độ dài, thay cho Montreal Forced Aligner.
+<br>• Trong lúc học, MAS chạy lại ở <b>mỗi bước</b> với mô hình hiện tại. Mô hình càng tốt thì cách căn càng đúng, cách căn càng đúng thì mô hình học càng tốt.</div>
+</section>
+
+<section>
+<h2><span class="n">5</span>Độ dài ngẫu nhiên: mỗi lần đọc một nhịp</h2>
+<p>Bộ dự đoán độ dài của VITS học <b>phân phối</b> của độ dài (bằng một flow), nên khi dùng có thể bốc nhiều mẫu khác nhau. Mô phỏng dưới đây chỉ dùng phân phối log-normal cho dễ thấy, không phải flow thật. Mỗi hàng là một lần đọc "xin chào".</p>
+<div class="ctrl"><span class="grp">Mức ngẫu nhiên <input type="range" id="ns" min="0" max="1.2" step="0.05" value="0.8"> <b id="nsv"></b></span><button id="re5">Đọc lại 5 lần</button></div>
+<div class="fig"><canvas id="c5"></canvas></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Mức 0: 5 lần đọc giống hệt nhau, như FastSpeech 2.
+<br>• Tăng lên: độ dài từng âm thay đổi, câu nhanh hơn hoặc chậm hơn một chút, nghe tự nhiên hơn khi đọc nhiều câu liên tiếp. Quá cao thì nhịp bị kéo giãn bất thường.
+<br>• Bản cài đặt chính thức của VITS cho chỉnh hai mức ngẫu nhiên riêng: cho z (noise_scale) và cho độ dài (noise_scale_w), cùng hệ số tốc độ (length_scale).</div>
+</section>
+
+<section>
+<h2>Tóm tắt</h2>
+<ul>
+<li>VITS = VAE (posterior encoder + decoder kiểu HiFi-GAN) + prior từ chữ với normalizing flow + MAS + dự đoán độ dài ngẫu nhiên + GAN.</li>
+<li>Một mô hình, học một lần, từ chữ ra thẳng sóng âm. Không cần vocoder riêng, không cần công cụ căn ngoài.</li>
+<li>MAS là Viterbi không có xác suất chuyển. Tính ngẫu nhiên của z và độ dài cho ngữ điệu đa dạng.</li>
+<li>VITS rất phổ biến để huấn luyện giọng riêng với vài giờ dữ liệu của một người. Muốn nói giọng <b>người lạ</b> chỉ từ vài giây mẫu thì cần cách khác: trang sau.</li>
+</ul>
+<h3>Thuật ngữ mới</h3>
+<div class="tablewrap"><table>
+<tr><th>Nói thường</th><th>Thuật ngữ</th></tr>
+<tr><td>bộ nén / bộ giải nén</td><td>encoder / decoder trong autoencoder; VAE (variational autoencoder)</td></tr>
+<tr><td>mã ẩn giữa nén và giải nén</td><td>biến ẩn (latent variable) z</td></tr>
+<tr><td>phân phối đoán từ chữ / từ âm thanh</td><td>prior / posterior</td></tr>
+<tr><td>đo hai phân phối lệch nhau bao nhiêu</td><td>KL divergence</td></tr>
+<tr><td>chuỗi phép biến đổi khả nghịch</td><td>normalizing flow</td></tr>
+<tr><td>tìm cách căn đơn điệu tốt nhất</td><td>Monotonic Alignment Search (MAS)</td></tr>
+</table></div>
+<p class="muted">Ma trận điểm ở mục 4 và độ dài ở mục 5 là dữ liệu tự tạo để minh họa thuật toán.</p>
+</section>
+<nav class="pn"></nav>
+</div>
+<script src="assets/learn.js"></script>
+<script>
+const PH = ['x', 'i', 'n', 'ch', 'a', 'o'], TRUE_D = [7, 10, 6, 7, 14, 12], TF = TRUE_D.reduce((a, b) => a + b, 0);
+const PCOL = [C.grey, C.acc, C.ok, C.hl, C.frame, C.i];
+let NZ = 0.8, SEED4 = 3;
+function scores() {
+  const r = rng(SEED4), truth = TRUE_D.flatMap((d, i) => new Array(d).fill(i));
+  return PH.map((_, i) => Array.from({length: TF}, (_, j) => -1.5 * Math.abs(i - truth[j]) ** 1.3 + NZ * randn(r)));
+}
+function mas(L) {
+  const N = L.length, T = L[0].length, Q = L.map(() => new Array(T).fill(-Infinity));
+  Q[0][0] = L[0][0];
+  for (let j = 1; j < T; j++) for (let i = 0; i < N; i++) {
+    const stay = Q[i][j - 1], move = i ? Q[i - 1][j - 1] : -Infinity;
+    Q[i][j] = L[i][j] + Math.max(stay, move);
+  }
+  const path = new Array(T);
+  let i = N - 1;
+  for (let j = T - 1; j >= 0; j--) { path[j] = i; if (j && i && Q[i - 1][j - 1] >= Q[i][j - 1]) i--; }
+  return path;
+}
+function draw4() {
+  document.getElementById('nzv').textContent = r1(NZ);
+  const L = scores(), path = mas(L), R = setup('c4', 220), g = R.g, B = {l: 40, t: 8, w: R.w - 60}, cw = B.w / TF, rh = 26;
+  const flat = L.flat(), lo = Math.min(...flat), hi = Math.max(...flat);
+  L.forEach((row, i) => { row.forEach((v, j) => box(g, B.l + j * cw, B.t + i * rh, cw - 0.5, rh - 1, rgb(cmap((v - lo) / (hi - lo) * 0.8)))); text(g, PH[i], B.l - 8, B.t + i * rh + rh / 2, C.ink, 'right', true); });
+  poly(g, path.map((_, j) => B.l + (j + 0.5) * cw), path.map(i => B.t + i * rh + rh / 2), C.frame, 3);
+  const D = PH.map((_, i) => path.filter(p => p === i).length);
+  let acc = 0;
+  D.forEach((d, i) => { box(g, B.l + acc * cw, B.t + PH.length * rh + 8, d * cw - 1, 16, alpha(PCOL[i], 0.8)); if (d) text(g, String(d), B.l + (acc + d / 2) * cw, B.t + PH.length * rh + 16, '#fff', 'center', true); acc += d; });
+  text(g, 'độ dài', B.l - 8, B.t + PH.length * rh + 16, C.mute, 'right');
+  text(g, `frame của z (${TF}) →`, B.l + B.w, B.t + PH.length * rh + 40, C.mute, 'right');
+  const err = D.reduce((s, d, i) => s + Math.abs(d - TRUE_D[i]), 0);
+  document.getElementById('r4').innerHTML = `Độ dài MAS tìm được: <span class="mono">[${D.join(', ')}]</span>, độ dài thật: <span class="mono">[${TRUE_D.join(', ')}]</span> → lệch tổng cộng <b>${err}</b> frame.`;
+}
+document.getElementById('nz').addEventListener('input', e => { NZ = +e.target.value; draw4(); });
+document.getElementById('re4').addEventListener('click', () => { SEED4++; draw4(); });
+
+let NS = 0.8, SEED5 = 1;
+function draw5() {
+  document.getElementById('nsv').textContent = r2(NS);
+  const R = setup('c5', 200), g = R.g, B = {l: 60, t: 10, w: R.w - 80}, r = rng(SEED5), rows = [];
+  for (let n = 0; n < 5; n++) {
+    const tempo = Math.exp(0.15 * NS * randn(r));
+    rows.push(TRUE_D.map(d => Math.max(1, Math.round(d * tempo * Math.exp(0.3 * NS * randn(r))))));
+  }
+  const mx = Math.max(...rows.map(rw => rw.reduce((a, b) => a + b, 0)), 90) * 1.15, cw = B.w / mx;
+  rows.forEach((rw, n) => {
+    let acc = 0;
+    const y = B.t + n * 34;
+    rw.forEach((d, i) => { box(g, B.l + acc * cw, y, d * cw - 1, 26, alpha(PCOL[i], 0.85)); if (d * cw > 14) text(g, PH[i], B.l + (acc + d / 2) * cw, y + 13, '#fff', 'center', true); acc += d; });
+    text(g, `lần ${n + 1}`, B.l - 8, y + 13, C.mute, 'right');
+    text(g, `${acc * 10} ms`, B.l + acc * cw + 6, y + 13, C.mute, 'left');
+  });
+}
+document.getElementById('ns').addEventListener('input', e => { NS = +e.target.value; draw5(); });
+document.getElementById('re5').addEventListener('click', () => { SEED5++; draw5(); });
+function drawAll() { draw4(); draw5(); }
+drawAll();
+onResize(drawAll);
+</script>
+</body>
+</html>

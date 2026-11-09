@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Attention 3: Query, key, value</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../lib/nn.js"></script>
+<script src="../lib/attn.js"></script>
+<script src="../build/att-3-qkv.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp, ease} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn thành phần', '3 Query, key, value', '4 Decoder viết từng chữ', '5 Transformer, Conformer'];
+const f2 = v => v.toFixed(2).replace('.', ','), f1 = v => v.toFixed(1).replace('.', ',').replace('-', '−');
+
+// Query follows the narration: 40° until "rotate" swings it to 160°, "len" brings it back and stretches it to 4, then 0.3.
+function query(t) {
+  const sr = S('rotate'), dr = D('rotate'), sl = S('len'), dl = D('len');
+  let a = 40, l = 1.5;
+  if (t >= sr) a = lerp(40, 160, ease(P(t, sr + 0.5, dr * 0.5)));
+  if (t >= sl) {
+    a = lerp(160, 40, ease(P(t, sl, 0.8)));
+    l = t < sl + dl * 0.55 ? lerp(1.5, 4, ease(P(t, sl + 0.8, dl * 0.3))) : lerp(4, 0.3, ease(P(t, sl + dl * 0.55, dl * 0.25)));
+  }
+  return [a, l];
+}
+
+function plane(t, o) {
+  const cx = 560, cy = 520, sc = 170, g = Clip.g;
+  g.beginPath(); g.arc(cx, cy, sc, 0, Math.PI * 2); g.strokeStyle = COL.line; g.lineWidth = 1.5; g.stroke();
+  line(cx - 300, cy, cx + 300, cy, COL.soft, 1.5); line(cx, cy - 300, cx, cy + 300, COL.soft, 1.5);
+  const [a, l] = query(t), W = ATT.weights(a, l), mx = Math.max(...W.w);
+  ATT.KEYS.forEach((k, j) => {
+    const x = cx + k[0] * sc, y = cy - k[1] * sc, wj = o.weights ? W.w[j] / mx : 0.6;
+    arrow(cx, cy, x, y, COL.acc + Math.round(60 + 195 * wj).toString(16).padStart(2, '0'), 1.5 + (o.weights ? 4 * W.w[j] / mx : 1), 10);
+    text('k' + (j + 1), x + (k[0] > 0 ? 14 : -14), y - 4, {size: 22, weight: 700, color: COL.acc, align: k[0] > 0 ? 'left' : 'right'});
+  });
+  if (o.q) {
+    const lim = Math.min(1, 1.7 / l), x = cx + W.q[0] * sc * lim, y = cy - W.q[1] * sc * lim;
+    arrow(cx, cy, x, y, COL.frame, 5, 16);
+    text('query', x + 12, y - 16, {size: 26, weight: 700, color: COL.frame});
+    text(`${Math.round(a)}°, độ dài ${f1(l)}`, cx, cy + 340, {size: 22, color: COL.frame, align: 'center'});
+  }
+  return W;
+}
+
+function bars(W, t, o) {
+  const B = {x: 1000, y: 300, w: 760, h: 360}, bw = B.w / 10;
+  line(B.x, B.y + B.h, B.x + B.w, B.y + B.h, COL.line2, 2);
+  W.w.forEach((v, j) => {
+    const h = o.weights ? Math.min(1, v / 0.4) * B.h : 0;
+    if (o.weights) rrect(B.x + j * bw + 6, B.y + B.h - h, bw - 12, h, 4, COL.acc + 'cc');
+    text('k' + (j + 1), B.x + (j + 0.5) * bw, B.y + B.h + 24, {size: 20, color: COL.mute, align: 'center'});
+    if (o.weights) text(f2(v), B.x + (j + 0.5) * bw, B.y + B.h - h - 16, {size: 20, weight: 700, align: 'center'});
+    if (o.scores) text(f1(W.sc[j]), B.x + (j + 0.5) * bw, B.y + B.h + 54, {size: 20, color: COL.frame, align: 'center'});
+  });
+  if (o.scores) text('điểm:', B.x - 10, B.y + B.h + 54, {size: 20, color: COL.frame, align: 'right'});
+  if (o.weights) text('trọng số sau softmax', B.x, B.y - 20, {size: 22, weight: 700});
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Attention', 'Phần 3/5: tính thế nào? query, key, value', 2, PARTS);
+
+function shotMain(G, t) {
+  const sk = S('kv'), sq = S('q'), sd = S('dot'), ss = S('soft'), so = S('out');
+  heading(t < sq ? 'Encoder: mỗi frame một key và một value' : t < sd ? 'Decoder: một query' : t < ss ? 'Điểm = tích vô hướng query · key' : 'Trọng số = softmax(điểm)');
+  const o = {q: t >= sq + 0.3, scores: t >= sd + 0.3, weights: t >= ss + 0.3};
+  fade(G, P(t, sk + 0.3, 0.5), () => {
+    const W = plane(t, o);
+    bars(W, t, o);
+  });
+  fade(G, P(t, sk + D('kv') * 0.5, 0.5) * (1 - P(t, sq, 0.4)), () => {
+    text('key: để được tìm', 1000, 380, {size: 28, weight: 700, color: COL.acc});
+    text('value: nội dung mang theo', 1000, 440, {size: 28, weight: 700, color: COL.ok});
+    text('vẽ 2 chiều để thấy; thật ra vài trăm chiều', 1000, 520, {size: 22, color: COL.mute});
+  });
+  if (t >= so) fade(G, P(t, so + 0.3, 0.5), () => {
+    card(1000, 760, 760, 84, {stroke: COL.ok});
+    text('đầu ra = Σ trọng số_j × value_j', 1380, 802, {size: 30, weight: 700, color: COL.ok, align: 'center'});
+  });
+}
+
+function shotScale(G, t) {
+  const s = S('scale'), d = D('scale'), sg = S('grad');
+  heading(t < sg ? 'Chia cho √d' : 'Học được bằng gradient descent');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    text('điểm_j = query · key_j / √d', 960, 320, {size: 48, weight: 700, color: COL.acc, align: 'center'});
+    text('d = số chiều của vector', 960, 390, {size: 26, color: COL.mute, align: 'center'});
+    text('nhiều chiều → tích vô hướng lớn → softmax tập trung quá mức ngay từ đầu; chia √d để tránh', 960, 470, {size: 26, align: 'center'});
+  });
+  fade(G, P(t, sg + 0.3, 0.5), () => {
+    const xs = UI.chipXs(G, ['nhân', 'cộng', 'softmax', 'trung bình có trọng số'], {size: 28, weight: 700}, 50);
+    ['nhân', 'cộng', 'softmax', 'trung bình có trọng số'].forEach((l, j) => chip(G, xs[j], 580, l, {size: 28, weight: 700}));
+    text('đều có đạo hàm → học cùng toàn bộ mạng; không ai dạy mạng nên nhìn đâu', 960, 700, {size: 28, weight: 700, color: COL.ok, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['điểm = query · key / √d', COL.acc], ['trọng số = softmax(điểm)', COL.frame], ['đầu ra = Σ trọng số × value', COL.ok]].forEach(([a, c], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.5, 0.6), () => text(a, 960, 320 + j * 100, {size: 44, weight: 700, color: c, align: 'center'})));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 780, 680, 'Phần 4: decoder viết từng chữ  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 3', [
+  ['tôi đang cần gì', 'query (Q)', 'từ decoder'],
+  ['để được tìm', 'key (K)', 'mỗi frame một key'],
+  ['nội dung mang theo', 'value (V)', 'mỗi frame một value'],
+  ['nhân từng chiều rồi cộng', 'tích vô hướng (dot product)', 'cùng hướng thì lớn'],
+  ['chia cho căn số chiều', 'scaled dot-product attention', 'softmax(QKᵀ/√d)V'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'kv', to: 'len', draw: shotMain},
+    {from: 'scale', to: 'grad', draw: shotScale},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/att-3-qkv.wav');
+</script>
+</body>
+</html>

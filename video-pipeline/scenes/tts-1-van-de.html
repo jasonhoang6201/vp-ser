@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>TTS 1: Vấn đề</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/tts-1-van-de.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Khung 3 khối', '3 Pha', '4 Griffin-Lim', '5 Vocoder nơ-ron', '6 Đo chất lượng'];
+
+function wave(x, y, w, h, seed = 1, col = COL.mute) {
+  const xs = [], ys = [];
+  for (let k = 0; k <= 200; k++) { const u = k / 200; xs.push(x + u * w); ys.push(y + h / 2 * Math.sin(k * 0.9 + seed) * (0.3 + 0.7 * Math.abs(Math.sin(k * 0.04 + seed)))); }
+  poly(xs, ys, col, 1.8);
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('TTS và vocoder', 'Phần 1/6: tạo ra sóng âm nghe tự nhiên rất khó', 0, PARTS);
+
+function shotReverse(G, t) {
+  const s = S('reverse'), d = D('reverse');
+  heading('TTS (Text-to-Speech): đi ngược lại');
+  const items = ['sóng âm', 'spectrogram', 'Mel', 'chữ'], xs = UI.chipXs(G, items, {size: 30, weight: 700}, 90);
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    items.forEach((l, j) => { chip(G, xs[j], 320, l, {size: 30, weight: 700}); if (j < 3) arrow(xs[j + 1] - 80, 330, xs[j + 1] - 12, 330, COL.acc, 3); });
+    text('các trang trước: nhận dạng', 960, 260, {size: 24, color: COL.acc, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.5, 0.5), () => {
+    items.forEach((_, j) => { if (j < 3) arrow(xs[j + 1] - 12, 370, xs[j + 1] - 80, 370, COL.frame, 3); });
+    text('nhánh này: tổng hợp, từ chữ ra sóng âm', 960, 450, {size: 28, weight: 700, color: COL.frame, align: 'center'});
+  });
+}
+
+function shotOld(G, t) {
+  const sc = S('concat'), sc2 = S('concat2'), sh = S('hmm'), dh = D('hmm');
+  heading('Hai cách cũ');
+  fade(G, P(t, sc + 0.3, 0.5), () => {
+    card(180, 230, 760, 520, {stroke: COL.acc});
+    text('ghép đoạn (unit selection)', 210, 280, {size: 28, weight: 700, color: COL.acc});
+    for (let k = 0; k < 6; k++) { rrect(210 + k * 115, 320, 100, 70, 6, COL.soft, COL.line2, 1.5); wave(215 + k * 115, 355, 90, 50, k); }
+    text('kho thu âm, cắt thành đoạn', 210, 420, {size: 22, color: COL.mute});
+    [1, 4, 2].forEach((k, j) => { rrect(300 + j * 120, 470, 110, 70, 6, COL.accSoft, COL.acc, 2); wave(305 + j * 120, 505, 100, 50, k, COL.acc); });
+    fade(G, P(t, sc2 + 0.3, 0.5), () => {
+      [0, 1].forEach(j => text('⚡', 415 + j * 120, 470, {size: 26, color: COL.hl, align: 'center'}));
+      text('chỗ nối giật; đổi giọng, cảm xúc: thu lại cả kho', 210, 620, {size: 22, weight: 700, color: COL.hl, maxW: 700});
+    });
+  });
+  fade(G, P(t, sh + 0.3, 0.5), () => {
+    card(980, 230, 760, 520, {stroke: COL.i});
+    text('tham số thống kê (HMM)', 1010, 280, {size: 28, weight: 700, color: COL.i});
+    chip(G, 1010, 330, 'HMM → tham số phổ', {size: 24});
+    arrow(1290, 356, 1350, 356, COL.mute, 2.5);
+    chip(G, 1360, 330, 'vocoder cổ điển', {size: 24});
+    const xs = [], ys = [];
+    for (let k = 0; k <= 200; k++) { xs.push(1010 + k * 3.4); ys.push(505 + 30 * Math.sin(k * 0.5) + 6 * Math.sin(k * 7.3)); }
+    poly(xs, ys, COL.i, 1.8);
+    fade(G, P(t, sh + dh * 0.5, 0.5), () => text('mượt, nhưng nghe rè, đục, máy móc', 1010, 620, {size: 22, weight: 700, color: COL.hl}));
+  });
+}
+
+function shotHard(G, t) {
+  const so = S('one2many'), sl = S('long'), dl = D('long'), st = S('text');
+  heading('Ba khó khăn gốc');
+  fade(G, P(t, so + 0.3, 0.5), () => {
+    card(140, 220, 520, 560, {stroke: COL.frame});
+    text('1. một chữ, nhiều cách đọc', 170, 270, {size: 26, weight: 700, color: COL.frame});
+    chip(G, 300, 310, '"trời mưa"', {size: 28, weight: 700});
+    [['nhanh, cao', 0.8, 1.4], ['chậm, trầm', 0.4, 0.6], ['buồn', 0.55, 0.3]].forEach(([l, a, b], j) => {
+      const xs = [], ys = [];
+      for (let k = 0; k <= 40; k++) { xs.push(180 + k * 9); ys.push(460 + j * 100 - 30 * (a * Math.sin(k * 0.15 * b + 0.5) + 0.3)); }
+      poly(xs, ys, COL.frame, 3);
+      text(l, 560, 450 + j * 100, {size: 22, color: COL.mute});
+    });
+  });
+  fade(G, P(t, sl + 0.3, 0.5), () => {
+    card(700, 220, 520, 560, {stroke: COL.acc});
+    text('2. sóng âm quá dài', 730, 270, {size: 26, weight: 700, color: COL.acc});
+    const n = Math.floor(660 * P(t, sl + 0.5, dl * 0.6));
+    for (let k = 0; k < n; k++) rrect(730 + (k % 30) * 15, 320 + Math.floor(k / 30) * 15, 12, 12, 1, COL.acc + '88');
+    text('3 giây × 22 050 Hz = 66 000 số', 730, 690, {size: 24, weight: 700});
+    text('(mỗi ô ≈ 100 số), phải khớp nhau chính xác', 730, 730, {size: 20, color: COL.mute});
+  });
+  fade(G, P(t, st + 0.3, 0.5), () => {
+    card(1260, 220, 520, 560, {stroke: COL.i});
+    text('3. chữ viết ≠ cách đọc', 1290, 270, {size: 26, weight: 700, color: COL.i});
+    [['25/12', 'hai mươi lăm tháng mười hai'], ['TP.HCM', 'thành phố Hồ Chí Minh']].forEach(([a, b], j) => {
+      chip(G, 1290, 330 + j * 180, a, {size: 30, weight: 700});
+      arrow(1320, 400 + j * 180, 1320, 440 + j * 180, COL.mute, 2.5);
+      text(b, 1290, 465 + j * 180, {size: 24, weight: 700, color: COL.i, maxW: 460});
+    });
+  });
+}
+
+function shotGoal(G, t) {
+  const s = S('goal');
+  heading('Mục tiêu');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    text('chia thành các bước nhỏ, mỗi bước dễ học', 960, 340, {size: 34, weight: 700, align: 'center'});
+    text('+ một thành phần chuyên lo tạo sóng âm chất lượng cao', 960, 420, {size: 34, weight: 700, color: COL.frame, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['ghép đoạn: giật; HMM: rè', COL.hl, '✗'], ['một chữ, nhiều cách đọc', COL.frame, '·'], ['sóng âm quá dài', COL.acc, '·'], ['chữ viết khác cách đọc', COL.i, '·']].forEach(([a, c, m], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.4, 0.6), () => {
+      text(m, 520, 290 + j * 84, {size: 34, weight: 700, color: c});
+      text(a, 570, 290 + j * 84, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 780, 680, 'Phần 2: khung chung 3 khối  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 1', [
+  ['tổng hợp tiếng nói', 'TTS (Text-to-Speech)', 'chữ → sóng âm'],
+  ['ghép đoạn thu sẵn', 'concatenative, unit selection', 'nối hay giật'],
+  ['HMM sinh tham số phổ', 'statistical parametric synthesis', 'nghe rè'],
+  ['một chữ nhiều cách đọc', 'one-to-many', 'tốc độ, cao độ, cảm xúc'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'reverse', to: 'reverse', draw: shotReverse},
+    {from: 'concat', to: 'hmm', draw: shotOld},
+    {from: 'one2many', to: 'text', draw: shotHard},
+    {from: 'goal', to: 'goal', draw: shotGoal},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/tts-1-van-de.wav');
+</script>
+</body>
+</html>

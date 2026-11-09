@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>SER · 4: Hai bộ dữ liệu</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/ser.js"></script>
+<script src="../build/ser-4-du-lieu.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn thành phần', '3 Nhãn và dấu hiệu', '4 Dữ liệu', '5 Thước đo'];
+// IEMOCAP 4-class counts in the usual setup (happy merged with excited); they sum to 5 531.
+const IEMO4 = [['trung tính', 1708, COL.mute], ['vui + hào hứng', 1636, COL.ok], ['giận', 1103, COL.hl], ['buồn', 1084, COL.acc]];
+const MCOL = [COL.mute, COL.ok, COL.frame, COL.hl, COL.acc, '#8a7f3d', COL.i];
+
+function hbars(x, y, rows, max, w, prog) {
+  rows.forEach(([l, n, c], j) => {
+    const yy = y + j * 60;
+    text(l, x - 16, yy + 20, {size: 22, weight: 700, color: c, align: 'right'});
+    rrect(x, yy, Math.max(3, n / max * w * prog), 40, 6, c);
+    text(n.toLocaleString('vi-VN'), x + n / max * w * prog + 12, yy + 20, {size: 22, weight: 700});
+  });
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('SER: đoán cảm xúc từ giọng nói', 'Phần 4/5: IEMOCAP và MELD', 3, PARTS);
+
+function shotIemo(G, t) {
+  const si = S('iemo'), s2 = S('iemo2'), d2 = D('iemo2'), ss = S('split'), dsp = D('split');
+  heading(t < ss ? 'IEMOCAP' : 'Chia theo phiên (leave-one-session-out)');
+  fade(G, P(t, si + 0.3, 0.5), () => {
+    for (let k = 0; k < 5; k++) {
+      const x = 160 + k * 170, test = t >= ss && k === 4;
+      rrect(x, 250, 150, 130, 14, test ? COL.frameSoft : COL.card, test ? COL.frame : COL.line2, test ? 3 : 1.5);
+      text('phiên ' + (k + 1), x + 75, 285, {size: 22, weight: 700, color: test ? COL.frame : COL.ink, align: 'center'});
+      text('♂  ♀', x + 75, 340, {size: 30, color: COL.mute, align: 'center'});
+      if (t >= ss) text(test ? 'test' : 'train', x + 75, 410, {size: 22, weight: 700, color: test ? COL.frame : COL.ok, align: 'center'});
+    }
+  });
+  if (t < ss) fade(G, P(t, si + D('iemo') * 0.45, 0.5), () => {
+    ['10 diễn viên, kịch bản + ứng tác', 'phòng thu, khoảng 12 giờ', 'khoảng 10 000 câu'].forEach((l, j) => text('· ' + l, 1060, 280 + j * 50, {size: 26}));
+  });
+  if (t >= s2 && t < ss) fade(G, P(t, s2 + 0.3, 0.5), () => {
+    text('≥ 3 người gán mỗi câu, lấy đa số · 4 lớp thường dùng: 5 531 câu', 160, 480, {size: 24, weight: 700, color: COL.acc});
+    hbars(440, 530, IEMO4, 1708, 900, P(t, s2 + d2 * 0.4, 1.2));
+  });
+  if (t >= ss) fade(G, P(t, ss + dsp * 0.45, 0.5), () => {
+    card(160, 500, 1600, 200, {stroke: COL.hl});
+    text('nếu cùng người ở cả train và test:', 200, 560, {size: 28, weight: 700});
+    text('mô hình có thể học nhận ra GIỌNG người đó, thay vì CẢM XÚC', 200, 630, {size: 28, weight: 700, color: COL.hl});
+    text('đổi lần lượt phiên làm test, lấy trung bình 5 lần', 1060, 290, {size: 24, color: COL.mute, maxW: 700});
+  });
+}
+
+function shotMeld(G, t) {
+  const sm = S('meld'), s2 = S('meld2'), st = S('tie'), dt = D('tie');
+  heading(t < st ? 'MELD: hội thoại phim Friends' : 'Câu hòa phiếu thường bị bỏ');
+  if (t < st) {
+    fade(G, P(t, sm + 0.3, 0.5), () => {
+      ['khoảng 13 000 câu, chia sẵn train/dev/test', '7 lớp', 'câu ngắn, nhạc nền, tiếng cười khán giả'].forEach((l, j) => text('· ' + l, 1180, 300 + j * 50, {size: 25, maxW: 640}));
+    });
+    fade(G, P(t, s2 + 0.3, 0.5), () => {
+      text('tập test (2 610 câu)', 440, 240, {size: 24, weight: 700, color: COL.acc});
+      hbars(440, 280, SER.CL.map((l, j) => [l, SER.CNT[j], MCOL[j]]), 1256, 560, P(t, s2 + 0.5, 1.5));
+      fade(G, P(t, s2 + D('meld2') * 0.5, 0.5), () => text('trung tính 48%, sợ chỉ 2% · chỉ số chính: weighted-F1', 1180, 520, {size: 26, weight: 700, color: COL.hl, maxW: 640}));
+    });
+    return;
+  }
+  fade(G, P(t, st + 0.3, 0.5), () => {
+    [['câu 1', ['giận', 'giận', 'buồn'], 'giận (đa số)', COL.ok], ['câu 2', ['vui', 'buồn', 'giận'], 'hòa phiếu: bỏ', COL.hl]].forEach(([l, v, r, c], j) => {
+      const y = 290 + j * 160;
+      text(l, 300, y + 26, {size: 28, weight: 700});
+      v.forEach((e, k) => chip(G, 420 + k * 170, y, e, {size: 24, weight: 700}));
+      arrow(950, y + 26, 1060, y + 26, COL.mute, 3);
+      chip(G, 1080, y, r, {size: 26, weight: 700, color: c, stroke: c});
+    });
+  });
+  fade(G, P(t, st + dt * 0.55, 0.5), () => text('bỏ câu khó → dữ liệu "dễ" hơn đời thật', 960, 690, {size: 30, weight: 700, color: COL.frame, align: 'center'}));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    card(220, 270, 700, 280, {stroke: COL.acc});
+    text('IEMOCAP', 260, 330, {size: 32, weight: 700, color: COL.acc});
+    ['nhỏ, phòng thu, diễn viên', '4 lớp khá đều', 'chia theo phiên'].forEach((l, j) => text('· ' + l, 260, 395 + j * 50, {size: 26}));
+  });
+  fade(G, P(t, s + 2, 0.5), () => {
+    card(1000, 270, 700, 280, {stroke: COL.frame});
+    text('MELD', 1040, 330, {size: 32, weight: 700, color: COL.frame});
+    ['phim Friends, câu ngắn, nhiễu', '7 lớp', 'lệch nặng về trung tính'].forEach((l, j) => text('· ' + l, 1040, 395 + j * 50, {size: 26}));
+  });
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 830, 640, 'Phần 5: thước đo  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 4', [
+  ['chia sao cho người ở test không có trong train', 'speaker-independent split', ''],
+  ['lần lượt để riêng một phiên làm test', 'leave-one-session-out', 'IEMOCAP: 5 lần'],
+  ['người gán nhãn không thống nhất', 'không đồng thuận (no agreement)', 'thường bị bỏ'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'iemo', to: 'split', draw: shotIemo},
+    {from: 'meld', to: 'tie', draw: shotMeld},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/ser-4-du-lieu.wav');
+</script>
+</body>
+</html>

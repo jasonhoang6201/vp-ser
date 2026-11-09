@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>VITS · 3: VAE và flow</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../build/vits-3-vae.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp, heat} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Năm thành phần', '3 VAE và flow', '4 MAS', '5 Độ dài ngẫu nhiên'];
+const gauss = (x, m, s) => Math.exp(-0.5 * ((x - m) / s) ** 2);
+
+function node(x, y, w, l, c, on = true, h = 90) {
+  rrect(x, y, w, h, 14, on ? c + '1c' : COL.soft, on ? c : COL.line2, on ? 3 : 1.5);
+  text(l, x + w / 2, y + h / 2, {size: 22, weight: 700, color: on ? c : COL.line2, align: 'center', maxW: w - 16});
+}
+function spec(x, y, w, h, seed) {
+  const r = GMM.rng(seed);
+  for (let i = 0; i < 16; i++) for (let k = 0; k < 10; k++) rrect(x + i * w / 16, y + k * h / 10, w / 16 - 1, h / 10 - 1, 0, heat(0.25 + 0.5 * gauss(k, 3 + 2 * Math.sin(i / 3), 2) + 0.2 * r()));
+}
+function bump(x, y, w, h, f, c, lw = 3) {
+  const xs = Array.from({length: 121}, (_, k) => k / 120);
+  poly(xs.map(u => x + u * w), xs.map(u => y + h - f(u) * h), c, lw);
+  line(x, y + h, x + w, y + h, COL.line2, 1.5);
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('VITS', 'Phần 3/5: VAE và flow, lúc học khác lúc dùng', 2, PARTS);
+
+function shotAe(G, t) {
+  const sa = S('ae'), sv = S('var'), dv = D('var');
+  heading(t < sv ? 'Autoencoder: nén rồi giải nén' : '"Variational": z là một phân phối');
+  fade(G, P(t, sa + 0.3, 0.5), () => {
+    spec(240, 300, 300, 240, 1);
+    text('bản gốc', 390, 580, {size: 24, color: COL.mute, align: 'center'});
+    const g = Clip.g;
+    g.beginPath(); g.moveTo(580, 300); g.lineTo(820, 380); g.lineTo(820, 460); g.lineTo(580, 540); g.closePath(); g.fillStyle = COL.accSoft; g.fill();
+    text('nén', 690, 420, {size: 24, weight: 700, color: COL.acc, align: 'center'});
+    g.beginPath(); g.moveTo(1100, 300); g.lineTo(860, 380); g.lineTo(860, 460); g.lineTo(1100, 540); g.closePath(); g.fillStyle = COL.frameSoft; g.fill();
+    text('giải nén', 990, 420, {size: 24, weight: 700, color: COL.frame, align: 'center'});
+    text('z', 840, 420, {size: 40, weight: 700, color: COL.i, align: 'center'});
+    spec(1140, 300, 300, 240, 2);
+    text('bản dựng lại ≈ bản gốc', 1290, 580, {size: 24, color: COL.mute, align: 'center'});
+  });
+  if (t >= sv) fade(G, P(t, sv + 0.3, 0.5), () => {
+    card(560, 630, 800, 180, {stroke: COL.i});
+    bump(600, 650, 360, 130, u => gauss(u, 0.5, 0.15), COL.i);
+    line(780, 650, 780, 780, COL.i, 2, [5, 5]);
+    text('trung bình', 780, 800, {size: 18, color: COL.i, align: 'center'});
+    const r = GMM.rng(4);
+    for (let k = 0; k < 6; k++) fade(G, P(t, sv + dv * 0.4 + k * 0.3, 0.3), () => {
+      const u = 0.5 + 0.15 * GMM.randn(r);
+      const g = Clip.g; g.beginPath(); g.arc(600 + u * 360, 770, 7, 0, 2 * Math.PI); g.fillStyle = COL.frame; g.fill();
+    });
+    text('bốc mẫu được', 1000, 700, {size: 28, weight: 700, color: COL.frame});
+    text('mỗi lần một z hơi khác', 1000, 745, {size: 22, color: COL.mute});
+  });
+}
+
+function shotTrain(G, t) {
+  const st = S('train'), sk = S('kl'), si = S('infer'), use = t >= si;
+  heading(use ? 'Lúc dùng: chỉ có chữ' : 'Lúc học: có cả chữ lẫn âm thanh');
+  fade(G, P(t, st + 0.3, 0.5), () => {
+    chip(G, 90, 264, 'spectrogram', {size: 22, weight: 700, color: use ? COL.line2 : COL.mute});
+    node(330, 240, 260, 'posterior encoder', COL.acc, !use);
+    node(680, 240, 120, 'z', COL.i);
+    node(890, 240, 260, 'decoder', COL.frame);
+    chip(G, 1240, 264, 'sóng âm', {size: 22, weight: 700});
+    arrow(272, 285, 324, 285, use ? COL.line2 : COL.mute, 2.5); arrow(596, 285, 674, 285, use ? COL.line2 : COL.mute, 2.5);
+    arrow(806, 285, 884, 285, COL.mute, 2.5); arrow(1156, 285, 1234, 285, COL.mute, 2.5);
+    if (!use) fade(G, P(t, st + D('train') * 0.5, 0.5), () => {
+      text('so với sóng thật: sai lệch trên Mel + GAN', 1290, 380, {size: 22, weight: 700, color: COL.hl, align: 'center'});
+    });
+  });
+  if (!use) fade(G, P(t, sk + 0.3, 0.5), () => {
+    node(680, 420, 120, 'flow', COL.i, true, 80);
+    arrow(740, 336, 740, 414, COL.i, 2.5);
+    text('xuôi', 760, 380, {size: 20, color: COL.i});
+    chip(G, 90, 624, 'chữ', {size: 22, weight: 700});
+    node(330, 600, 260, 'text encoder', COL.ok);
+    node(650, 600, 180, 'phân phối từ chữ', COL.ok);
+    arrow(190, 650, 324, 650, COL.mute, 2.5); arrow(596, 645, 644, 645, COL.mute, 2.5);
+    line(740, 506, 740, 594, COL.hl, 3, [7, 6]);
+    text('KL: kéo lại gần nhau', 770, 552, {size: 24, weight: 700, color: COL.hl});
+    text('theo cách căn MAS tìm ra', 770, 584, {size: 20, color: COL.mute});
+  });
+  if (use) fade(G, P(t, si + 0.3, 0.5), () => {
+    const steps = ['chữ', 'text encoder', 'phân phối âm vị', 'kéo giãn theo độ dài', 'bốc mẫu', 'flow ngược'];
+    steps.forEach((l, j) => fade(G, P(t, si + 0.5 + j * 0.6, 0.4), () => {
+      const x = 90 + j * 280;
+      node(x, 560, 240, l, j === 5 ? COL.i : COL.ok, true, 80);
+      if (j < 5) arrow(x + 244, 600, x + 276, 600, COL.mute, 2.5);
+    }));
+    fade(G, P(t, si + 4.2, 0.4), () => {
+      const g = Clip.g;
+      g.beginPath(); g.moveTo(1640, 556); g.quadraticCurveTo(1640, 420, 806, 300);
+      g.strokeStyle = COL.i; g.lineWidth = 3; g.stroke();
+      arrow(830, 304, 808, 300, COL.i, 3);
+      text('ra z', 1300, 420, {size: 24, weight: 700, color: COL.i});
+    });
+  });
+}
+
+function shotFlow(G, t) {
+  const sf = S('flow'), df = D('flow'), sm = S('many');
+  heading(t < sm ? 'Vì sao cần flow?' : 'Một chữ, nhiều cách đọc');
+  if (t < sm) {
+    fade(G, P(t, sf + 0.3, 0.5), () => {
+      card(200, 260, 520, 330, {stroke: COL.ok});
+      bump(240, 330, 440, 200, u => gauss(u, 0.5, 0.14), COL.ok);
+      text('chữ đoán: Gauss, đơn giản', 460, 300, {size: 24, weight: 700, color: COL.ok, align: 'center'});
+      card(1200, 260, 520, 330, {stroke: COL.i});
+      bump(1240, 330, 440, 200, u => 0.9 * gauss(u, 0.25, 0.07) + 0.6 * gauss(u, 0.62, 0.1) + 0.35 * gauss(u, 0.85, 0.05), COL.i);
+      text('z thật: phức tạp', 1460, 300, {size: 24, weight: 700, color: COL.i, align: 'center'});
+      rrect(820, 360, 280, 120, 16, COL.frameSoft, COL.frame, 3);
+      text('flow (khả nghịch)', 960, 420, {size: 26, weight: 700, color: COL.frame, align: 'center'});
+    });
+    fade(G, P(t, sf + df * 0.45, 0.5), () => {
+      arrow(1190, 380, 1108, 380, COL.mute, 3); text('xuôi: để so (lúc học)', 960, 340, {size: 22, align: 'center'});
+      arrow(730, 470, 812, 470, COL.mute, 3); text('ngược: để dùng', 960, 520, {size: 22, align: 'center'});
+    });
+    return;
+  }
+  fade(G, P(t, sm + 0.3, 0.5), () => {
+    chip(G, 200, 380, '"xin chào"', {size: 28, weight: 700});
+    const B = {x: 620, y: 260, w: 1000, h: 380}, xs = Array.from({length: 81}, (_, k) => k / 80);
+    line(B.x, B.y + B.h, B.x + B.w, B.y + B.h, COL.line2, 2);
+    // [overall height, size of the rise, where the peak sits]: three samples of the same sentence
+    [[0.55, 0.25, 0.35, COL.acc], [0.45, 0.12, 0.5, COL.frame], [0.62, 0.32, 0.25, COL.i]].forEach(([a, b, pk, c], j) => {
+      arrow(450, 406, 600, B.y + B.h * (1 - a), c, 2.5);
+      fade(G, P(t, sm + 0.8 + j * 0.8, 0.5), () => poly(xs.map(u => B.x + u * B.w), xs.map(u => B.y + B.h * (1 - a - b * Math.exp(-0.5 * ((u - pk) / 0.18) ** 2) + 0.3 * u)), c, 4));
+    });
+    text('bốc 3 mẫu z → 3 đường cao độ hơi khác nhau', 1120, 700, {size: 26, weight: 700, color: COL.mute, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['lúc học: z từ âm thanh (posterior encoder)'], ['lúc dùng: z từ chữ, qua flow ngược'], ['KL kéo hai bên lại gần · z ngẫu nhiên: nhiều cách đọc']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text('✓', 360, 300 + j * 90, {size: 34, weight: 700, color: COL.ok});
+      text(a, 410, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 760, 640, 'Phần 4: MAS tự căn chữ  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 3', [
+  ['nén rồi giải nén', 'autoencoder', ''],
+  ['z là phân phối, bốc mẫu được', 'variational (VAE)', 'trung bình + độ tản'],
+  ['đo hai phân phối lệch nhau', 'KL divergence', 'kéo z về phân phối từ chữ'],
+  ['chuỗi biến đổi khả nghịch', 'normalizing flow', 'xuôi để so, ngược để dùng'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'ae', to: 'var', draw: shotAe},
+    {from: 'train', to: 'infer', draw: shotTrain},
+    {from: 'flow', to: 'many', draw: shotFlow},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/vits-3-vae.wav');
+</script>
+</body>
+</html>

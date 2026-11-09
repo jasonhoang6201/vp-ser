@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thang Mel</title>
+<style>
+:root{
+  --page:#fbfbfa;--bg:#ffffff;--soft:#f7f7f5;--line:#dcdbd7;--line2:#c4c2bc;
+  --ink:#37352f;--mute:#787774;--acc:#337ea9;--acc-soft:#e7f3f8;
+  --frame:#d9730d;--hl:#d44c47;--ok:#448361;
+  --lift:0 0 0 1px rgba(15,15,15,.10),0 2px 4px rgba(15,15,15,.04),0 8px 20px rgba(15,15,15,.05);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);font:15px/1.65 Inter,"Be Vietnam Pro",system-ui,sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:28px 16px 80px}
+h1{font-size:24px;line-height:1.3;margin:0 0 6px}
+h2{font-size:18px;margin:0 0 8px;display:flex;gap:10px;align-items:baseline}
+h2 .n{display:inline-flex;justify-content:center;align-items:center;min-width:26px;height:26px;border-radius:50%;background:var(--ink);color:#fff;font-size:13px}
+h3{font-size:14px;margin:14px 0 2px}
+p{margin:0 0 10px}
+.sub{color:var(--mute);margin:0 0 20px}
+section{background:var(--bg);box-shadow:var(--lift);border-radius:8px;padding:20px;margin:0 0 22px}
+.fig{margin:8px 0 4px}
+canvas{display:block}
+.note{border-left:3px solid var(--hl);background:#fdf3f2;padding:10px 14px;border-radius:0 6px 6px 0;margin:12px 0 0}
+.note.blue{border-color:var(--acc);background:var(--acc-soft)}
+.note b{color:var(--hl)}
+.note.blue b{color:var(--acc)}
+button{font:inherit;font-size:14px;padding:5px 12px;border:1px solid var(--line2);background:var(--bg);border-radius:6px;cursor:pointer;color:var(--ink)}
+button:hover{background:var(--soft)}
+button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.ctrl{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin:10px 0 0;font-size:14px}
+.ctrl .grp{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.ctrl input[type=range]{width:min(320px,100%)}
+.readout{margin-top:8px;min-height:24px}
+.muted{color:var(--mute)}
+table{border-collapse:collapse;font-size:14px;margin:8px 0}
+th,td{border-bottom:1px solid var(--line);padding:6px 12px 6px 0;text-align:left;vertical-align:middle}
+th{color:var(--mute);font-weight:600}
+.dot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.formula{font-family:ui-monospace,Menlo,monospace;background:var(--soft);padding:8px 12px;border-radius:6px;display:inline-block;margin:4px 0 10px}
+.tablewrap{overflow-x:auto}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Thang Mel: đo tần số theo cách tai người nghe</h1>
+<p class="sub">Spectrogram chia trục tần số thành các frequency bin đều nhau, mỗi bin rộng 31.25 Hz, từ 0 đến 8000 Hz. Tai người thì không nghe đều như vậy. Trang này đi qua 5 bước: nghe thử, lập thước đo mới (thang Mel), xem một bộ lọc tam giác làm gì trên ví dụ nhỏ, gom phổ của một frame thật, rồi làm cho cả câu để ra <b>Mel spectrogram</b>. Âm thanh và hình vẽ đều được tạo và tính ngay trong trang.</p>
+
+<section id="s1">
+<h2><span class="n">1</span>Nghe thử: cùng cách 100 Hz, nhưng nghe không giống nhau</h2>
+<p>Mỗi cặp dưới đây gồm hai <b>âm thuần</b> (pure tone, tức một sóng sin duy nhất) phát liền nhau. Trong cả ba cặp, hai âm cách nhau đúng <b>100 Hz</b>. Hãy để âm lượng nhỏ, vì âm 6000 Hz khá chói.</p>
+<div class="tablewrap"><table id="pairs"></table></div>
+<div class="fig"><canvas id="c1"></canvas></div>
+<div class="ctrl">Tự chọn âm đầu:
+  <input type="range" id="fc" min="100" max="7000" step="50" value="3000">
+  <b id="fcv"></b>
+  <button id="playCustom">▶ Nghe</button>
+</div>
+<div class="note"><b>Khoanh vùng:</b> trên thước Hz ở hình trên, ba ô màu <b>rộng y hệt nhau</b> (đều 100 Hz). Nhưng khi nghe:
+<br>• Cặp <b>200 → 300 Hz</b> nghe ra hai nốt khác hẳn nhau.
+<br>• Cặp <b>6000 → 6100 Hz</b> nghe gần như cùng một nốt, chỉ hơi nhích lên.
+<br>Tai người phân biệt <b>tần số thấp rất kỹ</b>, còn ở <b>tần số cao thì thô</b>. Cùng 100 Hz, nhưng ở vùng thấp thì "xa", ở vùng cao thì "gần".</div>
+</section>
+
+<section id="s2">
+<h2><span class="n">2</span>Lập thước đo mới: thang Mel</h2>
+<p>Năm 1937, Stevens, Volkmann và Newman cho người nghe chỉnh các âm thuần đến khi chúng <b>nghe như cách đều nhau</b>, rồi lập ra một thước đo theo cảm nhận của tai. Thước này gọi là <b>thang Mel</b> (Mel scale), đơn vị là <b>mel</b> (lấy từ chữ <i>melody</i>, giai điệu). Trên thang Mel, hai cặp âm nghe xa như nhau thì cách nhau cùng một số mel. Công thức hay dùng để đổi Hz sang mel:</p>
+<div class="formula">mel = 2595 × log<sub>10</sub>(1 + Hz / 700)</div>
+<p>Kéo thanh trượt để đổi một tần số sang mel.</p>
+<div class="fig"><canvas id="c2"></canvas></div>
+<div class="ctrl">
+  <input type="range" id="fm" min="0" max="8000" step="50" value="1000">
+  <span id="fmv"></span>
+</div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Dưới khoảng <b>1000 Hz</b> (vùng tô xanh), đường cong gần như trùng với đường thẳng xám: ở vùng thấp, <b>mel và Hz gần như bằng nhau</b> (1000 Hz ≈ 1000 mel).
+<br>• Trên 1000 Hz, đường cong <b>dẹt dần</b>: đi thêm rất nhiều Hz mà mel chỉ tăng một chút. Từ 4000 lên 8000 Hz (gấp đôi) chỉ tăng thêm khoảng 700 mel.
+<br>• Cả dải 0 → 8000 Hz chỉ là 0 → <span id="mmax"></span> mel.</div>
+
+<h3>Ba cặp âm ở mục 1, đo lại bằng mel</h3>
+<div class="tablewrap"><table id="pairsMel"></table></div>
+<div class="fig"><canvas id="c2b"></canvas></div>
+<div class="note blue"><b>So với thước Hz ở mục 1:</b> thước này chia đều theo <b>mel</b> (nhãn vẫn ghi Hz để dễ đọc). Ô của cặp 200 → 300 giờ <b>rộng</b>, còn ô của cặp 6000 → 6100 chỉ còn <b>một vạch mảnh</b>, đúng như tai nghe. Để ý thêm: trên thước này, đoạn 0 → 1000 Hz chiếm hơn 1/3 chiều dài, còn đoạn 4000 → 8000 Hz chỉ chiếm khoảng 1/4.</div>
+</section>
+
+<section id="s3">
+<h2><span class="n">3</span>Bộ lọc tam giác là gì: xem ví dụ nhỏ trước</h2>
+<p>Trước khi làm với 257 bin thật, xem một ví dụ chỉ có vài bin. Việc cần làm là <b>gộp nhiều bin thành một số</b>. Có hai cách gộp để so sánh: <b>chữ nhật</b> (cộng thẳng) và <b>tam giác</b>.</p>
+
+<h3>a. Một bộ lọc cho ra một số như thế nào</h3>
+<p>Mỗi bin có một <b>trọng số</b> (weight) từ 0 đến 1, cho biết bin đó được tính bao nhiêu phần. Con số của bộ lọc là <b>tổng có trọng số</b> (weighted sum): nhân giá trị của mỗi bin với trọng số của nó, rồi cộng lại.</p>
+<div class="ctrl"><span class="grp">Hình dạng bộ lọc: <button data-shape="rect">chữ nhật</button><button data-shape="tri" class="on">tam giác</button></span></div>
+<div class="fig"><canvas id="c3t"></canvas></div>
+<div class="readout" id="r3t"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Hình trên là <b>trọng số</b>. Với tam giác, bin ở giữa (bin 4) có trọng số 1, ra xa dần thì 0.75, 0.5, 0.25, đến mép thì 0. Với chữ nhật, bin nào nằm trong khoảng cũng có trọng số 1.
+<br>• Hình dưới, cột xám là <b>giá trị phổ</b> của từng bin. Phần <b>cam</b> là phần được tính, bằng giá trị × trọng số. Con số của bộ lọc là tổng các phần cam.
+<br>• Bấm vào hình dưới để đổi độ cao một cột, rồi xem phép tính thay đổi.</div>
+
+<h3>b. Vì sao chọn tam giác chứ không phải chữ nhật</h3>
+<p>Ba bộ lọc A, B, C nằm cạnh nhau. Một <b>họa âm</b> cao 10 (vạch cam) nằm ở một bin. Kéo thanh trượt để dịch họa âm sang phải từng bin, giống như giọng hơi cao lên, rồi xem con số của A, B, C thay đổi thế nào. Đổi qua lại giữa chữ nhật và tam giác để so sánh.</p>
+<div class="ctrl">
+  <span class="grp">Hình dạng bộ lọc: <button data-shape="rect">chữ nhật</button><button data-shape="tri" class="on">tam giác</button></span>
+  <span class="grp">Họa âm ở bin: <input type="range" id="pos" min="2" max="14" step="1" value="4"> <button id="sweep">▶ Cho chạy</button></span>
+</div>
+<div class="fig"><canvas id="c3m"></canvas></div>
+<div class="readout" id="r3m"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Với <b>chữ nhật</b>, hình dưới có dạng <b>bậc thang</b>. Họa âm dịch đúng 1 bin qua ranh giới (bin 5 sang bin 6) thì A rơi từ 10 xuống 0, B nhảy từ 0 lên 10. Giọng chỉ đổi một chút mà kết quả đổi hẳn.
+<br>• Với <b>tam giác</b>, hình dưới là các <b>con dốc</b>. Họa âm đi từ đỉnh A sang đỉnh B thì A giảm dần 10 → 7.5 → 5 → 2.5 → 0, còn B tăng dần ngược lại. Giọng đổi ít thì kết quả cũng đổi ít.
+<br>• Mỗi tam giác bắt đầu ở <b>đỉnh</b> của tam giác bên trái và kết thúc ở <b>đỉnh</b> của tam giác bên phải, tức là chồng lên nhau một nửa. Vì vậy, giữa hai đỉnh, trọng số của A và B luôn cộng lại bằng 1: không bin nào bị bỏ sót hay bị tính hai lần.</div>
+<div class="note blue"><b>Sang mục 4:</b> Mel filterbank thật cũng làm đúng như trên. Chỉ khác ở chỗ các tam giác <b>không rộng bằng nhau</b> trên thước Hz: chúng được chia đều theo mel, nên ở vùng thấp thì hẹp, ở vùng cao thì rộng.</div>
+</section>
+
+<section id="s4">
+<h2><span class="n">4</span>Gom phổ của một frame bằng các bộ lọc tam giác</h2>
+<p>Bạn đã biết: FFT một frame ra một <b>phổ</b>. Ở trang này dùng FFT 512 điểm, nên phổ có <b>257 ô</b> (bin), mỗi ô rộng 31.25 Hz, đều nhau từ 0 đến 8000 Hz. Giờ ta gom 257 ô đó lại theo thang Mel:</p>
+<ol>
+<li>Chia đoạn 0 → <span class="mmaxs"></span> mel thành các khoảng <b>bằng nhau</b>, rồi đặt lên đó các <b>bộ lọc tam giác</b> (triangular filter). Mỗi tam giác chồng lên nửa tam giác bên cạnh.</li>
+<li>Mỗi tam giác cho ra <b>một số</b> bằng tổng có trọng số của các ô nằm trong nó, giống ví dụ ở mục 3: ô ở <b>giữa</b> tam giác được tính <b>nhiều</b>, ô ở <b>rìa</b> được tính <b>ít</b>.</li>
+<li>Cả bộ tam giác gọi là <b>Mel filterbank</b> (bộ lọc Mel). Có bao nhiêu tam giác thì phổ còn lại bấy nhiêu số.</li>
+</ol>
+<div class="ctrl">
+  <span class="grp">Frame trong âm: <button data-fr="a" class="on">"a"</button><button data-fr="s">"s"</button><button data-fr="i">"i"</button></span>
+  <span class="grp">Số bộ lọc: <button data-nm="20">20</button><button data-nm="40" class="on">40</button><button data-nm="80">80</button></span>
+  <span class="grp">Trục ngang: <button data-ax="hz" class="on">thước Hz</button><button data-ax="mel">thước Mel</button></span>
+</div>
+<div class="fig"><canvas id="c3a"></canvas></div>
+<div class="ctrl">Chọn bộ lọc: <input type="range" id="sel" min="0" max="39" step="1" value="10"> <span class="muted">(hoặc bấm thẳng vào hình)</span></div>
+<div class="readout" id="r3"></div>
+<h3>Kết quả: mỗi bộ lọc cho ra một số</h3>
+<div class="fig"><canvas id="c3b"></canvas></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Với <b>thước Hz</b>: tam giác ở bên trái <b>hẹp</b>, chỉ trùm vài ô. Tam giác ở bên phải <b>rộng</b>, trùm hàng chục ô. Kéo thanh trượt từ trái sang phải để thấy tam giác cam to dần.
+<br>• Bấm sang <b>thước Mel</b>: mọi tam giác <b>rộng bằng nhau</b>. Chúng vốn được chia đều theo mel, chỉ trông lệch đi khi vẽ trên thước Hz.
+<br>• Với frame "a": ở vùng thấp, tam giác hẹp nên vẫn thấy từng <b>họa âm</b> riêng (các đỉnh nhỏ ở bên trái hình kết quả). Ở vùng cao, một tam giác trùm nhiều họa âm cùng lúc nên các vạch bị gộp lại, chỉ còn thấy hình dạng chung, tức là <b>formant</b>.</div>
+</section>
+
+<section id="s5">
+<h2><span class="n">5</span>Làm cho mọi frame: Mel spectrogram</h2>
+<p>Lặp lại mục 4 cho từng frame (frame 25 ms, dịch 10 ms, 98 frame trong 1 giây). Mỗi cột 257 ô của spectrogram được gom thành một cột ngắn hơn. Xếp các cột đó cạnh nhau là ra <b>Mel spectrogram</b>. Âm thanh dùng ở đây giống trang spectrogram: "a" giọng đều, "s" tiếng xì, "i" giọng cao dần.</p>
+<div class="ctrl">
+  <button id="playX">▶ Nghe âm thanh</button>
+  <span class="grp">Số bộ lọc: <button data-nm="20">20</button><button data-nm="40" class="on">40</button><button data-nm="80">80</button></span>
+</div>
+<h3>a. Spectrogram (257 hàng, chia đều theo Hz)</h3>
+<div class="fig"><canvas id="c4a"></canvas></div>
+<h3>b. Mel spectrogram (<span class="nmv">40</span> hàng, chia đều theo mel)</h3>
+<div class="fig"><canvas id="c4b"></canvas></div>
+<div class="readout" id="r4"></div>
+<div class="note"><b>Khoanh vùng:</b> khung cam là vùng <b>0 → 1000 Hz</b> trên cả hai hình.
+<br>• Ở spectrogram, vùng này chỉ là một dải mỏng ở đáy. Ở Mel spectrogram, nó được <b>kéo giãn</b> ra chiếm hơn 1/3 chiều cao, vì đây là vùng tai nghe kỹ nhất.
+<br>• Ngược lại, vùng 4000 → 8000 Hz (chỗ tiếng "s") bị <b>nén</b> lại ở phía trên.
+<br>• Ở vùng thấp của "a" và "i" vẫn thấy các sọc họa âm. Ở vùng cao, các sọc mờ đi thành mảng, vì mỗi hàng gom nhiều họa âm lại.</div>
+</section>
+
+<section>
+<h2>Tóm tắt</h2>
+<ul>
+<li>Tai người nghe tần số thấp <b>kỹ</b>, tần số cao <b>thô</b>. Cùng 100 Hz nhưng ở vùng thấp nghe xa hơn nhiều so với ở vùng cao.</li>
+<li><b>Thang Mel</b> là thước đo tần số theo cảm nhận của tai: dưới 1000 Hz gần như bằng Hz, trên 1000 Hz thì dẹt dần.</li>
+<li>Một <b>bộ lọc tam giác</b> gộp nhiều bin thành một số bằng <b>tổng có trọng số</b>. Dùng tam giác chồng nửa nhau thay vì chữ nhật để giọng đổi ít thì kết quả cũng đổi ít.</li>
+<li><b>Mel filterbank</b> là một bộ tam giác chia đều trên thang Mel. Trên thước Hz, tam giác ở vùng thấp hẹp, ở vùng cao rộng.</li>
+<li>Mỗi frame: phổ 257 ô → qua Mel filterbank → còn 20, 40 hoặc 80 số. Làm cho mọi frame thì ra <b>Mel spectrogram</b>.</li>
+<li>Mel spectrogram <b>ít hàng hơn</b> spectrogram, <b>giữ chi tiết</b> ở vùng thấp và <b>gộp bớt</b> ở vùng cao.</li>
+</ul>
+<h3>Thuật ngữ mới</h3>
+<div class="tablewrap"><table>
+<tr><th>Nói thường</th><th>Thuật ngữ</th></tr>
+<tr><td>âm chỉ có một sóng sin</td><td>âm thuần (pure tone)</td></tr>
+<tr><td>thước đo tần số theo tai nghe</td><td>thang Mel (Mel scale), đơn vị mel</td></tr>
+<tr><td>một cái tam giác</td><td>bộ lọc tam giác (triangular filter)</td></tr>
+<tr><td>bin được tính bao nhiêu phần</td><td>trọng số (weight)</td></tr>
+<tr><td>nhân từng bin với trọng số rồi cộng lại</td><td>tổng có trọng số (weighted sum)</td></tr>
+<tr><td>cả bộ tam giác</td><td>Mel filterbank (bộ lọc Mel)</td></tr>
+<tr><td>số tam giác</td><td>số bộ lọc Mel (số kênh Mel)</td></tr>
+<tr><td>spectrogram sau khi gom</td><td>Mel spectrogram</td></tr>
+</table></div>
+<p class="muted">Thông số dùng trong trang: sample rate 16 kHz, frame 25 ms (400 sample), dịch 10 ms (160 sample), cửa sổ Hann, FFT 512 điểm (257 ô, mỗi ô 31.25 Hz), bộ lọc Mel trải từ 0 đến 8000 Hz, mỗi tam giác có đỉnh cao bằng 1, màu theo thang dB và cắt ở 70 dB dưới đỉnh. Công thức mel ở mục 2 là bản phổ biến nhất. Có vài công thức khác cho kết quả hơi lệch, nhưng hình dạng giống nhau.</p>
+</section>
+</div>
+
+<script>
+const SR = 16000, N = SR, WIN = 400, HOP = 160, NFFT = 512, BINS = NFFT / 2 + 1, BIN_HZ = SR / NFFT, FMAX = 8000, DB_RANGE = 70;
+const C = {ink:'#37352f', mute:'#787774', line:'#dcdbd7', grey:'#9b9a97', frame:'#d9730d', hl:'#d44c47', acc:'#337ea9', ok:'#448361', i:'#9065b0'};
+const hz2mel = f => 2595 * Math.log10(1 + f / 700), mel2hz = m => 700 * (10 ** (m / 2595) - 1), MMAX = hz2mel(FMAX);
+const PAIRS = [{f: 200, c: C.acc}, {f: 1000, c: C.ok}, {f: 6000, c: C.i}];
+const clamp = v => Math.max(0, Math.min(1, v));
+
+function fft(re, im) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let b = n >> 1;
+    for (; j & b; b >>= 1) j ^= b;
+    j ^= b;
+    if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang), h = len >> 1;
+    for (let i = 0; i < n; i += len) {
+      let cr = 1, ci = 0;
+      for (let k = 0; k < h; k++) {
+        const p = i + k, q = p + h;
+        const vr = re[q] * cr - im[q] * ci, vi = re[q] * ci + im[q] * cr;
+        re[q] = re[p] - vr; im[q] = im[p] - vi;
+        re[p] += vr; im[p] += vi;
+        const t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t;
+      }
+    }
+  }
+}
+
+// Same synthetic "a" / "s" / "i" utterance as the spectrogram page, so the two pages can be compared side by side.
+const SEG = [
+  {k: 'a', t0: 0.03, t1: 0.38, label: '"a" giọng đều'},
+  {k: 's', t0: 0.42, t1: 0.55, label: '"s" tiếng xì'},
+  {k: 'i', t0: 0.58, t1: 0.95, label: '"i" giọng cao dần'},
+];
+const gauss = (f, c, w) => Math.exp(-0.5 * ((f - c) / w) ** 2);
+const taper = f => f < 3500 ? 1 : Math.max(0, (4000 - f) / 500);
+const envA = f => 0.06 + gauss(f, 800, 160) + 0.8 * gauss(f, 1250, 180) + 0.25 * gauss(f, 2600, 220);
+const envI = f => 0.06 + gauss(f, 300, 110) + 0.7 * gauss(f, 2300, 220) + 0.4 * gauss(f, 3000, 220);
+const fade = (t, t0, t1) => Math.max(0, Math.min(1, (t - t0) / 0.015, (t1 - t) / 0.015));
+const x = new Float32Array(N);
+function addVoiced(t0, t1, f0a, f0b, env) {
+  const ph = new Float64Array(40);
+  for (let n = Math.floor(t0 * SR); n < t1 * SR; n++) {
+    const t = n / SR, f0 = f0a + (f0b - f0a) * (t - t0) / (t1 - t0);
+    let v = 0;
+    for (let k = 1; k < 40; k++) {
+      const f = k * f0;
+      ph[k] += 2 * Math.PI * f / SR;
+      if (f < 4000) v += env(f) * taper(f) * Math.sin(ph[k]) / Math.sqrt(k);
+    }
+    x[n] += fade(t, t0, t1) * v;
+  }
+}
+addVoiced(SEG[0].t0, SEG[0].t1, 200, 200, envA);
+addVoiced(SEG[2].t0, SEG[2].t1, 200, 320, envI);
+{
+  let seed = 7, p1 = 0, p2 = 0;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647 * 2 - 1;
+  for (let n = Math.floor(SEG[1].t0 * SR); n < SEG[1].t1 * SR; n++) {
+    const w = rnd(), d1 = w - p1, d2 = d1 - p2;
+    p1 = w; p2 = d1;
+    x[n] += 0.45 * fade(n / SR, SEG[1].t0, SEG[1].t1) * d2;
+  }
+}
+{
+  let mx = 0;
+  for (const v of x) mx = Math.max(mx, Math.abs(v));
+  for (let n = 0; n < N; n++) x[n] *= 0.9 / mx;
+}
+
+const hann = Float64Array.from({length: WIN}, (_, n) => 0.5 - 0.5 * Math.cos(2 * Math.PI * n / (WIN - 1)));
+const NF = Math.floor((N - WIN) / HOP) + 1;
+const POW = [];
+for (let f = 0; f < NF; f++) {
+  const re = new Float64Array(NFFT), im = new Float64Array(NFFT);
+  for (let n = 0; n < WIN; n++) re[n] = x[f * HOP + n] * hann[n];
+  fft(re, im);
+  POW.push(Float64Array.from({length: BINS}, (_, k) => re[k] * re[k] + im[k] * im[k]));
+}
+const db = p => 10 * Math.log10(p + 1e-12);
+const SPEC_DB = POW.map(p => Float64Array.from(p, db));
+const FR = {a: 19, s: 47, i: 74};
+
+function makeBank(nm) {
+  const pts = Array.from({length: nm + 2}, (_, i) => mel2hz(i / (nm + 1) * MMAX));
+  return Array.from({length: nm}, (_, i) => {
+    const a = pts[i], b = pts[i + 1], c = pts[i + 2], w = new Float64Array(BINS);
+    let n = 0;
+    for (let k = 0; k < BINS; k++) {
+      const f = k * BIN_HZ;
+      w[k] = f <= a || f >= c ? 0 : f <= b ? (f - a) / (b - a) : (c - f) / (c - b);
+      if (w[k] > 0) n++;
+    }
+    return {a, b, c, w, n};
+  });
+}
+const CACHE = {};
+function melData(nm) {
+  if (!CACHE[nm]) {
+    const bank = makeBank(nm);
+    const rows = POW.map(p => Float64Array.from(bank, fl => { let s = 0; for (let k = 0; k < BINS; k++) s += fl.w[k] * p[k]; return db(s); }));
+    CACHE[nm] = {bank, rows};
+  }
+  return CACHE[nm];
+}
+
+let actx;
+function play(sig) {
+  actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+  const b = actx.createBuffer(1, sig.length, SR);
+  b.copyToChannel(sig, 0);
+  const src = actx.createBufferSource();
+  src.buffer = b; src.connect(actx.destination); src.start();
+}
+function playPair(f) {
+  const L = Math.floor(0.6 * SR), G = Math.floor(0.15 * SR), s = new Float32Array(2 * L + G), r = 0.02 * SR;
+  [f, f + 100].forEach((fq, j) => {
+    for (let n = 0; n < L; n++) s[j * (L + G) + n] = 0.2 * Math.min(1, n / r, (L - n) / r) * Math.sin(2 * Math.PI * fq * n / SR);
+  });
+  play(s);
+}
+
+function setup(id, h) {
+  const c = document.getElementById(id), w = c.parentElement.clientWidth, d = window.devicePixelRatio || 1;
+  c.width = w * d; c.height = h * d; c.style.width = w + 'px'; c.style.height = h + 'px';
+  const g = c.getContext('2d');
+  g.setTransform(d, 0, 0, d, 0, 0);
+  g.textBaseline = 'middle';
+  return {g, w, h};
+}
+function text(g, s, x, y, color = C.mute, align = 'left', bold = false, bg = false) {
+  g.font = (bold ? '600 ' : '') + '12px Inter, system-ui, sans-serif';
+  g.textAlign = align;
+  if (bg) {
+    const w = g.measureText(s).width, x0 = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
+    g.fillStyle = 'rgba(255,255,255,.92)'; g.fillRect(x0 - 3, y - 9, w + 6, 18);
+  }
+  g.fillStyle = color; g.fillText(s, x, y);
+}
+function dashRect(g, x0, y0, w, h, color, lw = 1.5) {
+  g.save(); g.strokeStyle = color; g.lineWidth = lw; g.setLineDash([5, 4]); g.strokeRect(x0, y0, w, h); g.restore();
+}
+function hline(g, x0, x1, y, color = C.line) {
+  g.strokeStyle = color; g.lineWidth = 1; g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke();
+}
+const alpha = (hex, a) => hex + Math.round(a * 255).toString(16).padStart(2, '0');
+
+const STOPS = [[0, [251, 251, 250]], [0.35, [201, 225, 238]], [0.6, [90, 160, 200]], [0.8, [44, 95, 138]], [1, [27, 42, 73]]];
+function cmap(v) {
+  for (let j = 1; j < STOPS.length; j++) {
+    if (v <= STOPS[j][0]) {
+      const [a, ca] = STOPS[j - 1], [b, cb] = STOPS[j], u = (v - a) / (b - a);
+      return ca.map((c, k) => Math.round(c + (cb[k] - c) * u));
+    }
+  }
+  return STOPS[STOPS.length - 1][1];
+}
+function heatImg(rows) {
+  const nr = rows[0].length, c = document.createElement('canvas');
+  c.width = NF; c.height = nr;
+  let mx = -Infinity;
+  for (const r of rows) for (const v of r) mx = Math.max(mx, v);
+  const g = c.getContext('2d'), d = g.createImageData(NF, nr);
+  for (let f = 0; f < NF; f++) for (let r = 0; r < nr; r++) {
+    const col = cmap(clamp((rows[f][r] - (mx - DB_RANGE)) / DB_RANGE)), p = ((nr - 1 - r) * NF + f) * 4;
+    d.data[p] = col[0]; d.data[p + 1] = col[1]; d.data[p + 2] = col[2]; d.data[p + 3] = 255;
+  }
+  g.putImageData(d, 0, 0);
+  return c;
+}
+
+const MEL_TICKS = [0, 250, 500, 1000, 2000, 4000, 8000];
+function ruler(id, useMel) {
+  const R = setup(id, 120), g = R.g, B = {l: 16, t: 52, w: R.w - 40, h: 26};
+  const X = f => B.l + (useMel ? hz2mel(f) / MMAX : f / FMAX) * B.w;
+  text(g, useMel ? 'Thước Mel: chia đều theo mel (nhãn ghi Hz)' : 'Thước Hz: chia đều theo Hz', B.l, 10, C.ink, 'left', true);
+  hline(g, B.l, B.l + B.w, B.t + B.h, C.grey);
+  const ticks = useMel ? MEL_TICKS : [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000];
+  ticks.forEach(f => {
+    g.strokeStyle = C.grey; g.beginPath(); g.moveTo(X(f), B.t + B.h); g.lineTo(X(f), B.t + B.h + 5); g.stroke();
+    text(g, String(f), X(f), B.t + B.h + 16, C.mute, 'center');
+  });
+  text(g, 'Hz', B.l + B.w + 6, B.t + B.h + 16);
+  PAIRS.forEach((p, j) => {
+    const x0 = X(p.f), x1 = X(p.f + 100), w = Math.max(2, x1 - x0);
+    g.fillStyle = alpha(p.c, 0.85); g.fillRect(x0, B.t, w, B.h);
+    const gap = useMel ? (hz2mel(p.f + 100) - hz2mel(p.f)).toFixed(0) + ' mel' : '100 Hz';
+    text(g, `${p.f}→${p.f + 100}: ${gap}`, x0 + w / 2, B.t - 10 - (j % 2) * 14, p.c, x0 > B.l + B.w * 0.8 ? 'right' : 'center', true, true);
+  });
+}
+
+let FM = 1000;
+function draw2() {
+  document.getElementById('fm').value = FM;
+  const m = hz2mel(FM), d = hz2mel(FM + 100) - m;
+  document.getElementById('fmv').innerHTML = `<b>${FM} Hz = ${m.toFixed(0)} mel</b>. Ở đây, thêm 100 Hz thì được thêm <b>${d.toFixed(0)} mel</b>.`;
+  const R = setup('c2', 300), g = R.g, B = {l: 52, t: 22, w: R.w - 76, h: R.h - 66}, YM = 3000;
+  const X = f => B.l + f / FMAX * B.w, Y = v => B.t + B.h - v / YM * B.h;
+  g.fillStyle = 'rgba(51,126,169,.08)'; g.fillRect(B.l, B.t, X(1000) - B.l, B.h);
+  for (let v = 0; v <= YM; v += 500) { hline(g, B.l, B.l + B.w, Y(v), v ? '#efeeeb' : C.grey); text(g, String(v), B.l - 8, Y(v), C.mute, 'right'); }
+  for (let f = 0; f <= FMAX; f += 1000) text(g, String(f), X(f), B.t + B.h + 14, C.mute, 'center');
+  text(g, 'tần số (Hz)', B.l + B.w / 2, B.t + B.h + 34, C.mute, 'center');
+  text(g, 'mel', B.l - 8, B.t - 12, C.mute, 'right');
+  g.save(); g.strokeStyle = C.grey; g.lineWidth = 1.5; g.setLineDash([5, 4]);
+  g.beginPath(); g.moveTo(X(0), Y(0)); g.lineTo(X(YM), Y(YM)); g.stroke(); g.restore();
+  text(g, 'đường thẳng mel = Hz', X(2350), Y(2750), C.grey, 'right', false, true);
+  g.strokeStyle = C.acc; g.lineWidth = 3; g.beginPath();
+  for (let p = 0; p <= B.w; p++) { const f = p / B.w * FMAX; p ? g.lineTo(B.l + p, Y(hz2mel(f))) : g.moveTo(B.l, Y(0)); }
+  g.stroke();
+  text(g, 'thang Mel', X(6500), Y(hz2mel(6500)) - 14, C.acc, 'center', true, true);
+  text(g, 'gần như thẳng', X(500), B.t + 10, C.acc, 'center', true, true);
+  const px = X(FM), py = Y(m);
+  g.save(); g.strokeStyle = C.frame; g.lineWidth = 1.5; g.setLineDash([4, 3]);
+  g.beginPath(); g.moveTo(px, B.t + B.h); g.lineTo(px, py); g.lineTo(B.l, py); g.stroke(); g.restore();
+  g.fillStyle = C.frame; g.beginPath(); g.arc(px, py, 5, 0, 2 * Math.PI); g.fill();
+  text(g, `${FM} Hz → ${m.toFixed(0)} mel`, px + (px > B.l + B.w * 0.7 ? -10 : 10), py + 16, C.frame, px > B.l + B.w * 0.7 ? 'right' : 'left', true, true);
+}
+
+let SHAPE = 'tri';
+const fmtW = w => String(+w.toFixed(2));
+const TOY = [2, 3, 4, 6, 7, 5, 4, 3, 2], TOY_MAX = 8;
+const toyW = k => SHAPE === 'tri' ? Math.max(0, 1 - Math.abs(k - 4) / 4) : +(k >= 1 && k <= 7);
+let c3tMap;
+function draw3t() {
+  const R = setup('c3t', 290), g = R.g, L = 70, W = R.w - L - 20, bw = W / TOY.length;
+  const Tw = {t: 30, h: 60}, Tb = {t: 136, h: 120};
+  const cx = k => L + (k + 0.5) * bw, Yw = w => Tw.t + Tw.h - w * Tw.h, Yv = v => Tb.t + Tb.h - v / TOY_MAX * Tb.h;
+  text(g, 'trọng số', L - 26, Tw.t + Tw.h / 2, C.ink, 'right', true);
+  text(g, 'phổ', L - 26, Tb.t + Tb.h / 2, C.ink, 'right', true);
+  text(g, '1', L - 8, Yw(1), C.mute, 'right');
+  text(g, '0', L - 8, Yw(0), C.mute, 'right');
+  g.save(); g.setLineDash([3, 3]); hline(g, L, L + W, Yw(1)); g.restore();
+  hline(g, L, L + W, Yw(0), C.grey);
+  g.fillStyle = 'rgba(217,115,13,.15)'; g.strokeStyle = C.frame; g.lineWidth = 2; g.beginPath();
+  if (SHAPE === 'tri') { g.moveTo(cx(0), Yw(0)); g.lineTo(cx(4), Yw(1)); g.lineTo(cx(8), Yw(0)); }
+  else { g.moveTo(L + bw, Yw(0)); g.lineTo(L + bw, Yw(1)); g.lineTo(L + 8 * bw, Yw(1)); g.lineTo(L + 8 * bw, Yw(0)); }
+  g.closePath(); g.fill(); g.stroke();
+  TOY.forEach((v, k) => {
+    const w = toyW(k), x0 = L + k * bw + bw * 0.18, bwi = bw * 0.64;
+    g.fillStyle = C.frame; g.beginPath(); g.arc(cx(k), Yw(w), 3.5, 0, 2 * Math.PI); g.fill();
+    text(g, fmtW(w), cx(k), Yw(w) - 12, C.frame, 'center', true, true);
+    g.fillStyle = '#e3e2de'; g.fillRect(x0, Yv(v), bwi, Yv(0) - Yv(v));
+    g.fillStyle = C.frame; g.fillRect(x0, Yv(v * w), bwi, Yv(0) - Yv(v * w));
+    text(g, String(v), cx(k), Yv(v) - 10, C.ink, 'center', true);
+    text(g, 'bin ' + k, cx(k), Yv(0) + 14, C.mute, 'center');
+  });
+  hline(g, L, L + W, Yv(0), C.grey);
+  const terms = TOY.map((v, k) => [toyW(k), v]).filter(([w]) => w > 0), sum = terms.reduce((s, [w, v]) => s + w * v, 0);
+  document.getElementById('r3t').innerHTML = `Con số của bộ lọc = ${terms.map(([w, v]) => `${fmtW(w)}×${v}`).join(' + ')} = <b>${fmtW(sum)}</b> <span class="muted">(bin có trọng số 0 thì không tính)</span>`;
+  c3tMap = {L, bw, Tb};
+}
+
+const PEAKS = [{p: 4, n: 'A', c: C.acc}, {p: 8, n: 'B', c: C.ok}, {p: 12, n: 'C', c: C.i}], MB = 17, SPIKE = 10;
+const mW = (p, k) => SHAPE === 'tri' ? Math.max(0, 1 - Math.abs(k - p) / 4) : +(k >= p - 2 && k <= p + 1);
+let POS = 4, sweepT;
+function draw3m() {
+  document.getElementById('pos').value = POS;
+  const R = setup('c3m', 370), g = R.g, L = 70, W = R.w - L - 20, bw = W / MB;
+  const T = {t: 34, h: 110}, B = {t: 228, h: 100};
+  const cx = k => L + (k + 0.5) * bw, Yt = w => T.t + T.h - w * T.h, Yo = v => B.t + B.h - v / SPIKE * B.h;
+  text(g, 'Ba bộ lọc A, B, C và họa âm', L, 10, C.ink, 'left', true);
+  PEAKS.forEach(f => {
+    g.fillStyle = alpha(f.c, 0.12); g.strokeStyle = f.c; g.lineWidth = 2; g.beginPath();
+    if (SHAPE === 'tri') { g.moveTo(cx(f.p - 4), Yt(0)); g.lineTo(cx(f.p), Yt(1)); g.lineTo(cx(f.p + 4), Yt(0)); }
+    else { const x0 = L + (f.p - 2) * bw, x1 = L + (f.p + 2) * bw; g.moveTo(x0, Yt(0)); g.lineTo(x0, Yt(1)); g.lineTo(x1, Yt(1)); g.lineTo(x1, Yt(0)); }
+    g.closePath(); g.fill(); g.stroke();
+    text(g, f.n, SHAPE === 'tri' ? cx(f.p) : L + f.p * bw, Yt(1) - 10, f.c, 'center', true);
+  });
+  g.fillStyle = alpha(C.frame, 0.85); g.fillRect(cx(POS) - bw * 0.22, Yt(1), bw * 0.44, T.h);
+  hline(g, L, L + W, Yt(0), C.grey);
+  text(g, 'bin', L - 10, Yt(0) + 12, C.mute, 'right');
+  for (let k = 0; k < MB; k++) text(g, String(k), cx(k), Yt(0) + 12, k === POS ? C.frame : C.mute, 'center', k === POS);
+  text(g, '▲ họa âm (cao 10)', cx(POS), Yt(0) + 30, C.frame, 'center', true);
+
+  text(g, 'Con số ra của A, B, C khi họa âm nằm ở từng bin', L, B.t - 22, C.ink, 'left', true);
+  for (const v of [0, 5, 10]) { hline(g, L, L + W, Yo(v), v ? '#efeeeb' : C.grey); text(g, String(v), L - 8, Yo(v), C.mute, 'right'); }
+  PEAKS.forEach(f => {
+    g.strokeStyle = f.c; g.lineWidth = 2.5; g.beginPath();
+    for (let k = 2; k <= 14; k++) {
+      const y = Yo(SPIKE * mW(f.p, k));
+      if (SHAPE === 'tri') k > 2 ? g.lineTo(cx(k), y) : g.moveTo(cx(k), y);
+      else { k > 2 ? g.lineTo(L + k * bw, y) : g.moveTo(L + k * bw, y); g.lineTo(L + (k + 1) * bw, y); }
+    }
+    g.stroke();
+  });
+  g.save(); g.strokeStyle = C.frame; g.setLineDash([4, 3]); g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(cx(POS), B.t - 6); g.lineTo(cx(POS), B.t + B.h); g.stroke(); g.restore();
+  PEAKS.forEach(f => { g.fillStyle = f.c; g.beginPath(); g.arc(cx(POS), Yo(SPIKE * mW(f.p, POS)), 5, 0, 2 * Math.PI); g.fill(); });
+  for (let k = 2; k <= 14; k++) text(g, String(k), cx(k), B.t + B.h + 12, k === POS ? C.frame : C.mute, 'center', k === POS);
+  text(g, 'bin của họa âm', L + W / 2, B.t + B.h + 30, C.mute, 'center');
+  document.getElementById('r3m').innerHTML = `Họa âm ở <b>bin ${POS}</b>: ` +
+    PEAKS.map(f => `<b style="color:${f.c}">${f.n} = ${fmtW(SPIKE * mW(f.p, POS))}</b>`).join(', ') + '.';
+}
+
+let NM = 40, AX = 'hz', SEL = 10, FK = 'a';
+function draw3() {
+  const {bank, rows} = melData(NM), fl = bank[SEL], P = SPEC_DB[FR[FK]];
+  const sel = document.getElementById('sel'); sel.max = NM - 1; sel.value = SEL;
+  const R = setup('c3a', 330), g = R.g, L = 52, W = R.w - L - 20;
+  const T = {t: 26, h: 150}, Bm = {t: 214, h: 72};
+  const X = f => L + (AX === 'hz' ? f / FMAX : hz2mel(f) / MMAX) * W;
+  const ticks = AX === 'hz' ? [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000] : MEL_TICKS;
+  ticks.forEach(f => {
+    g.strokeStyle = '#efeeeb'; g.beginPath(); g.moveTo(X(f), T.t); g.lineTo(X(f), Bm.t + Bm.h); g.stroke();
+    text(g, String(f), X(f), Bm.t + Bm.h + 14, C.mute, 'center');
+  });
+  text(g, AX === 'hz' ? 'tần số (Hz), thước Hz' : 'tần số (nhãn ghi Hz), thước Mel', L + W / 2, Bm.t + Bm.h + 32, C.mute, 'center');
+  text(g, `Phổ của một frame trong "${FK}" (257 ô)`, L, T.t - 14, C.ink, 'left', true);
+  text(g, `${NM} bộ lọc tam giác`, L, Bm.t - 14, C.ink, 'left', true);
+  let mx = -Infinity;
+  for (const v of P) mx = Math.max(mx, v);
+  const Yp = v => T.t + T.h - clamp((v - (mx - DB_RANGE)) / DB_RANGE) * T.h;
+  text(g, 'mạnh', L - 6, T.t + 6, C.mute, 'right');
+  text(g, 'yếu', L - 6, T.t + T.h - 6, C.mute, 'right');
+  g.fillStyle = 'rgba(217,115,13,.10)'; g.fillRect(X(fl.a), T.t, X(fl.c) - X(fl.a), T.h);
+  for (let k = 0; k < BINS; k++) if (fl.w[k] > 0) {
+    g.strokeStyle = alpha(C.frame, 0.25 + 0.75 * fl.w[k]); g.lineWidth = 2.5;
+    g.beginPath(); g.moveTo(X(k * BIN_HZ), T.t + T.h); g.lineTo(X(k * BIN_HZ), Yp(P[k])); g.stroke();
+  }
+  g.strokeStyle = C.ink; g.lineWidth = 1.3; g.beginPath();
+  for (let k = 0; k < BINS; k++) k ? g.lineTo(X(k * BIN_HZ), Yp(P[k])) : g.moveTo(X(0), Yp(P[0]));
+  g.stroke();
+  hline(g, L, L + W, T.t + T.h, C.grey);
+  const Yb = w => Bm.t + Bm.h - w * Bm.h;
+  bank.forEach((b, i) => {
+    if (i === SEL) return;
+    g.strokeStyle = i % 2 ? '#b9b8b3' : '#d6d5d0'; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(X(b.a), Yb(0)); g.lineTo(X(b.b), Yb(1)); g.lineTo(X(b.c), Yb(0)); g.stroke();
+  });
+  g.fillStyle = 'rgba(217,115,13,.18)'; g.strokeStyle = C.frame; g.lineWidth = 2.5;
+  g.beginPath(); g.moveTo(X(fl.a), Yb(0)); g.lineTo(X(fl.b), Yb(1)); g.lineTo(X(fl.c), Yb(0)); g.closePath(); g.fill(); g.stroke();
+  hline(g, L, L + W, Bm.t + Bm.h, C.grey);
+
+  const v = rows[FR[FK]], R2 = setup('c3b', 160), g2 = R2.g, B2 = {l: L, t: 14, w: R2.w - L - 20, h: 110};
+  let vm = -Infinity;
+  for (const u of v) vm = Math.max(vm, u);
+  const bw = B2.w / NM;
+  v.forEach((u, i) => {
+    const h = clamp((u - (vm - DB_RANGE)) / DB_RANGE) * B2.h;
+    g2.fillStyle = i === SEL ? C.frame : alpha(C.acc, 0.7);
+    g2.fillRect(B2.l + i * bw + bw * 0.12, B2.t + B2.h - h, bw * 0.76, h);
+  });
+  hline(g2, B2.l, B2.l + B2.w, B2.t + B2.h, C.grey);
+  text(g2, 'bộ lọc 1', B2.l, B2.t + B2.h + 14, C.mute, 'left');
+  text(g2, 'bộ lọc ' + NM, B2.l + B2.w, B2.t + B2.h + 14, C.mute, 'right');
+  text(g2, `chỉ còn ${NM} số (thay vì 257)`, B2.l + B2.w / 2, B2.t + B2.h + 14, C.ink, 'center', true);
+  text(g2, 'mạnh', L - 6, B2.t + 6, C.mute, 'right');
+
+  const r = n => Math.round(n);
+  document.getElementById('r3').innerHTML = `<b>Bộ lọc số ${SEL + 1}/${NM}</b>: từ ${r(fl.a)} đến ${r(fl.c)} Hz, đỉnh ở ${r(fl.b)} Hz. ` +
+    `Rộng <b>${r(fl.c - fl.a)} Hz</b>, trùm <b>${fl.n} ô</b>. Tính theo mel thì rộng ${r(2 * MMAX / (NM + 1))} mel (bộ lọc nào cũng vậy). Kết quả: <b>${v[SEL].toFixed(1)} dB</b> (cột cam ở hình dưới).`;
+  c3Map = {X, L, W, B2, bw};
+}
+let c3Map;
+
+function draw4() {
+  document.querySelectorAll('.nmv').forEach(e => e.textContent = NM);
+  const imgs = [heatImg(SPEC_DB), heatImg(melData(NM).rows)];
+  ['c4a', 'c4b'].forEach((id, j) => {
+    const R = setup(id, 230), g = R.g, B = {l: 52, t: 24, w: R.w - 72, h: 180};
+    g.imageSmoothingEnabled = false;
+    g.drawImage(imgs[j], B.l, B.t, B.w, B.h);
+    const Y = f => B.t + B.h - (j ? hz2mel(f) / MMAX : f / FMAX) * B.h;
+    (j ? MEL_TICKS : [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000]).forEach(f => text(g, String(f), B.l - 6, Y(f), C.mute, 'right'));
+    text(g, 'Hz', B.l - 6, B.t - 12, C.mute, 'right');
+    const X = t => B.l + t * B.w;
+    for (let t = 0; t <= 1.0001; t += 0.2) text(g, t.toFixed(1) + ' s', X(t), B.t + B.h + 14, C.mute, 'center');
+    if (j === 0) SEG.forEach(s => text(g, s.label, X((s.t0 + s.t1) / 2), B.t - 12, C.ink, 'center', true));
+    dashRect(g, B.l + 1, Y(1000), B.w - 2, Y(0) - Y(1000) - 1, C.frame, 2);
+    text(g, '0 → 1000 Hz', B.l + B.w - 6, Y(1000) - 10, C.frame, 'right', true, true);
+  });
+  const pct = 1000 / MMAX * 100;
+  document.getElementById('r4').innerHTML = `Mỗi cột: spectrogram có <b>257</b> ô, Mel spectrogram có <b>${NM}</b> ô. ` +
+    `Vùng 0 → 1000 Hz chiếm <b>12.5%</b> chiều cao ở hình a, nhưng chiếm <b>${pct.toFixed(0)}%</b> ở hình b.`;
+}
+
+function fillTables() {
+  document.getElementById('pairs').innerHTML = '<tr><th>Cặp</th><th>Cách nhau</th><th></th></tr>' +
+    PAIRS.map(p => `<tr><td><span class="dot" style="background:${p.c}"></span>${p.f} → ${p.f + 100} Hz</td><td>100 Hz</td><td><button data-pair="${p.f}">▶ Nghe</button></td></tr>`).join('');
+  document.getElementById('pairsMel').innerHTML = '<tr><th>Cặp</th><th>Cách nhau (Hz)</th><th>Cách nhau (mel)</th><th>Khi nghe</th></tr>' +
+    PAIRS.map((p, j) => `<tr><td><span class="dot" style="background:${p.c}"></span>${p.f} → ${p.f + 100} Hz</td><td>100</td><td><b>${(hz2mel(p.f + 100) - hz2mel(p.f)).toFixed(0)}</b></td><td>${['hai nốt khác hẳn', 'khác rõ', 'gần như một nốt'][j]}</td></tr>`).join('');
+  document.getElementById('mmax').textContent = MMAX.toFixed(0);
+  document.querySelectorAll('.mmaxs').forEach(e => e.textContent = MMAX.toFixed(0));
+}
+
+function setFc() { document.getElementById('fcv').textContent = `${FC} → ${FC + 100} Hz`; }
+let FC = 3000;
+function drawAll() { ruler('c1', false); draw2(); ruler('c2b', true); draw3t(); draw3m(); draw3(); draw4(); }
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('button');
+  if (!t) return;
+  if (t.dataset.pair) playPair(+t.dataset.pair);
+  if (t.dataset.shape) {
+    SHAPE = t.dataset.shape;
+    document.querySelectorAll('[data-shape]').forEach(b => b.classList.toggle('on', b.dataset.shape === SHAPE));
+    draw3t(); draw3m();
+  }
+  if (t.dataset.fr) {
+    FK = t.dataset.fr;
+    document.querySelectorAll('[data-fr]').forEach(b => b.classList.toggle('on', b.dataset.fr === FK));
+    draw3();
+  }
+  if (t.dataset.ax) {
+    AX = t.dataset.ax;
+    document.querySelectorAll('[data-ax]').forEach(b => b.classList.toggle('on', b.dataset.ax === AX));
+    draw3();
+  }
+  if (t.dataset.nm) {
+    // Keep the highlighted filter at about the same frequency when the filter count changes.
+    const hz = melData(NM).bank[SEL].b;
+    NM = +t.dataset.nm;
+    const bank = melData(NM).bank;
+    SEL = bank.reduce((best, b, i) => Math.abs(b.b - hz) < Math.abs(bank[best].b - hz) ? i : best, 0);
+    document.querySelectorAll('[data-nm]').forEach(b => b.classList.toggle('on', +b.dataset.nm === NM));
+    draw3(); draw4();
+  }
+});
+document.getElementById('c3a').addEventListener('click', e => {
+  const {X, L, W} = c3Map, px = e.offsetX;
+  if (px < L || px > L + W) return;
+  const bank = melData(NM).bank;
+  SEL = bank.reduce((best, b, i) => Math.abs(X(b.b) - px) < Math.abs(X(bank[best].b) - px) ? i : best, 0);
+  draw3();
+});
+document.getElementById('c3b').addEventListener('click', e => {
+  const {B2, bw} = c3Map, i = Math.floor((e.offsetX - B2.l) / bw);
+  if (i >= 0 && i < NM) { SEL = i; draw3(); }
+});
+document.getElementById('c3t').addEventListener('click', e => {
+  const {L, bw, Tb} = c3tMap, k = Math.floor((e.offsetX - L) / bw);
+  if (k < 0 || k >= TOY.length || e.offsetY < Tb.t - 20) return;
+  TOY[k] = Math.max(0, Math.min(TOY_MAX, Math.round((Tb.t + Tb.h - e.offsetY) / Tb.h * TOY_MAX)));
+  draw3t();
+});
+document.getElementById('pos').addEventListener('input', e => { clearInterval(sweepT); POS = +e.target.value; draw3m(); });
+document.getElementById('sweep').addEventListener('click', () => {
+  clearInterval(sweepT); POS = 2; draw3m();
+  sweepT = setInterval(() => { if (POS >= 14) return clearInterval(sweepT); POS++; draw3m(); }, 450);
+});
+document.getElementById('sel').addEventListener('input', e => { SEL = +e.target.value; draw3(); });
+document.getElementById('fm').addEventListener('input', e => { FM = +e.target.value; draw2(); });
+document.getElementById('fc').addEventListener('input', e => { FC = +e.target.value; setFc(); });
+document.getElementById('playCustom').addEventListener('click', () => playPair(FC));
+document.getElementById('playX').addEventListener('click', () => play(x));
+fillTables(); setFc(); drawAll();
+let rt;
+window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(drawAll, 120); });
+</script>
+</body>
+</html>

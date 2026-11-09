@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>XTTS · 3: Lượng tử hóa vector</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../lib/xtts.js"></script>
+<script src="../build/xtts-3-vq.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn khối', '3 Lượng tử hóa', '4 Nhiệt độ', '5 Nhân bản giọng'];
+const SQ = {x: 300, y: 230, s: 560}, LO = -3, HI = 3;
+const X = v => SQ.x + (v - LO) / (HI - LO) * SQ.s, Y = v => SQ.y + SQ.s - (v - LO) / (HI - LO) * SQ.s;
+const CACHE = {};
+const vq = K => CACHE[K] || (CACHE[K] = XTTS.kmeans(K));
+const ERRS = [1, 2, 4, 8, 16, 32, 64].map(K => [K, vq(K).err]);
+
+function dot(x, y, r, fill, stroke) {
+  const g = Clip.g; g.beginPath(); g.arc(x, y, r, 0, 2 * Math.PI); g.fillStyle = fill; g.fill();
+  if (stroke) { g.strokeStyle = stroke; g.lineWidth = 2.5; g.stroke(); }
+}
+
+function scatter(K, links) {
+  rrect(SQ.x, SQ.y, SQ.s, SQ.s, 4, COL.card, COL.line, 2);
+  const q = K ? vq(K) : null;
+  XTTS.PTS.forEach((p, j) => {
+    if (q && links > 0) { const c = q.C2[q.A[j]]; Clip.g.save(); Clip.g.globalAlpha *= links * 0.6; line(X(p[0]), Y(p[1]), X(c[0]), Y(c[1]), COL.mute, 1.5); Clip.g.restore(); }
+    dot(X(p[0]), Y(p[1]), 5, COL.acc + 'cc');
+  });
+  if (q && links > 0) q.C2.forEach(c => dot(X(c[0]), Y(c[1]), K > 16 ? 7 : 11, COL.frame, '#fff'));
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('XTTS', 'Phần 3/5: lượng tử hóa vector, đổi frame thành mã số', 2, PARTS);
+
+function shotVq(G, t) {
+  const sp = S('pts'), sr = S('rule'), s2 = S('k2'), s8 = S('k8'), s64 = S('k64'), st = S('trade');
+  const K = t >= s64 && t < st ? 64 : t >= s8 ? 8 : t >= s2 ? 2 : t >= sr ? 4 : 0;
+  const s0 = {0: sp, 4: sr, 2: s2, 8: s8, 64: s64}[K];
+  heading(K ? `K = ${K} mã` : '160 frame (vẽ 2 chiều)');
+  fade(G, P(t, sp + 0.3, 0.5), () => scatter(K, K ? P(t, s0 + 0.3, 0.8) : 0));
+  if (K) fade(G, P(t, s0 + 0.5, 0.5), () => {
+    text('● frame', 960, 260, {size: 24, weight: 700, color: COL.acc});
+    text('● mã trong bảng (codebook)', 960, 300, {size: 24, weight: 700, color: COL.frame});
+    text('— frame nối với mã thay nó', 960, 340, {size: 24, color: COL.mute});
+    text(`${Math.log2(K)} bit mỗi frame`, 960, 420, {size: 30, weight: 700});
+    text(`sai lệch trung bình: ${vq(K).err.toFixed(K >= 64 ? 3 : 2).replace('.', ',')}`, 960, 470, {size: 30, weight: 700, color: COL.hl});
+    const B = {x: 980, y: 560, w: 640, h: 200};
+    ERRS.forEach(([k, e], j) => {
+      const h = e / 2.9 * B.h, x = B.x + j * 92, on = k === K;
+      rrect(x, B.y + B.h - h, 60, Math.max(2, h), 6, on ? COL.hl : COL.soft, on ? null : COL.line2, 1.5);
+      text(String(k), x + 30, B.y + B.h + 22, {size: 20, weight: on ? 700 : 400, color: on ? COL.hl : COL.mute, align: 'center'});
+    });
+    text('sai lệch theo K', B.x, B.y - 18, {size: 20, color: COL.mute});
+  });
+  if (!K && t >= sp) fade(G, P(t, sp + 1, 0.5), () => text('frame thật là vector nhiều chiều; tụ thành vài vùng', 960, 400, {size: 28, color: COL.mute}));
+}
+
+function shotTrade(G, t) {
+  const st = S('trade'), sb = S('bits'), db = D('bits');
+  heading(t < sb ? 'Đánh đổi khi chọn K' : 'Gọn hơn sóng âm bao nhiêu?');
+  if (t < sb) {
+    fade(G, P(t, st + 0.3, 0.5), () => {
+      card(220, 280, 700, 300, {stroke: COL.acc});
+      text('K nhỏ', 260, 340, {size: 32, weight: 700, color: COL.acc});
+      ['✓ token gọn, GPT dễ học', '✗ mất chi tiết'].forEach((l, j) => text(l, 260, 410 + j * 60, {size: 28}));
+      card(1000, 280, 700, 300, {stroke: COL.frame});
+      text('K lớn', 1040, 340, {size: 32, weight: 700, color: COL.frame});
+      ['✓ giữ chi tiết', '✗ "từ vựng" của GPT to ra'].forEach((l, j) => text(l, 1040, 410 + j * 60, {size: 28}));
+    });
+    fade(G, P(t, st + D('trade') * 0.6, 0.5), () => text('XTTS: bảng mã vài nghìn mã', 960, 680, {size: 32, weight: 700, color: COL.ok, align: 'center'}));
+    return;
+  }
+  fade(G, P(t, sb + 0.3, 0.5), () => text('bit/giây = frame/giây × log₂(K)', 960, 270, {size: 34, weight: 700, mono: true, align: 'center'}));
+  fade(G, P(t, sb + db * 0.3, 0.5), () => {
+    const B = {x: 300, y: 380, w: 1320};
+    const k = P(t, sb + db * 0.3, 1.5);
+    text('sóng âm 16 kHz × 16 bit = 256 000 bit/giây', B.x, B.y - 16, {size: 26, weight: 700, color: COL.hl});
+    rrect(B.x, B.y, B.w * k, 70, 10, COL.hl);
+    text('token: 25 frame/giây × 13 bit (8192 mã) = 325 bit/giây', B.x, B.y + 150, {size: 26, weight: 700, color: COL.ok});
+    rrect(B.x, B.y + 166, Math.max(4, B.w * 325 / 256000 * k), 70, 3, COL.ok);
+  });
+  fade(G, P(t, sb + db * 0.7, 0.5), () => text('gọn hơn gần 800 lần: đủ ngắn để GPT xử lý', 960, 720, {size: 30, weight: 700, color: COL.ok, align: 'center'}));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['thay mỗi frame bằng mã gần nhất (k-means)'], ['K đánh đổi chi tiết với độ gọn'], ['chuỗi token gọn hơn sóng âm hàng trăm lần']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text('✓', 420, 300 + j * 90, {size: 34, weight: 700, color: COL.ok});
+      text(a, 470, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 740, 640, 'Phần 4: GPT viết tiếp, nhiệt độ  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 3', [
+  ['thay vector bằng mã gần nhất', 'lượng tử hóa vector (VQ)', ''],
+  ['bảng các mã', 'codebook', 'học bằng k-means'],
+  ['số mã trong bảng', 'K (kích thước codebook)', 'log₂K bit mỗi frame'],
+  ['mã hóa âm thanh bằng mạng', 'neural codec', 'EnCodec, VQ-VAE'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'pts', to: 'k64', draw: shotVq},
+    {from: 'trade', to: 'bits', draw: shotTrade},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/xtts-3-vq.wav');
+</script>
+</body>
+</html>

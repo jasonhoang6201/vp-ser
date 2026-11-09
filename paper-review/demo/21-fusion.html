@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ghép âm thanh và chữ</title>
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="pn"></nav>
+<h1>Ghép âm thanh và chữ (fusion), và ngữ cảnh hội thoại</h1>
+<p class="sub">Trang 19 cho một vector từ <b>âm thanh</b>, trang 20 cho một vector từ <b>chữ</b>. Trang này: ghép hai nguồn thế nào, và vì sao nhìn thêm <b>các câu trước</b> trong hội thoại giúp nhiều.</p>
+
+<section>
+<h2><span class="n">1</span>Vấn đề: mỗi nguồn mù một nửa</h2>
+<div class="tablewrap"><table>
+<tr><th>Tình huống</th><th>Âm thanh nói</th><th>Chữ nói</th></tr>
+<tr><td>"Oh great, just great." (mỉa mai)</td><td>giận: giọng gằn, to</td><td>vui: "great"</td></tr>
+<tr><td>ASR chép sai từ cảm xúc</td><td>buồn: giọng trầm, chậm</td><td>trung tính: từ quan trọng bị mất</td></tr>
+<tr><td>giận và vui đều to, nhanh</td><td>không phân biệt được</td><td>phân biệt được</td></tr>
+<tr><td>"Thật à?"</td><td>ngạc nhiên</td><td>không đủ thông tin: còn tùy câu trước đó</td></tr>
+</table></div>
+<div class="note blue"><b>Mục tiêu:</b> kết hợp hai nguồn sao cho nguồn nào đáng tin hơn <b>ở câu đó</b> thì được nghe nhiều hơn, và dùng thêm các câu trước khi một câu đứng riêng không đủ nghĩa.</div>
+</section>
+
+<section>
+<h2><span class="n">2</span>Các kiểu ghép</h2>
+<div class="tablewrap"><table>
+<tr><th>Kiểu</th><th>Làm gì</th><th>Ưu / nhược</th><th>Ở mục</th></tr>
+<tr><td><b>ghép sớm</b> (early / feature fusion, concat)</td><td>nối vector âm thanh và vector chữ thành một vector dài, đưa vào một bộ phân loại</td><td>đơn giản; bộ phân loại tự học cách kết hợp, nhưng trọng số cố định cho mọi câu</td><td>3</td></tr>
+<tr><td><b>ghép muộn</b> (late / decision fusion)</td><td>mỗi nguồn tự đoán xác suất, rồi lấy trung bình</td><td>rất đơn giản, huấn luyện riêng được; không học được tương tác</td><td>3</td></tr>
+<tr><td><b>cổng</b> (gated fusion)</td><td>một mạng nhỏ nhìn cả hai vector, ra con số g từ 0 đến 1: <span class="mono">h = g · âm thanh + (1 − g) · chữ</span></td><td>trọng số đổi theo <b>từng câu</b>: câu nào chữ đáng ngờ thì nghe âm thanh nhiều hơn</td><td>3</td></tr>
+<tr><td><b>cross-attention</b></td><td>mỗi từ làm query, nhìn vào các frame âm thanh (trang 11), lấy đúng đoạn giọng ứng với từ đó</td><td>tinh nhất (biết từ "great" được nói bằng giọng gì); nhiều tham số, cần nhiều dữ liệu</td><td>4</td></tr>
+<tr><td><b>ngữ cảnh hội thoại</b></td><td>đưa thêm chữ (đôi khi cả âm thanh) của vài câu trước vào nhánh chữ</td><td>giải được câu mơ hồ; cần biết thứ tự câu trong hội thoại</td><td>5</td></tr>
+</table></div>
+</section>
+
+<section>
+<h2><span class="n">3</span>Ghép muộn và cổng: thử tay</h2>
+<p>Chọn một tình huống. Hai hàng trên là xác suất mỗi nguồn tự đoán, hai hàng dưới là kết quả ghép. Kéo <b>cổng g</b> (phần dành cho âm thanh).</p>
+<div class="ctrl">
+  <span class="grp">Tình huống: <button data-sc="0" class="on">mỉa mai</button><button data-sc="1">ASR chép sai</button><button data-sc="2">hai nguồn đồng ý</button></span>
+  <span class="grp">Cổng g <input type="range" id="gg" min="0" max="1" step="0.05" value="0.5"> <b id="ggv"></b></span>
+</div>
+<div class="fig"><canvas id="c3"></canvas></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Ghép muộn luôn dùng 0,5 / 0,5. Với "mỉa mai" thì hai nguồn kéo về hai phía, kết quả lưng chừng, dễ sai.
+<br>• Với cổng, mạng có thể học: "chữ tích cực mà giọng gằn" → tin giọng. Nhưng nó chỉ học được nếu dữ liệu huấn luyện có đủ ví dụ như vậy. Nếu không, cổng gần như cố định, và kết quả không hơn ghép sớm bao nhiêu.
+<br>• Giá trị g trung bình sau huấn luyện cho biết mô hình dựa vào nguồn nào nhiều hơn: một con số đáng báo cáo.</div>
+</section>
+
+<section>
+<h2><span class="n">4</span>Cross-attention: mỗi từ tìm đoạn giọng của nó</h2>
+<div class="formula">query = vector của từ "great" &nbsp; key, value = các frame âm thanh &nbsp; → giọng của đúng chữ "great"</div>
+<p>Cùng công thức attention ở trang 11, chỉ khác là query lấy từ một nguồn (chữ) còn key, value lấy từ nguồn khác (âm thanh). Kết quả: mỗi từ có thêm thông tin "được nói ra thế nào". Có thể làm cả hai chiều (âm thanh nhìn chữ). Nhiều mô hình ghép nhiều lớp cross-attention chồng lên nhau, đôi khi theo nhiều mức (từ, câu): co-attention, hierarchical attention.</p>
+</section>
+
+<section>
+<h2><span class="n">5</span>Ngữ cảnh hội thoại</h2>
+<p>Câu hiện tại: <b>"Thật à?"</b>. Chọn câu người kia vừa nói trước đó:</p>
+<div class="ctrl"><span class="grp"><button data-cx="none" class="on">(không có ngữ cảnh)</button><button data-cx="good">"Mình vừa đậu đại học!"</button><button data-cx="bad">"Con mèo của mình mất rồi."</button><button data-cx="rude">"Cậu làm hỏng hết rồi đấy."</button></span></div>
+<div class="fig"><canvas id="c5"></canvas></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Cách làm đơn giản và hiệu quả: nối chữ của vài câu trước (kèm tên người nói) vào trước câu hiện tại, ngăn bằng token phân cách, rồi đưa cả chuỗi vào RoBERTa. Mô hình tự dùng attention để nhìn ngữ cảnh.
+<br>• Cần biết <b>thứ tự</b> các câu trong hội thoại (MELD có sẵn; với IEMOCAP thì lấy theo thời điểm bắt đầu mỗi câu trong đoạn hội thoại).
+<br>• Phải cẩn thận: ngữ cảnh chỉ được dùng các câu <b>trước</b> (hoặc cả sau nếu bài toán cho phép), và nhãn cảm xúc của câu trước <b>không được</b> lọt vào đầu vào.</div>
+</section>
+
+<section>
+<h2>Tóm tắt</h2>
+<ul>
+<li>Ghép sớm (nối vector), ghép muộn (trung bình xác suất), cổng (trọng số theo từng câu), cross-attention (từng từ tìm đoạn giọng của nó).</li>
+<li>Cổng chỉ hơn ghép sớm khi dữ liệu có đủ các trường hợp hai nguồn mâu thuẫn.</li>
+<li>Ngữ cảnh hội thoại: nối chữ các câu trước vào nhánh chữ, thường cho mức tăng lớn.</li>
+</ul>
+<h3>Thuật ngữ mới</h3>
+<div class="tablewrap"><table>
+<tr><th>Nói thường</th><th>Thuật ngữ</th></tr>
+<tr><td>một nguồn thông tin (âm thanh, chữ, hình)</td><td>modality; đa phương thức (multimodal)</td></tr>
+<tr><td>nối vector / trung bình xác suất</td><td>early (feature) fusion / late (decision) fusion</td></tr>
+<tr><td>trọng số trộn theo từng câu</td><td>gated fusion, modality gate</td></tr>
+<tr><td>query một nguồn, key-value nguồn kia</td><td>cross-attention, co-attention</td></tr>
+<tr><td>các câu trước trong hội thoại</td><td>conversational context; bài toán ERC (Emotion Recognition in Conversation)</td></tr>
+</table></div>
+<div class="note exp"><b>Gắn với thực nghiệm:</b> MELD (WER khoảng 32%): ghép concat emotion2vec + chữ ASR UA 38.2, gần bằng chỉ dùng chữ (38.1); ghép cổng 36.7, không hơn. IEMOCAP bản chính thức, notebook 21 seed 0: chữ ASR 71.8 → thêm âm thanh 74.0 → thêm <b>ngữ cảnh</b> 79.2 → cả hai 81.5 (cổng âm thanh trung bình 0.31). Ngữ cảnh cho mức tăng lớn nhất.</div>
+</section>
+<nav class="pn"></nav>
+</div>
+<script src="assets/learn.js"></script>
+<script>
+const CLS = ['neutral', 'joy', 'anger', 'sadness'], CC = [C.grey, C.frame, C.hl, C.acc];
+const SCN = [{a: [0.15, 0.1, 0.65, 0.1], t: [0.15, 0.7, 0.1, 0.05], truth: 2}, {a: [0.2, 0.05, 0.1, 0.65], t: [0.6, 0.15, 0.1, 0.15], truth: 3}, {a: [0.15, 0.6, 0.15, 0.1], t: [0.1, 0.8, 0.05, 0.05], truth: 1}];
+let SC = 0, G = 0.5;
+function bars(g, B, y, lab, p, truth) {
+  text(g, lab, B.l - 10, y + 11, C.ink, 'right', true);
+  let x = B.l;
+  p.forEach((v, k) => { box(g, x, y, v * B.w, 22, alpha(CC[k], k === truth ? 0.95 : 0.6)); if (v > 0.09) text(g, `${CLS[k]} ${r0(100 * v)}%`, x + 4, y + 11, '#fff', 'left', true); x += v * B.w; });
+  const w = p.indexOf(Math.max(...p));
+  if (truth >= 0) text(g, w === truth ? '✓' : '✗', B.l + B.w + 10, y + 11, w === truth ? C.ok : C.hl, 'left', true, false, 14);
+}
+function draw3() {
+  document.getElementById('ggv').textContent = r2(G);
+  const s = SCN[SC], R = setup('c3', 200), g = R.g, B = {l: 160, t: 10, w: R.w - 200};
+  const late = s.a.map((v, k) => (v + s.t[k]) / 2), gated = s.a.map((v, k) => G * v + (1 - G) * s.t[k]);
+  bars(g, B, B.t, 'âm thanh', s.a, s.truth);
+  bars(g, B, B.t + 36, 'chữ', s.t, s.truth);
+  bars(g, B, B.t + 90, 'ghép muộn (0,5/0,5)', late, s.truth);
+  bars(g, B, B.t + 126, `cổng (g = ${r2(G)})`, gated, s.truth);
+  text(g, `nhãn đúng: ${CLS[s.truth]}`, B.l, B.t + 172, C.mute, 'left');
+}
+const CTX = {none: [0.25, 0.3, 0.2, 0.25], good: [0.08, 0.8, 0.04, 0.08], bad: [0.1, 0.03, 0.07, 0.8], rude: [0.12, 0.03, 0.75, 0.1]};
+let CX = 'none';
+function draw5() {
+  const R = setup('c5', 60), g = R.g, B = {l: 160, t: 10, w: R.w - 200};
+  bars(g, B, B.t, '"Thật à?"', CTX[CX], -1);
+}
+document.getElementById('gg').addEventListener('input', e => { G = +e.target.value; draw3(); });
+document.addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.sc) { SC = +b.dataset.sc; toggle('sc', b.dataset.sc); draw3(); }
+  if (b.dataset.cx) { CX = b.dataset.cx; toggle('cx', CX); draw5(); }
+});
+function drawAll() { draw3(); draw5(); }
+drawAll();
+onResize(drawAll);
+</script>
+</body>
+</html>

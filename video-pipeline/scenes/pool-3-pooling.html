@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Từ frame đến câu · 3: Pooling</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../lib/pool.js"></script>
+<script src="../build/pool-3-pooling.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn công cụ', '3 Pooling', '4 Trộn tầng', '5 Probe / fine-tune', '6 emotion2vec'];
+const B = {x: 280, y: 250, w: 1380, h: 380}, CW = B.w / POOL.T;
+const Y = v => B.y + B.h - v * B.h;
+const f2 = v => v.toFixed(2).replace('.', ',');
+
+function chart(len, sharp, o) {
+  const R = POOL.pool(len, sharp);
+  R.E.forEach((e, t) => rrect(B.x + t * CW + 1, Y(e.v), CW - 2, B.y + B.h - Y(e.v), 2, e.ang ? COL.frame : '#d6d5d1'));
+  line(B.x, B.y + B.h, B.x + B.w, B.y + B.h, COL.mute, 2);
+  line(B.x, Y(0.5), B.x + B.w, Y(0.5), COL.hl, 2);
+  text('ngưỡng 0,5', B.x - 14, Y(0.5), {size: 20, weight: 700, color: COL.hl, align: 'right'});
+  text('1', B.x - 14, Y(1), {size: 18, color: COL.mute, align: 'right'}); text('0', B.x - 14, Y(0), {size: 18, color: COL.mute, align: 'right'});
+  if (o.w > 0) fade(Clip.g, o.w, () => {
+    const wm = Math.max(...R.w);
+    poly(R.w.map((_, t) => B.x + (t + 0.5) * CW), R.w.map(v => Y(v / wm)), COL.acc, 3);
+    text('trọng số attention (thu cho vừa khung)', B.x + 8, B.y + 14, {size: 20, weight: 700, color: COL.acc});
+  });
+  const verdict = v => v >= 0.5 ? 'giận' : 'không giận';
+  if (o.mean > 0) fade(Clip.g, o.mean, () => {
+    line(B.x, Y(R.mean), B.x + B.w, Y(R.mean), COL.ink, 3, [10, 7]);
+    text(`mean = ${f2(R.mean)} → ${verdict(R.mean)}`, B.x, B.y + B.h + 50, {size: 28, weight: 700, color: R.mean >= 0.5 ? COL.ok : COL.hl});
+  });
+  if (o.att > 0) fade(Clip.g, o.att, () => {
+    line(B.x, Y(R.att), B.x + B.w, Y(R.att), COL.acc, 3, [4, 5]);
+    text(`attention (độ sắc ${String(sharp).replace('.', ',')}) = ${f2(R.att)} → ${verdict(R.att)}`, B.x + B.w, B.y + B.h + 50, {size: 28, weight: 700, color: R.att >= 0.5 ? COL.ok : COL.hl, align: 'right'});
+  });
+  text(`đoạn giận: ${len} frame (${len * 20} ms / 1 500 ms)`, B.x + B.w, B.y - 26, {size: 22, weight: 700, color: COL.frame, align: 'right'});
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Từ frame đến cả câu', 'Phần 3/6: pooling, trung bình làm loãng, attention thì không', 2, PARTS);
+
+function shotPool(G, t) {
+  const ss = S('setup'), sm = S('mean'), sl = S('long'), sa = S('att'), s2 = S('att2'), sh = S('sharp'), dh = D('sharp'), sx = S('short'), dx = D('short');
+  let len = 12, sharp = 4;
+  if (t >= sl && t < sa) len = Math.round(lerp(12, 30, P(t, sl + 0.3, 1.5)));
+  if (t >= sh && t < sx) sharp = t < sh + dh * 0.45 ? 0 : 8;
+  if (t >= sx) { len = 6; sharp = t < sx + dx * 0.55 ? 4 : 8; }
+  heading(t < sm ? '75 frame, mức "bằng chứng giận" từng frame' : t < sa ? 'Mean pooling: mọi frame nặng như nhau' : t < sx ? 'Attention pooling: frame nhiều thông tin nặng hơn' : 'Đoạn giận rất ngắn');
+  fade(G, P(t, ss + 0.3, 0.5), () => chart(len, sharp, {
+    mean: t >= sm ? P(t, sm + 0.3, 0.5) : 0,
+    w: t >= sa ? P(t, sa + 0.5, 0.8) : 0,
+    att: t >= s2 ? P(t, s2 + 0.3, 0.5) : 0,
+  }));
+}
+
+function shotStats(G, t) {
+  const s = S('stats');
+  heading('Statistics pooling: trung bình + độ lệch chuẩn');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    const xs = Array.from({length: 100}, (_, k) => k / 99);
+    [['giọng đều', COL.acc, 0.1, 340, 'độ lệch chuẩn nhỏ'], ['giọng dao động mạnh', COL.hl, 0.8, 580, 'độ lệch chuẩn lớn']].forEach(([l, c, a, y, sd]) => {
+      poly(xs.map(u => 300 + u * 800), xs.map(u => y - 60 * a * Math.sin(u * 25)), c, 3);
+      line(300, y, 1100, y, COL.ink, 2, [8, 6]);
+      text(l, 300, y + 80, {size: 24, weight: 700, color: c});
+      text('cùng trung bình · ' + sd, 1180, y, {size: 24, weight: 700});
+    });
+    text('cùng trung bình, khác dao động: ghép [mean; std] thì phân biệt được', 960, 750, {size: 28, weight: 700, color: COL.ok, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['✗', 'mean: đoạn cảm xúc ngắn bị pha loãng', COL.hl], ['✓', 'attention: cân frame theo thông tin, tự học độ sắc', COL.ok], ['✓', 'statistics: giữ thêm mức dao động', COL.ok]].forEach(([m, a, c], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text(m, 400, 300 + j * 90, {size: 34, weight: 700, color: c});
+      text(a, 450, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 810, 640, 'Phần 4: trộn các tầng  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 3', [
+  ['lấy trung bình theo thời gian', 'mean pooling', 'làm loãng đoạn ngắn'],
+  ['trung bình có trọng số học được', 'attentive pooling', 'query học được + softmax'],
+  ['ghép trung bình và độ lệch chuẩn', 'statistics pooling', 'giữ dao động'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'setup', to: 'short', draw: shotPool},
+    {from: 'stats', to: 'stats', draw: shotStats},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/pool-3-pooling.wav');
+</script>
+</body>
+</html>

@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>SER từ chữ · 2: Bốn thành phần</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/bert-2-cach-lam.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn thành phần', '3 Lỗi ASR'];
+const TOK = ['<s>', 'I', 'am', 'not', 'happy', '</s>'];
+
+function tokens(y, o = {}) {
+  const xs = UI.chipXs(Clip.g, TOK, {size: 28, weight: 700}, 30);
+  TOK.forEach((w, j) => {
+    const masked = o.mask === j, hot = o.hot && o.hot.includes(j);
+    chip(Clip.g, xs[j], y, masked ? '[MASK]' : w, {size: 28, weight: 700, color: masked ? COL.frame : hot ? COL.acc : COL.ink, stroke: masked ? COL.frame : hot ? COL.acc : COL.line});
+  });
+  return xs;
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('SER từ chữ: BERT, RoBERTa', 'Phần 2/3: bốn thành phần', 1, PARTS);
+
+function shotPipe(G, t) {
+  const sp = S('pipe'), st = S('tok'), se = S('enc'), sm = S('mlm'), sc = S('cls'), dm = D('mlm');
+  heading(t < st ? 'câu → tokenizer → encoder học sẵn → token đầu → phân loại' : t < se ? 'Thành phần 1: tokenizer (mảnh từ)' : t < sm ? 'Thành phần 2: Transformer encoder' : t < sc ? 'Thành phần 3: tiền huấn luyện che từ (MLM)' : 'Thành phần 4: token đầu câu + fine-tune');
+  if (t < st) {
+    fade(G, P(t, sp + 0.3, 0.5), () => {
+      const labels = ['câu chữ', 'tokenizer', 'Transformer encoder (học sẵn)', 'vector token đầu', 'phân loại'], xs = UI.chipXs(G, labels, {size: 26, weight: 700}, 50);
+      labels.forEach((l, j) => { chip(G, xs[j], 380, l, {size: 26, weight: 700, color: j === 2 ? COL.acc : COL.ink, stroke: j === 2 ? COL.acc : COL.line}); if (j) text('→', xs[j] - 25, 406, {size: 28, align: 'center'}); });
+    });
+    return;
+  }
+  if (t < se) {
+    fade(G, P(t, st + 0.3, 0.5), () => {
+      chip(G, 300, 320, '"unbelievable"', {size: 32, weight: 700});
+      arrow(640, 346, 760, 346, COL.mute, 3);
+      ['un', 'believ', 'able'].forEach((p, j) => chip(G, 790 + j * 200, 320, p, {size: 32, weight: 700, color: COL.acc, stroke: COL.acc}));
+      text('từ hay gặp giữ nguyên, từ hiếm cắt nhỏ (minh họa) → từ mới vẫn biểu diễn được', 960, 500, {size: 26, color: COL.mute, align: 'center'});
+    });
+    return;
+  }
+  if (t < sm) {
+    fade(G, P(t, se + 0.3, 0.5), () => {
+      const xs = tokens(520, {hot: [3, 4]}), g = Clip.g;
+      const ctr = j => xs[j] + 40;
+      g.save(); g.globalAlpha *= 0.35;
+      [1, 2, 5].forEach(j => { g.beginPath(); g.moveTo(ctr(4), 510); g.quadraticCurveTo((ctr(4) + ctr(j)) / 2, 380, ctr(j), 510); g.strokeStyle = COL.mute; g.lineWidth = 2; g.stroke(); });
+      g.restore();
+      g.beginPath(); g.moveTo(ctr(4), 510); g.quadraticCurveTo((ctr(4) + ctr(3)) / 2, 400, ctr(3), 510); g.strokeStyle = COL.acc; g.lineWidth = 5; g.stroke();
+      text('"happy" nhìn mọi từ; "not" sửa nghĩa nó', 960, 360, {size: 28, weight: 700, color: COL.acc, align: 'center'});
+      text('self-attention (trang 11), trên token chữ', 960, 680, {size: 24, color: COL.mute, align: 'center'});
+    });
+    return;
+  }
+  if (t < sc) {
+    fade(G, P(t, sm + 0.3, 0.5), () => {
+      tokens(360, {mask: 4});
+      fade(G, P(t, sm + dm * 0.4, 0.5), () => {
+        arrow(960, 430, 960, 500, COL.mute, 3);
+        text('đoán lại: "happy"', 960, 540, {size: 30, weight: 700, color: COL.frame, align: 'center'});
+        text('che ngẫu nhiên ~15% token · hàng chục GB văn bản · không cần nhãn · như HuBERT nhưng trên chữ', 960, 640, {size: 24, color: COL.mute, align: 'center', maxW: 1500});
+      });
+    });
+    return;
+  }
+  fade(G, P(t, sc + 0.3, 0.5), () => {
+    const xs = tokens(300, {hot: [0]});
+    arrow(xs[0] + 40, 360, xs[0] + 40, 440, COL.acc, 3);
+    rrect(xs[0] - 40, 450, 160, 70, 10, COL.accSoft, COL.acc, 3);
+    text('vector câu', xs[0] + 40, 485, {size: 22, weight: 700, color: COL.acc, align: 'center'});
+    arrow(xs[0] + 126, 485, xs[0] + 220, 485, COL.mute, 3);
+    chip(G, xs[0] + 230, 459, 'bộ phân loại → cảm xúc', {size: 26, weight: 700, color: COL.ok, stroke: COL.ok});
+    text('[CLS] của BERT, <s> của RoBERTa · fine-tune cả mạng: ít dữ liệu cảm xúc vẫn đủ', 960, 640, {size: 26, color: COL.mute, align: 'center', maxW: 1500});
+  });
+}
+
+function shotModels(G, t) {
+  const sb = S('bert'), sr = S('roberta'), dr = D('roberta'), su = S('use');
+  heading('BERT và RoBERTa');
+  fade(G, P(t, sb + 0.3, 0.5), () => {
+    card(220, 270, 620, 300, {stroke: COL.acc});
+    text('BERT', 260, 330, {size: 36, weight: 700, color: COL.acc});
+    text('Devlin và cộng sự, 2019', 260, 380, {size: 24, color: COL.mute});
+    text('mở đầu kiểu mô hình này', 260, 450, {size: 26});
+  });
+  fade(G, P(t, sr + 0.3, 0.5), () => {
+    card(920, 270, 780, 300, {stroke: COL.frame, lw: 3});
+    text('RoBERTa', 960, 330, {size: 36, weight: 700, color: COL.frame});
+    text('Liu và cộng sự, 2019 · cùng kiến trúc, học kỹ hơn', 960, 380, {size: 24, color: COL.mute});
+    ['~160 GB văn bản, học lâu hơn', 'che lại ngẫu nhiên mỗi lượt, bỏ một bài toán phụ'].forEach((l, j) => fade(G, P(t, sr + dr * (0.3 + j * 0.2), 0.4), () => text('· ' + l, 960, 440 + j * 44, {size: 24})));
+    fade(G, P(t, sr + dr * 0.75, 0.4), () => text('· base ~125 triệu, large ~355 triệu tham số', 960, 528, {size: 24}));
+  });
+  fade(G, P(t, su + 0.3, 0.5), () => text('RoBERTa: hay gặp nhất cho nhánh chữ trong SER tiếng Anh', 960, 680, {size: 30, weight: 700, color: COL.ok, align: 'center'}));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['tokenizer: mảnh từ'], ['encoder học sẵn bằng che từ (MLM)'], ['vector token đầu câu → phân loại, fine-tune']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.4, 0.6), () => {
+      text('✓', 480, 300 + j * 90, {size: 34, weight: 700, color: COL.ok});
+      text(a, 530, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 780, 640, 'Phần 3: lỗi ASR hại tới đâu  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 2', [
+  ['mảnh từ', 'subword token, BPE', ''],
+  ['che từ rồi đoán lại', 'masked language modeling (MLM)', '~15% token'],
+  ['token đầu câu làm vector câu', '[CLS] (BERT), <s> (RoBERTa)', ''],
+  ['dạy thêm mô hình học sẵn', 'fine-tuning', ''],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'pipe', to: 'cls', draw: shotPipe},
+    {from: 'bert', to: 'use', draw: shotModels},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/bert-2-cach-lam.wav');
+</script>
+</body>
+</html>

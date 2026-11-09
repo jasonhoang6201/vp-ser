@@ -1,0 +1,133 @@
+{
+  "name": "combined_gt_ctx",
+  "dataset": "meld",
+  "split": "test",
+  "notes": "SenseVoice-FT ASR + roberta-large fine-tuned (5 ep, lr 1e-05); train text gt, eval text gt, ctx 3, audio e2v False; 3-seed ensemble; GROUND-TRUTH text (upper bound)",
+  "ser": {
+    "wa": 0.6293706293706294,
+    "ua": 0.5583786040461275,
+    "macro_f1": 0.510403843589678,
+    "weighted_f1": 0.6428004898212809,
+    "recall_by_emotion": {
+      "neutral": 0.6698950766747377,
+      "joy": 0.6750629722921915,
+      "surprise": 0.7446043165467626,
+      "anger": 0.5192878338278932,
+      "sadness": 0.4320388349514563,
+      "disgust": 0.44776119402985076,
+      "fear": 0.42
+    },
+    "n": 2574,
+    "n_invalid_pred": 0,
+    "labels": [
+      "neutral",
+      "joy",
+      "surprise",
+      "anger",
+      "sadness",
+      "disgust",
+      "fear"
+    ],
+    "confusion": [
+      [
+        830,
+        104,
+        93,
+        60,
+        71,
+        19,
+        62
+      ],
+      [
+        46,
+        268,
+        37,
+        20,
+        11,
+        9,
+        6
+      ],
+      [
+        8,
+        26,
+        207,
+        25,
+        2,
+        8,
+        2
+      ],
+      [
+        37,
+        30,
+        43,
+        175,
+        14,
+        18,
+        20
+      ],
+      [
+        38,
+        14,
+        17,
+        23,
+        89,
+        5,
+        20
+      ],
+      [
+        13,
+        4,
+        7,
+        7,
+        5,
+        30,
+        1
+      ],
+      [
+        8,
+        3,
+        9,
+        4,
+        3,
+        2,
+        21
+      ]
+    ]
+  },
+  "seeds": [
+    {
+      "seed": 0,
+      "best_epoch": 2,
+      "dev_ua": 0.56502941731648,
+      "test_ua": 0.5331845870247761,
+      "test_wf1": 0.6047698412940357,
+      "gate": null
+    },
+    {
+      "seed": 1,
+      "best_epoch": 2,
+      "dev_ua": 0.5613584372088561,
+      "test_ua": 0.540911483369897,
+      "test_wf1": 0.6323646645677923,
+      "gate": null
+    },
+    {
+      "seed": 2,
+      "best_epoch": 3,
+      "dev_ua": 0.5470524756838275,
+      "test_ua": 0.538865844296221,
+      "test_wf1": 0.6282253328333426,
+      "gate": null
+    }
+  ],
+  "config": {
+    "train": "gt",
+    "eval": "gt",
+    "ctx": 3,
+    "audio": false
+  },
+  "ua_mean": 0.5376539715636314,
+  "ua_std": 0.0040034620545293526,
+  "wf1_mean": 0.6217866128983901,
+  "wf1_std": 0.01488157934085056
+}

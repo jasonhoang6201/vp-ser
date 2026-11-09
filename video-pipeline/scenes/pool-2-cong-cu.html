@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Từ frame đến câu · 2: Bốn công cụ</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/pool-2-cong-cu.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn công cụ', '3 Pooling', '4 Trộn tầng', '5 Probe / fine-tune', '6 emotion2vec'];
+// [segment that lights it, label, colour, x, w]
+const BLK = [
+  ['e2v', 'encoder (L tầng)', COL.acc, 230, 260],
+  ['layer', 'trộn các tầng', COL.i, 560, 240],
+  ['pool', 'pooling theo thời gian', COL.frame, 870, 300],
+  ['', 'bộ phân loại', COL.ok, 1240, 230],
+];
+const INFO = {
+  pool: ['pooling', 'gộp T vector thành 1: trung bình (mean) hoặc có trọng số học được (attention pooling)', 'giải quyết: nhiều frame, một nhãn · phần 3', COL.frame],
+  layer: ['trộn các tầng', 'tổng có trọng số của mọi tầng, trọng số học được', 'giải quyết: không biết tầng nào chứa cảm xúc · phần 4', COL.i],
+  probe: ['probe hay fine-tune', 'đóng băng encoder, chỉ học phần sau; hoặc học lại cả encoder', 'giải quyết: tốn kém, dễ học thuộc · phần 5', COL.hl],
+  e2v: ['emotion2vec', 'một encoder học sẵn riêng cho cảm xúc', 'giải quyết: encoder chung thiên về nội dung · phần 6', COL.acc],
+};
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Từ frame đến cả câu', 'Phần 2/6: bốn công cụ', 1, PARTS);
+
+function shotPipe(G, t) {
+  const sp = S('pipe'), cur = ['pool', 'layer', 'probe', 'e2v'].find(id => t >= S(id) && t < E(id) + 0.3);
+  heading('sóng âm → encoder → trộn tầng → pooling → phân loại → nhãn');
+  fade(G, P(t, sp + 0.3, 0.5), () => {
+    chip(G, 60, 304, 'sóng âm', {size: 24, weight: 700});
+    arrow(190, 330, 224, 330, COL.mute, 3);
+    BLK.forEach(([id, l, c, x, w], j) => fade(G, P(t, sp + 0.5 + j * 0.4, 0.4), () => {
+      const on = cur === id || (cur === 'probe' && j === 0);
+      rrect(x, 270, w, 120, 16, on ? c + '22' : COL.card, c, on ? 4 : 1.5);
+      text(l, x + w / 2, 330, {size: 24, weight: 700, color: c, align: 'center', maxW: w - 20});
+      arrow(x + w + 6, 330, (BLK[j + 1] ? BLK[j + 1][3] : 1520) - 8, 330, COL.mute, 3);
+    }));
+    chip(G, 1530, 304, 'nhãn', {size: 24, weight: 700});
+    if (cur === 'probe') {
+      text('đóng băng?', 360, 430, {size: 26, weight: 700, color: COL.acc, align: 'center'});
+      text('hay học lại?', 360, 470, {size: 26, weight: 700, color: COL.hl, align: 'center'});
+    }
+  });
+  if (cur) fade(G, P(t, S(cur) + 0.3, 0.4), () => {
+    const [h, a, b, c] = INFO[cur];
+    card(240, 560, 1440, 200, {stroke: c});
+    text(h, 280, 610, {size: 30, weight: 700, color: c});
+    text(a, 280, 665, {size: 26, maxW: 1360});
+    text('→ ' + b, 280, 720, {size: 26, weight: 700, color: COL.ok, maxW: 1360});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  Object.values(INFO).forEach(([l, , , c], j) => fade(G, P(t, s + 0.3 + j * 0.6, 0.5), () => {
+    const x = 220 + j * 380; rrect(x, 320, 340, 90, 14, c + '18', c, 3); text(l, x + 170, 365, {size: 26, weight: 700, color: c, align: 'center'});
+  }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 680, 600, 'Phần 3: pooling, trung bình làm loãng  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 2', [
+  ['gộp các frame thành một vector', 'pooling', 'mean, statistics, attentive'],
+  ['tổng có trọng số các tầng', 'weighted layer sum', 'kiểu SUPERB, s3prl'],
+  ['đóng băng encoder, chỉ học phần sau', 'linear probe, frozen features', ''],
+  ['học lại cả encoder', 'fine-tuning', ''],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'pipe', to: 'e2v', draw: shotPipe},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/pool-2-cong-cu.wav');
+</script>
+</body>
+</html>

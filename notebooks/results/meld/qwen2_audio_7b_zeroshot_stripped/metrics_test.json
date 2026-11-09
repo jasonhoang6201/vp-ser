@@ -1,0 +1,112 @@
+{
+  "name": "qwen2_audio_7b_zeroshot_stripped",
+  "dataset": "meld",
+  "split": "test",
+  "notes": "as qwen2_audio_7b_zeroshot, with the instruction-following preamble removed from ASR output",
+  "asr": {
+    "wer": 0.3187332120266875,
+    "n_utts": 2572,
+    "n_ref_words": 23082,
+    "n_empty_ref_skipped": 2,
+    "wer_by_emotion": {
+      "anger": 0.30572332470520563,
+      "disgust": 0.24967824967824967,
+      "fear": 0.37650602409638556,
+      "joy": 0.3302526186075169,
+      "neutral": 0.30132419668487825,
+      "sadness": 0.2553846153846154,
+      "surprise": 0.5113882863340564
+    }
+  },
+  "ser": {
+    "wa": 0.4704739704739705,
+    "ua": 0.38727282432685317,
+    "macro_f1": 0.36223247965531263,
+    "weighted_f1": 0.48461804786003065,
+    "recall_by_emotion": {
+      "neutral": 0.5052461662631155,
+      "joy": 0.47858942065491183,
+      "surprise": 0.3129496402877698,
+      "anger": 0.5875370919881305,
+      "sadness": 0.42718446601941745,
+      "disgust": 0.11940298507462686,
+      "fear": 0.28
+    },
+    "n": 2574,
+    "n_invalid_pred": 4,
+    "labels": [
+      "neutral",
+      "joy",
+      "surprise",
+      "anger",
+      "sadness",
+      "disgust",
+      "fear"
+    ],
+    "confusion": [
+      [
+        626,
+        161,
+        36,
+        183,
+        156,
+        7,
+        70
+      ],
+      [
+        106,
+        190,
+        13,
+        48,
+        30,
+        0,
+        9
+      ],
+      [
+        59,
+        35,
+        87,
+        57,
+        33,
+        2,
+        5
+      ],
+      [
+        54,
+        32,
+        6,
+        198,
+        32,
+        3,
+        11
+      ],
+      [
+        40,
+        13,
+        8,
+        49,
+        88,
+        1,
+        7
+      ],
+      [
+        10,
+        4,
+        2,
+        29,
+        9,
+        8,
+        4
+      ],
+      [
+        10,
+        3,
+        1,
+        12,
+        9,
+        0,
+        14
+      ]
+    ]
+  }
+}

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Ghép âm thanh và chữ · 2: Các kiểu ghép</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/fus-2-kieu.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Các kiểu ghép', '3 Ghép muộn, cổng', '4 Cross-attention', '5 Ngữ cảnh'];
+const A = COL.frame, T = COL.acc;
+
+// Small diagram of each fusion type inside a box at (x, y), 560 × 300.
+const DRAW = {
+  early(x, y) {
+    rrect(x + 40, y + 60, 120, 40, 6, A); rrect(x + 160, y + 60, 120, 40, 6, T);
+    text('nối', x + 160, y + 40, {size: 20, color: COL.mute, align: 'center'});
+    arrow(x + 300, y + 80, x + 360, y + 80, COL.mute, 2.5);
+    rrect(x + 370, y + 50, 150, 60, 10, COL.ok + '22', COL.ok, 2); text('phân loại', x + 445, y + 80, {size: 20, weight: 700, color: COL.ok, align: 'center'});
+  },
+  late(x, y) {
+    rrect(x + 40, y + 40, 150, 40, 6, A); text('xác suất', x + 115, y + 60, {size: 18, color: '#fff', align: 'center'});
+    rrect(x + 40, y + 100, 150, 40, 6, T); text('xác suất', x + 115, y + 120, {size: 18, color: '#fff', align: 'center'});
+    arrow(x + 200, y + 60, x + 300, y + 85, COL.mute, 2.5); arrow(x + 200, y + 120, x + 300, y + 95, COL.mute, 2.5);
+    chip(Clip.g, x + 310, y + 64, 'trung bình', {size: 20, weight: 700});
+  },
+  gate(x, y) {
+    rrect(x + 40, y + 40, 120, 40, 6, A); rrect(x + 40, y + 100, 120, 40, 6, T);
+    text('g', x + 230, y + 50, {size: 26, weight: 700, color: COL.i, align: 'center'});
+    text('1 − g', x + 230, y + 135, {size: 22, weight: 700, color: COL.i, align: 'center'});
+    arrow(x + 170, y + 60, x + 330, y + 85, COL.mute, 2.5); arrow(x + 170, y + 120, x + 330, y + 95, COL.mute, 2.5);
+    chip(Clip.g, x + 340, y + 64, 'đổi theo câu', {size: 20, weight: 700, color: COL.i, stroke: COL.i});
+  },
+  cross(x, y) {
+    ['oh', 'great'].forEach((w, j) => chip(Clip.g, x + 60 + j * 120, y + 30, w, {size: 20, weight: 700, color: T, stroke: T}));
+    for (let k = 0; k < 14; k++) rrect(x + 40 + k * 34, y + 120, 28, 30, 4, A + (k > 6 && k < 11 ? 'ff' : '55'));
+    arrow(x + 210, y + 84, x + 330, y + 116, COL.mute, 2.5);
+    text('query chữ → key, value âm thanh', x + 280, y + 180, {size: 18, color: COL.mute, align: 'center'});
+  },
+  ctx(x, y) {
+    ['câu trước 2', 'câu trước 1'].forEach((w, j) => chip(Clip.g, x + 30 + j * 170, y + 50, w, {size: 18}));
+    chip(Clip.g, x + 370, y + 50, 'câu hiện tại', {size: 18, weight: 700, color: T, stroke: T});
+    text('nối vào nhánh chữ', x + 280, y + 140, {size: 20, color: COL.mute, align: 'center'});
+  },
+};
+const KINDS = [
+  ['early', 'ghép sớm (concat)', 'đơn giản · trọng số cố định mọi câu'],
+  ['late', 'ghép muộn', 'rất đơn giản · không học tương tác'],
+  ['gate', 'cổng (gated)', 'h = g · âm thanh + (1 − g) · chữ'],
+  ['cross', 'cross-attention', 'tinh nhất · nhiều tham số'],
+  ['ctx', 'ngữ cảnh hội thoại', 'giải câu mơ hồ · cần thứ tự câu'],
+];
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Ghép âm thanh và chữ', 'Phần 2/5: các kiểu ghép', 1, PARTS);
+
+function shotKinds(G, t) {
+  heading('Năm kiểu ghép');
+  KINDS.forEach(([id, l, note], j) => fade(G, P(t, S(id) + 0.2, 0.5), () => {
+    const col = j % 3, row = Math.floor(j / 3), x = 80 + col * 600 + (row ? 300 : 0), y = 200 + row * 330;
+    const on = t >= S(id) && t < E(id) + 0.3;
+    rrect(x, y, 560, 300, 16, on ? COL.frameSoft : COL.card, on ? COL.frame : COL.line2, on ? 3 : 1.5);
+    text(`${j + 1}. ${l}`, x + 24, y + 36, {size: 26, weight: 700, color: on ? COL.frame : COL.ink});
+    DRAW[id](x, y + 50);
+    text(note, x + 24, y + 272, {size: 20, color: COL.mute, maxW: 520});
+  }));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  KINDS.forEach(([, l], j) => fade(G, P(t, s + 0.3 + j * 0.5, 0.5), () => {
+    const x = 120 + j * 340; rrect(x, 320, 310, 90, 14, COL.frameSoft, COL.frame, 2); text(l, x + 155, 365, {size: 24, weight: 700, color: COL.frame, align: 'center', maxW: 290});
+  }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 740, 600, 'Phần 3: thử tay ghép muộn và cổng  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 2', [
+  ['nối vector', 'early (feature) fusion', 'concat'],
+  ['trung bình xác suất', 'late (decision) fusion', ''],
+  ['trọng số trộn theo từng câu', 'gated fusion, modality gate', ''],
+  ['query một nguồn, key-value nguồn kia', 'cross-attention', ''],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'early', to: 'ctx', draw: shotKinds},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/fus-2-kieu.wav');
+</script>
+</body>
+</html>

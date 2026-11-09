@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CTC</title>
+<link rel="stylesheet" href="assets/learn.css">
+<style>
+.paths{font-family:ui-monospace,Menlo,monospace;font-size:14px;columns:3 180px;margin:8px 0}
+.paths div{padding:1px 0}
+.paths b{color:var(--frame)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="pn"></nav>
+<h1>CTC: học thẳng từ âm thanh ra chữ</h1>
+<p class="sub">CTC (Connectionist Temporal Classification, Graves và cộng sự, 2006). Mở đầu hướng <b>end-to-end</b>: một mạng nơ-ron duy nhất, đầu vào là frame, đầu ra là chữ cái.</p>
+
+<section>
+<h2><span class="n">1</span>Vấn đề: hệ lai có quá nhiều mảnh rời</h2>
+<div class="tablewrap"><table>
+<tr><th>Vướng của DNN-HMM</th><th>Vì sao phiền</th></tr>
+<tr><td>phải huấn luyện GMM-HMM trước để có nhãn cho từng frame</td><td>hai hệ thống, lỗi của hệ cũ truyền sang hệ mới</td></tr>
+<tr><td>cần từ điển phát âm do chuyên gia soạn</td><td>tốn công, từ mới hay tên riêng thì thiếu</td></tr>
+<tr><td>senone, cây quyết định, prior, trọng số…</td><td>nhiều bước chỉnh tay, mỗi bước tối ưu một mục tiêu khác nhau</td></tr>
+</table></div>
+<p>Dữ liệu tự nhiên nhất mà ta có là các cặp <b>(đoạn âm thanh, câu chữ)</b>. Muốn học thẳng từ đó thì vướng hai điều:</p>
+<ul>
+<li><b>Độ dài lệch nhau</b>: 1 giây có 100 frame, nhưng chỉ khoảng 10 đến 15 chữ cái.</li>
+<li><b>Không biết chữ nào ứng với frame nào</b>: không ai đánh dấu "chữ m nằm ở frame 6 đến 12".</li>
+</ul>
+<div class="note blue"><b>Mục tiêu của CTC:</b> cho mạng nơ-ron đoán <b>một ký hiệu cho mỗi frame</b>, rồi có một quy tắc rút gọn chuỗi frame thành câu chữ, và một cách tính loss <b>không cần biết ranh giới</b>.</div>
+</section>
+
+<section>
+<h2><span class="n">2</span>Cách CTC làm: 4 thành phần</h2>
+<div class="pipe"><span class="done">frame</span><i>→</i><span class="done">mạng nơ-ron</span><i>→</i><span class="new">xác suất mỗi ký hiệu, mỗi frame</span><i>→</i><span class="new">rút gọn</span><i>→</i><span class="done">câu chữ</span></div>
+<div class="tablewrap"><table>
+<tr><th>Thành phần</th><th>Là gì</th><th>Gỡ vướng gì</th><th>Ở mục</th></tr>
+<tr><td><b>ký hiệu trống</b> (blank, viết "−")</td><td>thêm một "chữ" nghĩa là "frame này không ra chữ nào"</td><td>độ dài lệch: phần lớn frame ra trống</td><td>3</td></tr>
+<tr><td><b>quy tắc rút gọn</b></td><td>gộp các ký hiệu lặp liền nhau, rồi xóa trống</td><td>đổi chuỗi frame thành câu chữ</td><td>3</td></tr>
+<tr><td><b>loss cộng mọi cách căn</b></td><td>xác suất của câu = tổng xác suất mọi chuỗi frame rút gọn ra câu đó, tính bằng forward như HMM</td><td>không biết ranh giới</td><td>4</td></tr>
+<tr><td><b>giải mã</b></td><td>chọn ký hiệu cao nhất mỗi frame rồi rút gọn (greedy), hoặc beam search, có thể thêm LM</td><td>ra câu chữ khi dùng</td><td>5</td></tr>
+</table></div>
+</section>
+
+<section>
+<h2><span class="n">3</span>Ký hiệu trống và quy tắc rút gọn</h2>
+<p>Gõ một chuỗi, mỗi ký tự là đầu ra của một frame. Dùng <b>-</b> cho trống.</p>
+<div class="ctrl"><span class="grp">Chuỗi frame <input type="text" id="raw" value="--hh-e--ll-ll-ooo--"></span>
+<span class="grp">Ví dụ: <button data-ex="--hh-e--ll-ll-ooo--">hello</button><button data-ex="--hh-e--llll-ooo--">hello không có trống giữa l</button><button data-ex="mmm--aaaa---iii">mai</button><button data-ex="mm-mm-aa">mm-mm-aa</button></span></div>
+<div class="readout" id="r3"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Bước 1 gộp các ký hiệu <b>giống nhau đứng liền nhau</b>: "hh" thành "h". Nhờ vậy một chữ kéo dài bao nhiêu frame cũng được, giống vòng tự lặp của HMM.
+<br>• Bước 2 xóa trống. Trống cho phép các frame "không nói gì", và quan trọng hơn: nó <b>ngăn cách hai chữ giống nhau</b>. "ll-ll" ra "ll", còn "llll" chỉ ra một "l". Không có trống thì không viết được "hello".
+<br>• Vì phần lớn frame là trống, mạng CTC sau khi học thường cho ra các <b>đỉnh nhọn</b> (spike): mỗi chữ chỉ hiện ở 1 đến 2 frame, xung quanh là trống.</div>
+</section>
+
+<section>
+<h2><span class="n">4</span>Rất nhiều chuỗi frame cho cùng một câu</h2>
+<p>Với câu đích và số frame T cho trước, liệt kê <b>mọi chuỗi frame</b> rút gọn ra đúng câu đó. Loss CTC cộng xác suất của <b>tất cả</b> chúng lại:</p>
+<div class="formula">P(câu | âm thanh) = Σ (mọi chuỗi frame rút gọn ra câu)  Π (xác suất ký hiệu ở từng frame)</div>
+<div class="ctrl">
+  <span class="grp">Câu đích <input type="text" id="tgt" value="ba" style="min-width:90px"></span>
+  <span class="grp">Số frame T <input type="range" id="tt" min="1" max="12" step="1" value="4"> <b id="ttv"></b></span>
+</div>
+<div class="readout" id="r4"></div>
+<div id="paths" class="paths"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Số chuỗi tăng rất nhanh theo T. Một câu thật có hàng trăm frame, nên không thể liệt kê. CTC tính tổng bằng <b>forward</b> trên một lưới gồm các trạng thái "− b − a −" (chèn trống vào giữa và hai đầu), y hệt forward của HMM ở trang 07.
+<br>• Thử câu "aa" với T = 2: <b>không có</b> chuỗi nào, vì hai chữ giống nhau cần ít nhất một trống ở giữa. CTC đòi T ≥ độ dài câu + số cặp chữ lặp liền nhau.
+<br>• Mạng không cần được cho biết ranh giới. Nó tự đẩy xác suất về phía những cách căn hợp lý, vì đó là cách nhanh nhất để tăng tổng.</div>
+</section>
+
+<section>
+<h2><span class="n">5</span>Giải mã tham lam (greedy)</h2>
+<p>Đây là đầu ra của một mạng CTC đã học, cho đoạn âm thanh "mai" dài 30 frame. Mỗi cột là một frame, mỗi hàng là một ký hiệu, ô càng đậm thì xác suất càng cao. Giải mã greedy: lấy ký hiệu cao nhất ở mỗi frame, rồi rút gọn.</p>
+<div class="ctrl"><span class="grp">Độ mơ hồ <input type="range" id="nz5" min="0" max="2.5" step="0.1" value="0.8"> <b id="nz5v"></b></span><button id="re5">Dữ liệu mới</button></div>
+<div class="fig"><canvas id="c5"></canvas></div>
+<div class="readout" id="r5"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Ở mức mơ hồ thấp: các đỉnh nhọn hiện rõ, rút gọn ra "mai".
+<br>• Tăng mơ hồ: xuất hiện chữ lạ ("n" thay "m"), hoặc một chữ bị tách đôi bởi một frame trống ("aa" thành "a-a" → "aa").
+<br>• Điểm yếu gốc của CTC: mỗi frame được quyết định <b>độc lập</b> với nhau, không biết các chữ đã viết trước đó. Nên CTC hay viết sai chính tả kiểu "nghe sao viết vậy", và thường được ghép thêm mô hình ngôn ngữ khi giải mã (beam search). Trang sau gỡ vướng này.</div>
+</section>
+
+<section>
+<h2>Tóm tắt</h2>
+<ul>
+<li>CTC: mỗi frame ra một ký hiệu (chữ cái hoặc trống). Rút gọn: gộp lặp liền nhau, rồi xóa trống.</li>
+<li>Loss = −log của tổng xác suất mọi chuỗi frame rút gọn ra câu đúng, tính bằng forward. Không cần nhãn từng frame, không cần từ điển phát âm.</li>
+<li>Giải mã: greedy hoặc beam search, có thể thêm LM. Điểm yếu: các frame độc lập với nhau (giả định độc lập có điều kiện).</li>
+<li>Đơn vị đầu ra có thể là chữ cái, âm tiết, hoặc mảnh từ (subword, BPE).</li>
+</ul>
+<h3>Thuật ngữ mới</h3>
+<div class="tablewrap"><table>
+<tr><th>Nói thường</th><th>Thuật ngữ</th></tr>
+<tr><td>một mạng từ đầu đến cuối</td><td>end-to-end</td></tr>
+<tr><td>ký hiệu "không ra chữ"</td><td>blank</td></tr>
+<tr><td>gộp lặp rồi xóa trống</td><td>collapse, hàm B (many-to-one mapping)</td></tr>
+<tr><td>một chuỗi frame cụ thể</td><td>đường căn (alignment, path)</td></tr>
+<tr><td>chọn cao nhất mỗi frame</td><td>giải mã tham lam (greedy / best-path decoding)</td></tr>
+<tr><td>các frame quyết định riêng rẽ</td><td>giả định độc lập có điều kiện (conditional independence)</td></tr>
+<tr><td>mảnh từ</td><td>subword, BPE (Byte Pair Encoding), wordpiece</td></tr>
+</table></div>
+</section>
+<nav class="pn"></nav>
+</div>
+<script src="assets/learn.js"></script>
+<script>
+const collapse1 = s => s.replace(/(.)\1+/g, '$1');
+function draw3() {
+  const raw = document.getElementById('raw').value, a = collapse1(raw), b = a.replace(/-/g, '');
+  const esc = s => s.replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'})[c]);
+  document.getElementById('r3').innerHTML = `<span class="mono">${esc(raw)}</span> &nbsp;→ gộp lặp: <span class="mono">${esc(a)}</span> &nbsp;→ xóa trống: <b class="mono">${esc(b) || '(rỗng)'}</b>`;
+}
+document.getElementById('raw').addEventListener('input', draw3);
+document.addEventListener('click', e => {
+  const t = e.target.closest('button[data-ex]');
+  if (t) { document.getElementById('raw').value = t.dataset.ex; draw3(); }
+});
+
+function ctcPaths(y, T, limit) {
+  const L = ['-'];
+  for (const ch of y) L.push(ch, '-');
+  const S = L.length, out = [];
+  // count[t][s]: number of paths of length t+1 ending in extended state s (forward with sums of 1)
+  const cnt = Array.from({length: T}, () => new Array(S).fill(0));
+  cnt[0][0] = 1; if (S > 1) cnt[0][1] = 1;
+  const canSkip = s => s >= 2 && L[s] !== '-' && L[s] !== L[s - 2];
+  for (let t = 1; t < T; t++) for (let s = 0; s < S; s++) cnt[t][s] = cnt[t - 1][s] + (s ? cnt[t - 1][s - 1] : 0) + (canSkip(s) ? cnt[t - 1][s - 2] : 0);
+  const total = y.length === 0 ? 1 : cnt[T - 1][S - 1] + cnt[T - 1][S - 2];
+  function dfs(t, s, acc) {
+    if (out.length >= limit) return;
+    acc.push(L[s]);
+    if (t === T - 1) { if (s >= S - 2) out.push(acc.join('')); }
+    else for (const ns of [s, s + 1, s + 2]) if (ns < S && (ns !== s + 2 || canSkip(ns))) dfs(t + 1, ns, acc);
+    acc.pop();
+  }
+  if (total > 0) { dfs(0, 0, []); if (S > 1) dfs(0, 1, []); }
+  return {total, out, L};
+}
+let TT = 4;
+function draw4() {
+  document.getElementById('ttv').textContent = TT;
+  const y = document.getElementById('tgt').value.replace(/[\s-]/g, '').slice(0, 6);
+  const {total, out, L} = ctcPaths(y, TT, 60);
+  document.getElementById('r4').innerHTML = `Lưới trạng thái: <span class="mono">${L.join(' ')}</span> &nbsp; Câu "<b>${y}</b>", T = ${TT}: có <b>${total.toLocaleString('vi-VN')}</b> chuỗi frame hợp lệ` + (total > 60 ? ' (hiện 60 chuỗi đầu)' : '');
+  const hl = s => s.replace(/[^-]/g, c => `<b>${c}</b>`);
+  document.getElementById('paths').innerHTML = out.map(p => `<div>${hl(p)}</div>`).join('');
+}
+document.getElementById('tgt').addEventListener('input', draw4);
+document.getElementById('tt').addEventListener('input', e => { TT = +e.target.value; draw4(); });
+
+const SYM = ['-', 'm', 'n', 'a', 'i'], T5 = 30, SPK = [[6, 'm'], [7, 'm'], [14, 'a'], [15, 'a'], [16, 'a'], [23, 'i']];
+let NZ5 = 0.8, SEED5 = 2;
+function post5() {
+  const r = rng(SEED5);
+  return Array.from({length: T5}, (_, t) => {
+    const z = SYM.map(() => NZ5 * randn(r));
+    const sp = SPK.find(p => p[0] === t);
+    if (sp) { z[SYM.indexOf(sp[1])] += 5; if (sp[1] === 'm') z[2] += 2.5; }
+    else z[0] += 4;
+    return softmax(z);
+  });
+}
+function draw5() {
+  document.getElementById('nz5v').textContent = r1(NZ5);
+  const P = post5(), R = setup('c5', 200), g = R.g, B = {l: 40, t: 8, w: R.w - 56}, cw = B.w / T5, rh = 28;
+  P.forEach((p, t) => p.forEach((v, k) => box(g, B.l + t * cw, B.t + k * rh, cw - 1, rh - 2, rgb(cmap(v * 0.9)))));
+  SYM.forEach((s, k) => text(g, s === '-' ? '− (trống)' : s, B.l - 6, B.t + k * rh + rh / 2, C.ink, 'right', true));
+  const best = P.map(p => SYM[p.indexOf(Math.max(...p))]);
+  best.forEach((s, t) => text(g, s, B.l + (t + 0.5) * cw, B.t + SYM.length * rh + 12, s === '-' ? C.grey : C.frame, 'center', true));
+  text(g, 'cao nhất', B.l - 6, B.t + SYM.length * rh + 12, C.mute, 'right');
+  const raw = best.join(''), a = collapse1(raw), out = a.replace(/-/g, '');
+  document.getElementById('r5').innerHTML = `<span class="mono">${raw}</span> → gộp lặp <span class="mono">${a}</span> → <b class="mono">${out}</b> ${out === 'mai' ? '✓' : '<span style="color:#d44c47">✗ (đúng là "mai")</span>'}`;
+}
+document.getElementById('nz5').addEventListener('input', e => { NZ5 = +e.target.value; draw5(); });
+document.getElementById('re5').addEventListener('click', () => { SEED5++; draw5(); });
+
+draw3(); draw4(); draw5();
+onResize(draw5);
+</script>
+</body>
+</html>

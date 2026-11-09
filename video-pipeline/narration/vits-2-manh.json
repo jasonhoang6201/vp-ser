@@ -1,0 +1,33 @@
+{
+  "clip": "vits-2-manh",
+  "title": "VITS · Phần 2: Năm thành phần",
+  "segments": [
+    {"id": "intro",
+     "sub": "VITS, phần 2: năm thành phần.",
+     "say": "Vít, phần hai: năm thành phần."},
+    {"id": "vae",
+     "sub": "Thành phần 1, VAE: posterior encoder nén spectrogram thành biến ẩn z; decoder kiểu HiFi-GAN đổi z thẳng ra sóng âm. Bỏ Mel làm nút thắt: z do mô hình tự học.",
+     "say": "Thành phần thứ nhất là vi ây i, bộ tự mã hóa biến phân. Bộ nén, gọi là pốt tia ri ơ en cô đơ, nén spectrogram thành biến ẩn dét. Bộ giải nén, kiến trúc Hai phai gan, đổi dét thẳng ra sóng âm. Mel không còn là nút thắt: dét do mô hình tự học."},
+    {"id": "prior",
+     "sub": "Thành phần 2, prior từ chữ + flow: text encoder đoán phân phối của z từ chữ; normalizing flow (biến đổi khả nghịch) làm phân phối đó đủ linh hoạt để khớp z thật. Khi dùng không có âm thanh: lấy z từ chữ.",
+     "say": "Thành phần thứ hai là prai ơ từ chữ, cộng với flâu. Tếch en cô đơ đoán phân phối của dét từ chữ. Một nọc mờ lai dinh flâu, tức chuỗi phép biến đổi khả nghịch, làm phân phối đó đủ linh hoạt để khớp với dét thật. Khi dùng không có âm thanh, dét được lấy từ chữ."},
+    {"id": "mas",
+     "sub": "Thành phần 3, MAS (Monotonic Alignment Search): quy hoạch động tìm cách căn chữ với các frame của z, đơn điệu trái sang phải. Mượn từ Glow-TTS. Không cần công cụ căn ngoài.",
+     "say": "Thành phần thứ ba là mát, tìm cách căn đơn điệu. Đây là quy hoạch động, tìm cách căn chữ với các frame của dét, đi đơn điệu từ trái sang phải. Ý này mượn từ Glâu tê tê ét. Nhờ nó, không cần công cụ căn bên ngoài."},
+    {"id": "sdp",
+     "sub": "Thành phần 4, dự đoán độ dài ngẫu nhiên: học phân phối của độ dài thay vì một con số; khi dùng thì bốc mẫu. Mỗi lần đọc một nhịp khác nhau.",
+     "say": "Thành phần thứ tư là bộ dự đoán độ dài ngẫu nhiên. Nó học phân phối của độ dài, thay vì một con số. Khi dùng thì bốc mẫu, nên mỗi lần đọc một nhịp khác nhau."},
+    {"id": "gan",
+     "sub": "Thành phần 5, GAN: discriminator của HiFi-GAN chấm sóng âm thật hay giả. Sóng âm sắc nét, như vocoder ở trang 13.",
+     "say": "Thành phần thứ năm là gan. Đít cờ ri mi nây tơ của Hai phai gan chấm xem sóng âm là thật hay giả, nhờ đó sóng âm sắc nét, giống vô cốt đơ ở trang mười ba."},
+    {"id": "mos",
+     "sub": "Theo bài báo, trên LJSpeech (tiếng Anh, một người đọc): VITS MOS 4,43, giọng thật 4,46, cao hơn các hệ hai giai đoạn được so (Tacotron 2 + HiFi-GAN, Glow-TTS + HiFi-GAN).",
+     "say": "Theo bài báo, trên bộ eo giây spít, tiếng Anh, một người đọc: Vít đạt điểm mốt bốn phẩy bốn ba, giọng thật bốn phẩy bốn sáu, cao hơn các hệ hai giai đoạn được so sánh, như Ta cô trôn hai cộng Hai phai gan, và Glâu tê tê ét cộng Hai phai gan."},
+    {"id": "result",
+     "sub": "Tóm lại: VAE + prior với flow + MAS + độ dài ngẫu nhiên + GAN. Một mô hình, học một lần. Phần 3: lúc học khác lúc dùng.",
+     "say": "Tóm lại: vi ây i, prai ơ với flâu, mát, độ dài ngẫu nhiên, và gan. Một mô hình, học một lần. Phần ba: lúc học khác lúc dùng ra sao."},
+    {"id": "terms",
+     "sub": "Thuật ngữ của phần này.",
+     "say": "Các thuật ngữ của phần này."}
+  ]
+}

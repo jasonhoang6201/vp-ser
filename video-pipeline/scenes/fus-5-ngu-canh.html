@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Ghép âm thanh và chữ · 5: Ngữ cảnh hội thoại</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/fus.js"></script>
+<script src="../build/fus-5-ngu-canh.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Các kiểu ghép', '3 Ghép muộn, cổng', '4 Cross-attention', '5 Ngữ cảnh'];
+const CC = [COL.mute, COL.ok, COL.hl, COL.acc];
+const SEG = ['none', 'good', 'bad', 'rude'];
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Ghép âm thanh và chữ', 'Phần 5/5: ngữ cảnh hội thoại', 4, PARTS);
+
+function shotCtx(G, t) {
+  heading('Câu hiện tại: "Thật à?"');
+  SEG.forEach((id, j) => fade(G, P(t, S(id) + 0.2, 0.5), () => {
+    const [prev, p] = FUS.CTX[j], y = 240 + j * 130, on = t >= S(id) && t < E(id) + 0.3;
+    if (on) rrect(120, y - 20, 1680, 110, 10, COL.frameSoft);
+    text('câu trước:', 160, y + 10, {size: 20, color: COL.mute});
+    text(prev, 160, y + 46, {size: 26, weight: 700, color: j ? COL.ink : COL.mute, maxW: 520});
+    let x = 760;
+    p.forEach((v, k) => {
+      rrect(x, y + 10, v * 1000 - 2, 56, 4, CC[k]);
+      if (v > 0.12) text(`${FUS.CLS[k]} ${Math.round(100 * v)}%`, x + 10, y + 38, {size: 22, weight: 700, color: '#fff'});
+      x += v * 1000;
+    });
+  }));
+}
+
+function shotHow(G, t) {
+  const sh = S('how'), so = S('order'), sl = S('leak');
+  heading(t < so ? 'Cách làm: nối các câu trước vào nhánh chữ' : t < sl ? 'Cần thứ tự câu' : 'Cẩn thận rò rỉ');
+  if (t < so) {
+    fade(G, P(t, sh + 0.3, 0.5), () => {
+      const parts = [['A: Mình vừa đậu đại học!', COL.mute], ['</s>', COL.frame], ['B: Thật à?', COL.acc]], xs = UI.chipXs(G, parts.map(p => p[0]), {size: 28, weight: 700}, 20);
+      parts.forEach(([l, c], j) => chip(G, xs[j], 320, l, {size: 28, weight: 700, color: c, stroke: c}));
+      arrow(960, 390, 960, 470, COL.mute, 3);
+      chip(G, 820, 480, 'RoBERTa', {size: 30, weight: 700, color: COL.acc, stroke: COL.acc});
+      text('kèm tên người nói · token phân cách · attention tự nhìn ngữ cảnh', 960, 640, {size: 26, color: COL.mute, align: 'center'});
+    });
+    return;
+  }
+  if (t < sl) {
+    fade(G, P(t, so + 0.3, 0.5), () => {
+      card(220, 300, 700, 220, {stroke: COL.ok});
+      text('MELD', 260, 360, {size: 32, weight: 700, color: COL.ok});
+      text('có sẵn thứ tự câu', 260, 430, {size: 28});
+      card(1000, 300, 700, 220, {stroke: COL.frame});
+      text('IEMOCAP', 1040, 360, {size: 32, weight: 700, color: COL.frame});
+      text('sắp theo thời điểm bắt đầu mỗi câu', 1040, 430, {size: 28, maxW: 620});
+    });
+    return;
+  }
+  fade(G, P(t, sl + 0.3, 0.5), () => {
+    ['câu −2', 'câu −1', 'câu hiện tại', 'câu +1'].forEach((l, j) => {
+      const x = 330 + j * 330, cur = j === 2, fut = j === 3;
+      rrect(x, 320, 280, 90, 12, cur ? COL.accSoft : COL.card, cur ? COL.acc : fut ? COL.line2 : COL.ok, 2);
+      text(l, x + 140, 365, {size: 26, weight: 700, color: cur ? COL.acc : fut ? COL.mute : COL.ok, align: 'center'});
+    });
+    text('chỉ câu trước (câu sau nếu bài toán cho phép)', 960, 470, {size: 26, weight: 700, color: COL.ok, align: 'center'});
+    text('✗ nhãn cảm xúc của câu trước không được lọt vào đầu vào', 960, 560, {size: 28, weight: 700, color: COL.hl, align: 'center'});
+  });
+}
+
+function shotPage(G, t) {
+  const s = S('page'), d = D('page');
+  heading('Tóm tắt trang');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    const labels = ['ghép sớm', 'ghép muộn', 'cổng', 'cross-attention'], xs = UI.chipXs(G, labels, {size: 28, weight: 700}, 40);
+    labels.forEach((l, j) => chip(G, xs[j], 300, l, {size: 28, weight: 700, color: COL.frame, stroke: COL.frame}));
+  });
+  fade(G, P(t, s + d * 0.4, 0.5), () => text('cổng chỉ hơn ghép sớm khi dữ liệu có đủ ca mâu thuẫn', 960, 460, {size: 28, weight: 700, align: 'center'}));
+  fade(G, P(t, s + d * 0.7, 0.5), () => text('ngữ cảnh hội thoại: thường cho mức tăng lớn', 960, 540, {size: 30, weight: 700, color: COL.ok, align: 'center'}));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['✓', 'câu đứng riêng có thể mơ hồ: thêm câu trước', COL.ok], ['✓', 'nối chữ các câu trước vào nhánh chữ', COL.ok], ['✗', 'cẩn thận rò rỉ nhãn', COL.hl]].forEach(([m, a, c], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text(m, 420, 300 + j * 90, {size: 34, weight: 700, color: c});
+      text(a, 470, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 760, 640, 'Trang sau: học nhiều việc cùng lúc  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 5', [
+  ['các câu trước trong hội thoại', 'conversational context', ''],
+  ['nhận dạng cảm xúc trong hội thoại', 'ERC (Emotion Recognition in Conversation)', 'MELD là bộ ERC'],
+  ['token ngăn hai câu', 'separator token', '</s> của RoBERTa'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'none', to: 'rude', draw: shotCtx},
+    {from: 'how', to: 'leak', draw: shotHow},
+    {from: 'page', to: 'page', draw: shotPage},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/fus-5-ngu-canh.wav');
+</script>
+</body>
+</html>

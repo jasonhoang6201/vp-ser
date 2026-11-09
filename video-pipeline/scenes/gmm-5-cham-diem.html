@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>GMM 5: Chấm điểm một frame</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../build/gmm-5-cham-diem.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp, ease} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Ba thành phần', '3 Một quả đồi Gauss', '4 Trộn đồi và EM', '5 Chấm điểm frame'];
+const fmt = (v, n = 1) => v.toFixed(n).replace('.', ',').replace('-', '−');
+
+const GA = GMM.emTrace(GMM.A_PTS, 3, 5, 80)[80], GI = GMM.emTrace(GMM.I_PTS, 2, 9, 80)[80];
+const la = p => Math.log(GMM.mixPdf(p, GA) + 1e-300), li = p => Math.log(GMM.mixPdf(p, GI) + 1e-300);
+const PL = GMM.plane({x: 130, y: 220, w: 792, h: 600});
+const MA = [0, 1].map(d => GMM.A_PTS.reduce((s, p) => s + p[d], 0) / GMM.A_PTS.length);
+const MI = [0, 1].map(d => GMM.I_PTS.reduce((s, p) => s + p[d], 0) / GMM.I_PTS.length);
+let BG = null;
+
+function base(G, bgAlpha = 0) {
+  PL.frame();
+  if (bgAlpha > 0) {
+    if (!BG) BG = GMM.field(PL, (x, y) => (la([x, y]) > li([x, y]) ? '#e3eff6' : '#efe6f5'), 5);
+    G.save(); G.globalAlpha *= bgAlpha; G.drawImage(BG, PL.B.x, PL.B.y); G.restore();
+  }
+  PL.dots(GMM.A_PTS, COL.acc + '77', 3.5);
+  PL.dots(GMM.I_PTS, COL.i + '77', 3.5);
+  GA.forEach(g => PL.ell(g, 2, COL.acc, 2));
+  GI.forEach(g => PL.ell(g, 2, COL.i, 2));
+}
+
+// Score card for frame p: both log-likelihoods and the winner.
+function scoreCard(G, p, y, at, t, note) {
+  fade(G, P(t, at, 0.5), () => {
+    const a = la(p), i = li(p), win = a > i;
+    card(1010, y, 760, 230, {stroke: win ? COL.acc : COL.i, lw: 3});
+    text(`frame (${fmt(p[0])}; ${fmt(p[1])})`, 1040, y + 40, {size: 24, weight: 700, color: COL.frame});
+    text('log p(x | a)', 1040, y + 95, {size: 25, mono: true}); text(fmt(a), 1300, y + 95, {size: 30, weight: 700, color: COL.acc});
+    text('log p(x | i)', 1040, y + 145, {size: 25, mono: true}); text(fmt(i), 1300, y + 145, {size: 30, weight: 700, color: COL.i});
+    text(note || `→ gán "${win ? 'a' : 'i'}"`, 1040, y + 195, {size: 25, weight: 700, color: win ? COL.acc : COL.i});
+  });
+}
+function mark(G, p, label) {
+  PL.dot(p, COL.frame, 10, '#fff');
+  if (label) text(label, PL.X(p[0]) + 18, PL.Y(p[1]) - 18, {size: 22, weight: 700, color: COL.frame});
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Chấm điểm một frame', 'Phần 5/5: so likelihood, ranh giới, giới hạn', 4, PARTS);
+
+function shotTwo(G, t) {
+  const s = S('two'), sp = S('pick');
+  heading('Hai GMM đã học sẵn');
+  base(G);
+  fade(G, P(t, s + 0.5, 0.5), () => {
+    text('GMM "a": 3 đồi', PL.B.x + 16, PL.B.y + 24, {size: 24, weight: 700, color: COL.acc});
+    text('GMM "i": 2 đồi', PL.B.x + 16, PL.B.y + 58, {size: 24, weight: 700, color: COL.i});
+  });
+  if (t > sp - 0.3) mark(G, [0.9, -0.2], 'frame mới');
+  scoreCard(G, [0.9, -0.2], 330, sp + 0.8, t);
+}
+
+function shotBg(G, t) {
+  const s = S('bg'), sb = S('boundary'), db = D('boundary');
+  heading('Tô cả mặt phẳng theo âm thắng');
+  base(G, P(t, s + 0.5, 1.2));
+  fade(G, P(t, sb + db * 0.35, 0.6), () => {
+    // Perpendicular bisector of the two means: what a nearest-mean rule would use.
+    const mx = (MA[0] + MI[0]) / 2, my = (MA[1] + MI[1]) / 2, dx = MI[0] - MA[0], dy = MI[1] - MA[1];
+    const ux = -dy, uy = dx, L = 6;
+    G.save(); G.beginPath(); G.rect(PL.B.x, PL.B.y, PL.B.w, PL.B.h); G.clip();
+    line(PL.X(mx - ux * L), PL.Y(my - uy * L), PL.X(mx + ux * L), PL.Y(my + uy * L), COL.mute, 2.5, [10, 8]);
+    G.restore();
+    PL.dot(MA, COL.ink, 7); PL.dot(MI, COL.ink, 7);
+  });
+  fade(G, P(t, sb + 0.3, 0.6), () => {
+    card(1010, 300, 760, 300);
+    text('ranh giới GMM: cong', 1040, 350, {size: 28, weight: 700, color: COL.acc});
+    text('đi theo hình dạng các cụm', 1040, 400, {size: 24, color: COL.mute});
+  });
+  fade(G, P(t, sb + db * 0.35, 0.6), () => {
+    text('nét đứt: đường thẳng giữa hai trung bình', 1040, 480, {size: 24, weight: 700, color: COL.mute});
+    text('(cách đo khoảng cách ở phần 1)', 1040, 530, {size: 22, color: COL.mute});
+  });
+}
+
+function shotEdge(G, t) {
+  const sc = S('close'), sf = S('far');
+  heading('Sát ranh giới và ở rất xa');
+  base(G, 1);
+  mark(G, [1.6, -0.6], 'sát ranh giới');
+  scoreCard(G, [1.6, -0.6], 250, sc + 0.5, t, '→ "a" nhưng không chắc (chênh 0,3)');
+  if (t > sf) {
+    mark(G, [-2.8, -2.3], 'rất xa');
+    scoreCard(G, [-2.8, -2.3], 520, sf + 0.5, t, '→ "a" thắng, nhưng cả hai đều rất thấp');
+  }
+}
+
+function shotPrior(G, t) {
+  const s = S('prior'), d = D('prior');
+  heading('Thêm tần suất của mỗi âm (Bayes)');
+  fade(G, P(t, s + 0.3, 0.6), () => {
+    text('P(a | x)  ∝  p(x | a) · P(a)', 960, 280, {size: 44, weight: 700, mono: true, align: 'center'});
+  });
+  [['p(x | a)', 'likelihood', 'đám mây "a" cao bao nhiêu tại x', COL.acc], ['P(a)', 'prior', 'âm "a" hay gặp đến đâu', COL.frame], ['P(a | x)', 'posterior', 'xác suất hậu nghiệm: đã thấy x, là "a" bao nhiêu', COL.ok]].forEach(([f, n, m, c], j) =>
+    fade(G, P(t, s + d * (0.25 + j * 0.2), 0.5), () => {
+      card(260, 380 + j * 130, 1400, 110, {stroke: c});
+      text(f, 300, 435 + j * 130, {size: 30, weight: 700, mono: true, color: c});
+      text(n, 600, 435 + j * 130, {size: 28, weight: 700});
+      text(m, 860, 435 + j * 130, {size: 25, color: COL.mute});
+    }));
+}
+
+function shotUses(G, t) {
+  const s = S('uses'), d = D('uses');
+  heading('GMM không chỉ cho âm vị');
+  [['âm vị', 'mỗi âm một GMM', 'trong HMM, đến khoảng 2012', COL.acc], ['người nói', 'mỗi người một GMM', 'Reynolds 1995; GMM-UBM 2000', COL.frame], ['ngôn ngữ', 'mỗi ngôn ngữ một GMM', 'cùng cách chấm likelihood', COL.ok]].forEach(([a, b, c2, c], j) =>
+    fade(G, P(t, s + 0.4 + j * d * 0.22, 0.5), () => {
+      const x = 170 + j * 540;
+      card(x, 330, 500, 330, {stroke: c, lw: 2});
+      text(a, x + 250, 400, {size: 34, weight: 700, color: c, align: 'center'});
+      text(b, x + 250, 490, {size: 26, align: 'center'});
+      text(c2, x + 250, 560, {size: 23, color: COL.mute, align: 'center'});
+    }));
+}
+
+// A synthetic "a i" utterance: 12 frames drifting from the "a" cloud to the "i" cloud.
+const PATH = (() => {
+  const r = GMM.rng(4), a = [0.6, -0.9], b = [1.9, -1.2];
+  return Array.from({length: 14}, (_, k) => { const u = k / 13; return [lerp(a[0], b[0], u) + 0.25 * GMM.randn(r), lerp(a[1], b[1], u) + 0.25 * GMM.randn(r)]; });
+})();
+const LAB = PATH.map(p => (la(p) > li(p) ? 'a' : 'i'));
+
+function shotLimit(G, t) {
+  const s1 = S('limit1'), s2 = S('limit2'), d2 = D('limit2');
+  heading('Giới hạn: chấm từng frame riêng lẻ');
+  const x0 = 260, w = 100;
+  fade(G, P(t, s1 + 0.3, 0.6), () => {
+    text('câu "a i", 14 frame liên tiếp:', x0, 290, {size: 26, weight: 700});
+    LAB.forEach((l, k) => fade(G, P(t, s1 + 0.8 + k * 0.25, 0.3), () => {
+      rrect(x0 + k * w, 330, w - 10, 90, 10, l === 'a' ? COL.accSoft : '#f4eff8', l === 'a' ? COL.acc : COL.i, 2);
+      text(l, x0 + k * w + (w - 10) / 2, 375, {size: 36, weight: 700, color: l === 'a' ? COL.acc : COL.i, align: 'center'});
+    }));
+    fade(G, P(t, s1 + D('limit1') * 0.6, 0.5), () => text('vùng chuyển âm: nhãn nhảy qua lại', x0, 470, {size: 25, color: COL.hl, weight: 700}));
+  });
+  fade(G, P(t, s2 + 0.3, 0.6), () => {
+    card(260, 540, 640, 200);
+    text('"a i"', 300, 600, {size: 34, weight: 700});
+    text('"i a"', 300, 680, {size: 34, weight: 700});
+    text('cùng một tập frame', 460, 640, {size: 26, color: COL.mute});
+    text('→ cùng điểm số', 720, 640, {size: 26, weight: 700, color: COL.hl});
+  });
+  fade(G, P(t, s2 + d2 * 0.6, 0.6), () => {
+    card(980, 540, 700, 200, {stroke: COL.frame, lw: 3});
+    text('GMM không biết thứ tự', 1010, 600, {size: 28, weight: 700, color: COL.frame});
+    text('cần mô hình thời gian: HMM (trang sau)', 1010, 670, {size: 26});
+  });
+}
+
+function shotPractice(G, t) {
+  const s = S('practice'), d = D('practice');
+  heading('Trong thực tế');
+  [['39 chiều', '13 MFCC + delta + delta-delta'], ['8 đến vài chục đồi', 'mỗi GMM'], ['covariance đường chéo', 'mỗi đồi: 39 tâm + 39 phương sai + 1 trọng số = 79 số']].forEach(([a, b], j) =>
+    fade(G, P(t, s + 0.4 + j * d * 0.22, 0.5), () => {
+      card(300, 290 + j * 140, 1320, 110);
+      text(a, 340, 345 + j * 140, {size: 30, weight: 700, color: COL.acc});
+      text(b, 760, 345 + j * 140, {size: 26});
+    }));
+  fade(G, P(t, s + d * 0.8, 0.5), () => chip(G, 640, 730, '16 đồi × 79 ≈ 1 264 số cho một GMM', HOT));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['mỗi âm một GMM', COL.ink], ['gán frame cho âm có likelihood × tần suất cao nhất', COL.acc], ['ranh giới cong theo hình dạng cụm', COL.acc], ['thiếu thứ tự thời gian → HMM', COL.frame]].forEach(([a, c], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.3, 0.6), () => {
+      text('✓', 470, 300 + j * 84, {size: 34, weight: 700, color: COL.ok});
+      text(a, 520, 300 + j * 84, {size: 31, color: c});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 760, 680, 'Trang sau: HMM  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 5', [
+  ['độ cao địa hình của một âm', 'likelihood p(x | âm)', 'so giữa các GMM'],
+  ['âm hay gặp đến đâu', 'prior P(âm)', 'xác suất tiên nghiệm'],
+  ['đã thấy x, là âm nào', 'posterior P(âm | x)', 'xác suất hậu nghiệm, theo Bayes'],
+  ['đường chia hai vùng', 'decision boundary', 'GMM cho ranh giới cong'],
+  ['mô hình nền chung', 'GMM-UBM', 'nhận dạng người nói'],
+  ['mô hình thứ tự thời gian', 'HMM (Hidden Markov Model)', 'trang sau'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 9,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'two', to: 'pick', draw: shotTwo},
+    {from: 'bg', to: 'boundary', draw: shotBg},
+    {from: 'close', to: 'far', draw: shotEdge},
+    {from: 'prior', to: 'prior', draw: shotPrior},
+    {from: 'uses', to: 'uses', draw: shotUses},
+    {from: 'limit1', to: 'limit2', draw: shotLimit},
+    {from: 'practice', to: 'practice', draw: shotPractice},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/gmm-5-cham-diem.wav');
+</script>
+</body>
+</html>

@@ -1,0 +1,983 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MFCC</title>
+<style>
+:root{
+  --page:#fbfbfa;--bg:#ffffff;--soft:#f7f7f5;--line:#dcdbd7;--line2:#c4c2bc;
+  --ink:#37352f;--mute:#787774;--acc:#337ea9;--acc-soft:#e7f3f8;
+  --frame:#d9730d;--hl:#d44c47;--ok:#448361;
+  --lift:0 0 0 1px rgba(15,15,15,.10),0 2px 4px rgba(15,15,15,.04),0 8px 20px rgba(15,15,15,.05);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);font:15px/1.7 Inter,"Be Vietnam Pro",system-ui,sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:28px 16px 80px}
+h1{font-size:24px;line-height:1.3;margin:0 0 6px}
+h2{font-size:18px;margin:0 0 8px;display:flex;gap:10px;align-items:baseline}
+h2 .n{display:inline-flex;justify-content:center;align-items:center;min-width:26px;height:26px;border-radius:50%;background:var(--ink);color:#fff;font-size:13px;flex:none}
+h3{font-size:14px;margin:16px 0 4px}
+p{margin:0 0 10px}
+ul{margin:0 0 10px;padding-left:22px}
+.sub{color:var(--mute);margin:0 0 14px}
+section{background:var(--bg);box-shadow:var(--lift);border-radius:8px;padding:20px;margin:0 0 22px}
+.fig{margin:8px 0 4px}
+canvas{display:block}
+svg{display:block;width:100%;height:auto}
+.note{border-left:3px solid var(--hl);background:#fdf3f2;padding:10px 14px;border-radius:0 6px 6px 0;margin:12px 0 0}
+.note.blue{border-color:var(--acc);background:var(--acc-soft)}
+.note.green{border-color:var(--ok);background:#eef6f1}
+.note b{color:var(--hl)}
+.note.blue b{color:var(--acc)}
+.note.green b{color:var(--ok)}
+.qa{border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin:12px 0;background:var(--soft)}
+.qa .q{font-weight:600;margin:0 0 6px}
+.qa .q::before{content:"Bạn hỏi: ";color:var(--frame)}
+.qa .fix{color:var(--hl);font-weight:600}
+.qa p:last-child{margin-bottom:0}
+button{font:inherit;font-size:14px;padding:5px 12px;border:1px solid var(--line2);background:var(--bg);border-radius:6px;cursor:pointer;color:var(--ink)}
+button:hover{background:var(--soft)}
+button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.ctrl{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin:10px 0 0;font-size:14px}
+.ctrl .grp{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.ctrl input[type=range]{width:min(280px,100%)}
+.readout{margin-top:8px;min-height:24px}
+.muted{color:var(--mute)}
+table{border-collapse:collapse;font-size:14px;margin:8px 0}
+th,td{border-bottom:1px solid var(--line);padding:6px 12px 6px 0;text-align:left;vertical-align:top}
+th{color:var(--mute);font-weight:600}
+.formula{font-family:ui-monospace,Menlo,monospace;background:var(--soft);padding:8px 12px;border-radius:6px;display:inline-block;margin:4px 0 10px}
+.tablewrap{overflow-x:auto}
+.toc{font-size:14px;color:var(--mute);margin:0 0 22px}
+.toc a{color:var(--acc);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>MFCC: từ 40 số Mel còn lại 13 số, giữ "chữ gì", bỏ "giọng ai"</h1>
+<p class="sub">Tới trang Mel bạn đã nắm chắc: spectrogram chia tần số đều nên phí chỗ ở vùng cao; thang Mel giãn vùng thấp, nén vùng cao giống tai người; 40 tam giác Mel gom năng lượng lại, mỗi frame còn <b>40 số</b>. Trang này đi chậm từng bước: 40 số đó <b>còn vướng gì</b>, rồi tới <b>log</b>, <b>DCT</b>, vì sao <b>giữ 13 số</b>, và cuối cùng <b>delta, delta-delta</b> để ra vector <b>39 số</b> cho mỗi frame.</p>
+<p class="toc">Các mục:
+<a href="#s0">1 Vấn đề</a> ·
+<a href="#s0b">2 Toàn cảnh</a> ·
+<a href="#sfb">3 Tam giác Mel ra "năng lượng"</a> ·
+<a href="#s1">4 Log: nén số</a> ·
+<a href="#s2">5 Log: nhân thành cộng</a> ·
+<a href="#s3">6 DCT</a> ·
+<a href="#s4">7 Vì sao 13</a> ·
+<a href="#s5">8 Cả câu</a> ·
+<a href="#sd">9 Delta</a> ·
+<a href="#s39">10 Vector 39 số</a></p>
+
+<section id="s0">
+<h2><span class="n">1</span>Vấn đề: 40 số Mel đang trộn hai thứ</h2>
+<p>Nhớ lại trang 02: phổ của âm hữu thanh là <b>cái lược × cái khuôn</b>.</p>
+<div class="tablewrap"><table>
+<tr><th></th><th>Do đâu mà có</th><th>Cho biết điều gì</th></tr>
+<tr><td><b>cái lược</b> (harmonics, họa âm)</td><td>dây thanh rung, f0</td><td>giọng cao hay trầm, tức là <b>ai nói</b></td></tr>
+<tr><td><b>cái khuôn</b> (formant, spectral envelope)</td><td>khẩu hình: lưỡi, môi, hàm</td><td><b>chữ gì</b> ("a" hay "i")</td></tr>
+</table></div>
+<p>Tam giác Mel chỉ gom bin lại, nó <b>không tách</b> hai thứ này ra. Mỗi số trong 40 số vẫn là lược và khuôn dính vào nhau. Hình dưới vẽ 40 số Mel (theo dB) của 3 frame: <b>"a" giọng 200 Hz</b>, <b>"a" giọng 300 Hz</b>, và <b>"i" giọng 200 Hz</b>.</p>
+<div class="fig"><canvas id="c0"></canvas></div>
+<div class="readout" id="r0"></div>
+<div class="note"><b>Nhìn vào hình:</b>
+<br>• Hai đường "a" (xanh, liền và đứt) là <b>cùng một chữ</b>, chỉ khác giọng, mà vẫn lệch nhau rõ, nhất là ở bên trái. Ở vùng thấp tam giác hẹp, nên răng lược rơi vào tam giác nào thì tam giác đó vọt lên.
+<br>• Đổi giọng làm 40 số thay đổi khoảng <b>2/3</b> so với đổi chữ (xem hai con số ở dòng trên). Nói cách khác: nếu chỉ nhìn 40 số này để đoán chữ, cái lược đang gây nhiễu khá nặng.
+<br>• Thêm một chỗ phí: các tam giác cạnh nhau <b>chồng lên nhau</b>, nên số này cao thì số bên cạnh cũng cao. 40 số mà nhiều số đang lặp lại cùng một thông tin (người ta gọi là các số bị <b>tương quan</b>, correlated).</div>
+<div class="note blue"><b>MFCC ra đời để làm gì:</b> từ 40 số Mel, lấy ra một bộ số <b>ít hơn</b> (khoảng 13), các số <b>không lặp thông tin của nhau</b>, và chỉ mô tả <b>cái khuôn</b>, bỏ được phần lớn <b>cái lược</b>.</div>
+</section>
+
+<section id="s0b">
+<h2><span class="n">2</span>Toàn cảnh: đường đi từ sóng âm tới MFCC</h2>
+<p>Trước khi đi chậm từng bước, nhìn cả con đường một lần. Ô xám là phần bạn đã học, ô cam là phần trang này mổ xẻ. Số nhỏ bên dưới mỗi ô là <b>mỗi frame còn bao nhiêu số</b> sau bước đó.</p>
+<div class="fig">
+<svg viewBox="0 0 940 260" role="img" aria-label="Sơ đồ các bước tính MFCC">
+<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#9b9a97"/></marker></defs>
+<g font-family="Inter,system-ui,sans-serif" text-anchor="middle">
+  <g fill="#f7f7f5" stroke="#c4c2bc">
+    <rect x="10" y="20" width="160" height="78" rx="8"/><rect x="198" y="20" width="160" height="78" rx="8"/><rect x="386" y="20" width="160" height="78" rx="8"/>
+  </g>
+  <g fill="#fdf1e6" stroke="#d9730d">
+    <rect x="574" y="20" width="160" height="78" rx="8"/><rect x="762" y="20" width="168" height="78" rx="8"/>
+    <rect x="10" y="160" width="160" height="78" rx="8"/><rect x="198" y="160" width="160" height="78" rx="8"/><rect x="386" y="160" width="160" height="78" rx="8"/><rect x="574" y="160" width="160" height="78" rx="8"/>
+  </g>
+  <rect x="762" y="160" width="168" height="78" rx="8" fill="#37352f"/>
+  <g font-size="14" font-weight="600" fill="#37352f">
+    <text x="90" y="46">Sóng âm</text><text x="278" y="46">Cắt frame 25 ms</text><text x="466" y="46">FFT</text>
+    <text x="654" y="46">Bình phương độ lớn</text><text x="846" y="46">40 tam giác Mel</text>
+    <text x="90" y="186">log</text><text x="278" y="186">DCT</text><text x="466" y="186">Giữ 13 số đầu</text><text x="654" y="186">Thêm Δ và ΔΔ</text>
+    <text x="846" y="186" fill="#fff">Đưa vào model</text>
+  </g>
+  <g font-size="12" fill="#787774">
+    <text x="90" y="66">16 000 số mỗi giây</text><text x="278" y="66">400 số / frame</text><text x="466" y="66">257 số phức</text>
+    <text x="654" y="66">257 năng lượng</text><text x="846" y="66">40 năng lượng</text>
+    <text x="90" y="206">40 số dB</text><text x="278" y="206">40 hệ số</text><text x="466" y="206">13 số = MFCC</text><text x="654" y="206">13 + 13 + 13 = 39 số</text>
+    <text x="846" y="206" fill="#dcdbd7">ma trận 39 × số frame</text>
+  </g>
+  <g font-size="11" fill="#d9730d" font-weight="600">
+    <text x="654" y="86">mục 3</text><text x="846" y="86">mục 3</text>
+    <text x="90" y="226">mục 4, 5</text><text x="278" y="226">mục 6</text><text x="466" y="226">mục 7, 8</text><text x="654" y="226">mục 9, 10</text>
+  </g>
+  <g fill="none" stroke="#9b9a97" stroke-width="1.5" marker-end="url(#ar)">
+    <path d="M170,59 H196"/><path d="M358,59 H384"/><path d="M546,59 H572"/><path d="M734,59 H760"/>
+    <path d="M846,98 V128 H90 V158"/>
+    <path d="M170,199 H196"/><path d="M358,199 H384"/><path d="M546,199 H572"/><path d="M734,199 H760"/>
+  </g>
+</g>
+</svg>
+</div>
+<p>Ý tưởng chính của MFCC dựa trên một khác biệt về <b>hình dạng</b> khi bạn vẽ 40 số thành một đường:</p>
+<div class="tablewrap"><table>
+<tr><th></th><th>Trên đường 40 số, nó trông thế nào</th><th>Hình dung</th></tr>
+<tr><td><b>cái khuôn</b></td><td>thay đổi <b>chậm</b>: vài cái bướu rộng (formant)</td><td>mấy ngọn đồi thoải</td></tr>
+<tr><td><b>cái lược</b></td><td>thay đổi <b>nhanh</b>: khía lăn tăn sát nhau (từng họa âm)</td><td>răng cưa nhỏ trên sườn đồi</td></tr>
+</table></div>
+<p>Vậy chỉ cần một cái máy <b>phân loại theo độ nhấp nhô</b>: phần nhấp nhô chậm giữ lại, phần nhấp nhô nhanh bỏ đi. Có 3 bước, mỗi bước gỡ một chỗ vướng:</p>
+<div class="tablewrap"><table>
+<tr><th>Bước</th><th>Gỡ vướng gì</th><th>Làm bằng cách nào</th></tr>
+<tr><td><b>log</b></td><td>lược và khuôn đang <b>nhân</b> nhau, chưa tách được</td><td>log(a × b) = log a + log b, nên sau log thành lược <b>cộng</b> khuôn. Thêm lợi ích phụ: nén số to số nhỏ về cùng một tầm</td></tr>
+<tr><td><b>DCT</b></td><td>đã cộng, nhưng vẫn trộn trong cùng 40 số</td><td>so đường 40 số với từng sóng cosin mẫu, từ sóng thoải tới sóng dày. Sóng thoải bắt được khuôn, sóng dày bắt được lược</td></tr>
+<tr><td><b>giữ 13 số đầu</b></td><td>bỏ lược, bớt số lượng</td><td>cắt các hệ số cuối, 40 số còn 13</td></tr>
+</table></div>
+<div class="note blue"><b>Nói gọn một câu:</b> log biến "nhân" thành "cộng", DCT xếp phần cộng đó theo độ nhấp nhô, cắt bỏ phần nhấp nhô nhanh. Phần còn lại là MFCC.</div>
+</section>
+
+<section id="sfb">
+<h2><span class="n">3</span>Đi chậm lại: vì sao tam giác Mel ra "năng lượng"?</h2>
+<p>Bạn hiểu đúng: với sample rate 16 kHz, FFT soi một frame và chia dải <b>0 đến 8000 Hz</b> thành <b>257 vạch</b> (bin), mỗi vạch cách nhau 31,25 Hz. Câu hỏi là mỗi vạch đó chứa con số gì.</p>
+<div class="fig">
+<svg viewBox="0 0 940 162" role="img" aria-label="Từ số phức tới độ lớn tới năng lượng">
+<defs><marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#9b9a97"/></marker></defs>
+<g font-family="Inter,system-ui,sans-serif">
+  <g transform="translate(20,10)">
+    <line x1="10" y1="110" x2="150" y2="110" stroke="#c4c2bc"/><line x1="20" y1="120" x2="20" y2="10" stroke="#c4c2bc"/>
+    <line x1="20" y1="110" x2="120" y2="40" stroke="#337ea9" stroke-width="2.5"/>
+    <line x1="120" y1="40" x2="120" y2="110" stroke="#9b9a97" stroke-dasharray="4 3"/>
+    <circle cx="120" cy="40" r="4" fill="#337ea9"/>
+    <text x="70" y="124" font-size="11" fill="#787774" text-anchor="middle">phần thực</text>
+    <text x="128" y="80" font-size="11" fill="#787774">phần ảo</text>
+    <text x="62" y="64" font-size="12" fill="#337ea9" font-weight="600" text-anchor="middle" transform="rotate(-35 62 64)">độ dài</text>
+  </g>
+  <text x="95" y="156" font-size="12" text-anchor="middle" fill="#37352f" font-weight="600">FFT trả về một số phức</text>
+  <path d="M200,70 H270" stroke="#9b9a97" stroke-width="1.5" marker-end="url(#ar2)"/>
+  <text x="235" y="60" font-size="11" text-anchor="middle" fill="#787774">lấy độ dài</text>
+  <rect x="285" y="35" width="210" height="70" rx="8" fill="#f7f7f5" stroke="#c4c2bc"/>
+  <text x="390" y="62" font-size="14" text-anchor="middle" font-weight="600" fill="#37352f">Độ lớn |X|</text>
+  <text x="390" y="84" font-size="12" text-anchor="middle" fill="#787774">magnitude, biên độ</text>
+  <path d="M500,70 H570" stroke="#9b9a97" stroke-width="1.5" marker-end="url(#ar2)"/>
+  <text x="535" y="60" font-size="11" text-anchor="middle" fill="#787774">bình phương</text>
+  <rect x="585" y="35" width="210" height="70" rx="8" fill="#fdf1e6" stroke="#d9730d"/>
+  <text x="690" y="62" font-size="14" text-anchor="middle" font-weight="600" fill="#d9730d">Năng lượng |X|²</text>
+  <text x="690" y="84" font-size="12" text-anchor="middle" fill="#787774">power, công suất</text>
+  <text x="865" y="62" font-size="12" text-anchor="middle" fill="#37352f">đưa vào</text>
+  <text x="865" y="80" font-size="12" text-anchor="middle" fill="#37352f">tam giác Mel</text>
+</g>
+</svg>
+</div>
+<div class="qa">
+<p class="q">Cột FFT là cường độ hay độ lớn của tần số? Sao lại gọi là năng lượng, có khác gì không?</p>
+<p>FFT trả về cho mỗi vạch một <b>số phức</b>: nó mang cả "mạnh hay yếu" lẫn "lệch pha bao nhiêu". Pha thì tai gần như không để ý, nên ta chỉ giữ phần mạnh yếu:</p>
+<ul>
+<li><b>Độ lớn</b> (magnitude) = độ dài của số phức, tức là căn của (thực² + ảo²). Nó đo <b>biên độ</b> của thành phần tần số đó.</li>
+<li><b>Năng lượng</b> (power) = độ lớn <b>bình phương</b>. Giống vật lý: năng lượng của dao động tỉ lệ với biên độ bình phương.</li>
+</ul>
+<p>Hai thứ này luôn tăng giảm cùng chiều, nên nhìn hình thì gần như giống nhau. Lý do chọn năng lượng: <b>năng lượng thì cộng được</b>. Năng lượng của cả frame đúng bằng tổng năng lượng các vạch, nên tam giác cộng năng lượng các vạch lại thì ra đúng "năng lượng trong vùng tần số đó". Cộng độ lớn thì không mang ý nghĩa như vậy.</p>
+<p class="muted">Một số thư viện vẫn cho chọn dùng độ lớn thay vì năng lượng. Sau bước log, hai cách chỉ khác nhau một hệ số nhân 2, nên kết quả gần như giống nhau.</p>
+</div>
+<p>Giờ tới tam giác. Mỗi tam giác giống một cái <b>phễu có trọng số</b>: vạch nằm giữa tam giác được tính đủ (× 1), vạch ở sườn được tính một phần, vạch ngoài tam giác bị bỏ (× 0). Nhân rồi cộng hết lại, tam giác cho ra <b>đúng một con số</b>. Kéo thanh trượt để chọn tam giác.</p>
+<div class="ctrl"><span class="grp">Tam giác số <input type="range" id="fbj" min="1" max="40" step="1" value="10"> <b id="fbjv"></b></span></div>
+<div class="fig"><canvas id="cfb"></canvas></div>
+<div class="readout" id="rfb"></div>
+<div class="note"><b>Nhìn vào hình:</b>
+<br>• Hình trên: cột xám là năng lượng 257 vạch của frame "a" (chỉ phóng to vùng quanh tam giác đang chọn), đường cam là tam giác.
+<br>• Hình giữa: mỗi vạch sau khi nhân với độ cao tam giác. <b>Cộng các cột cam lại</b> là ra con số của tam giác này.
+<br>• Hình dưới: 40 con số của 40 tam giác (đã đổi sang dB). Cột cam là tam giác đang chọn. Đây chính là <b>một cột</b> của Mel spectrogram.
+<br>• Kéo về tam giác 1 đến 5: tam giác chỉ phủ vài vạch. Kéo lên 35 đến 40: tam giác phủ cả chục vạch. Đó là thang Mel: vùng thấp soi kỹ, vùng cao gom thô.</div>
+</section>
+
+<section id="s1">
+<h2><span class="n">4</span>Bước log, lợi ích phụ: kéo số to số nhỏ về cùng một tầm</h2>
+<p><b>log₁₀</b> của một số cho biết số đó có khoảng bao nhiêu chữ số 0: log₁₀(10) = 1, log₁₀(100) = 2, log₁₀(1 000 000) = 6. Bạn đã gặp log rồi: <b>dB</b> chính là <span class="formula">dB = 10 × log₁₀(năng lượng)</span></p>
+<p>Ví dụ đơn giản: 4 tam giác có năng lượng <b>[1000, 100, 10, 1]</b>. Lấy log₁₀ thì thành <b>[3, 2, 1, 0]</b>. Chênh nhau 1000 lần, sau log chỉ còn chênh 3 đơn vị. Hình dưới làm điều đó với 40 số Mel thật của âm "a". Bấm qua lại giữa <b>chưa log</b> và <b>đã log</b>.</p>
+<div class="ctrl"><span class="grp">Thang: <button data-sc1="lin" class="on">chưa log (năng lượng)</button><button data-sc1="log">đã log (dB)</button></span></div>
+<div class="fig"><canvas id="c1"></canvas></div>
+<div class="readout" id="r1"></div>
+<div class="note"><b>Nhìn vào hình:</b>
+<br>• <b>Chưa log</b>: chỉ vài cột ở vùng formant nhô lên, các cột khác gần như bằng 0 dù chúng vẫn có năng lượng. Số lớn nhất gấp hàng triệu lần số nhỏ nhất, vẽ chung một trục thì số nhỏ biến mất.
+<br>• <b>Đã log</b>: cột nào cũng thấy được. Năng lượng gấp 10 thì chỉ cộng thêm 10 dB.
+<br>• Tai cũng nghe <b>độ to</b> theo tỉ lệ: từ 1 lên 10 nghe chênh giống như từ 1000 lên 10 000. Log làm con số khớp với cách tai nghe.</div>
+<div class="qa">
+<p class="q">Log có phải giống regularization, chuẩn hóa số về 0 đến 1 cho model dễ học không?</p>
+<p>Gần đúng ý, nhưng <span class="fix">chỉnh lại tên gọi</span>: <b>regularization</b> là thứ khác (phạt trọng số quá lớn để model đỡ học vẹt). Còn việc đưa về 0 đến 1 gọi là <b>min-max scaling</b>, đó là co giãn <b>tuyến tính</b>, giữ nguyên tỉ lệ: số 1000 vẫn to gấp 1000 lần số 1, số nhỏ vẫn bị chìm.</p>
+<p>Log thì <b>nén không đều</b>: số to bị ép mạnh, số nhỏ gần như giữ nguyên. Tên chuẩn của việc này là <b>nén dải động</b> (dynamic range compression). Và như mục 5 sẽ thấy, nén số chỉ là lợi ích phụ.</p>
+</div>
+</section>
+
+<section id="s2">
+<h2><span class="n">5</span>Bước log, lý do chính: đổi phép nhân thành phép cộng</h2>
+<p>Phổ của âm hữu thanh = <b>cái lược</b> (các họa âm, do f0) <b>×</b> <b>cái khuôn</b> (các formant, do khẩu hình). Hai thứ đang nhân nhau thì rất khó gỡ, giống như biết tích bằng 12 mà không biết là 3 × 4 hay 2 × 6. Log có một tính chất đặc biệt:</p>
+<div class="formula">log(a × b) = log a + log b &nbsp;&nbsp; ví dụ: log(100 × 1000) = 2 + 3 = 5</div>
+<p>Nên sau log: <b>log phổ = log lược + log khuôn</b>. Hình dưới vẽ ba đường từ 0 đến 4000 Hz. Kéo f0 để thay cái lược, khuôn vẫn là âm "a".</p>
+<div class="ctrl">
+  <span class="grp">Thang: <button data-sc2="lin" class="on">chưa log</button><button data-sc2="log">đã log</button></span>
+  <span class="grp">f0: <input type="range" id="f02" min="100" max="300" step="10" value="200"> <b id="f02v"></b></span>
+</div>
+<div class="fig"><canvas id="c2"></canvas></div>
+<div class="note"><b>Nhìn vào hình:</b>
+<br>• <b>Chưa log</b>: các răng của phổ <b>cao thấp khác nhau</b>, vì mỗi răng bị nhân với độ cao của khuôn tại đó. Ở chỗ khuôn thấp (khoảng 2000 Hz, trên 3000 Hz), răng nhỏ tới mức gần như không thấy. Lược và khuôn dính chặt vào nhau.
+<br>• <b>Đã log</b>: đường phổ = đường khuôn (nét đứt xanh lá) <b>cộng</b> một hàng răng <b>sâu đều nhau</b> ở mọi chỗ. Đỉnh răng nằm đúng trên đường khuôn.
+<br>• Hai thứ đang <b>cộng</b> nhau thì tách ra dễ hơn nhiều: chỉ cần biết thứ nào nhấp nhô chậm, thứ nào nhấp nhô nhanh. Đó là việc của DCT ở mục 6.</div>
+<p class="muted">Kết quả sau bước này (log của 40 số Mel, xếp theo thời gian) có tên riêng là <b>log-Mel spectrogram</b>. Nó cũng là một loại đặc trưng được dùng rất nhiều, không nhất thiết phải đi tiếp tới MFCC.</p>
+</section>
+
+<section id="s3">
+<h2><span class="n">6</span>DCT: so đường 40 số với từng sóng cosin mẫu</h2>
+<p>Sau log, 40 số của một frame vẽ ra thành một đường gồ ghề, giống mặt cắt một dãy đồi. DCT (Discrete Cosine Transform, biến đổi cosin rời rạc) là một cái <b>máy đo hình dáng</b>: nó trả lời một loạt câu hỏi về dãy đồi đó.</p>
+<ul>
+<li>Cao trung bình bao nhiêu? → so với sóng phẳng → <b>c0</b></li>
+<li>Dốc xuống từ trái sang phải, hay dốc lên? → so với sóng nghiêng nửa chu kỳ → <b>c1</b></li>
+<li>Võng ở giữa hay gù ở giữa? → so với sóng cong một lần → <b>c2</b></li>
+<li>… càng về sau càng hỏi về những gợn <b>nhỏ và dày</b> hơn → c3, c4, … c39</li>
+</ul>
+<h3>a. Các sóng cosin mẫu</h3>
+<p>Có 40 sóng mẫu, đánh số 0 đến 39. Sóng số càng lớn thì càng nhấp nhô dày. Dưới đây là 6 sóng đầu:</p>
+<div class="fig"><canvas id="c3w"></canvas></div>
+
+<h3>b. "So" là làm phép gì: nhân từng cặp rồi cộng lại</h3>
+<p>Để đo đường 40 số giống sóng số k tới đâu, DCT lấy 40 số nhân với 40 điểm của sóng k <b>từng cặp một</b>, rồi cộng 40 tích lại. Ra <b>một con số</b>, gọi là <b>hệ số</b> (coefficient) <b>c<sub>k</sub></b>. Chỗ nào hai đường cùng dấu thì tích dương, ngược dấu thì tích âm. Hai đường càng giống hình nhau thì tổng càng lớn. Chọn sóng ở dưới để xem:</p>
+<div class="ctrl"><span class="grp">Sóng số <input type="range" id="dk" min="0" max="39" step="1" value="1"> <b id="dkv"></b></span><span class="grp">Âm: <button data-vd="a" class="on">"a"</button><button data-vd="i">"i"</button></span></div>
+<div class="fig"><canvas id="cdot"></canvas></div>
+<div class="readout" id="rdot"></div>
+<div class="note"><b>Nhìn vào hình:</b>
+<br>• Sóng 1 (nghiêng): "a" mạnh ở vùng thấp, yếu ở vùng cao, nên khớp chiều nghiêng của sóng, tích phần lớn dương, c1 lớn.
+<br>• Sóng 25 đến 39: sóng đổi dấu liên tục, các tích dương âm <b>triệt tiêu nhau</b>, nên hệ số nhỏ. Đường 40 số không có nhiều gợn dày như vậy, trừ mấy khía lược ở bên trái.
+<br>• Làm như vậy với cả 40 sóng thì 40 số Mel thành <b>40 hệ số</b>, c0 đến c39.</div>
+
+<div class="qa">
+<p class="q">Vậy DCT giống tích chập trong CNN, mỗi sóng cosin là một filter kernel cho một đặc trưng của giọng, đúng không?</p>
+<p>Trực giác <b>đúng ở phần quan trọng nhất</b>: cả hai đều "lấy mẫu nhân với dữ liệu từng cặp rồi cộng lại" (dot product), mỗi mẫu bắt một kiểu hình dáng. Nhưng có hai chỗ khác:</p>
+<div class="tablewrap"><table>
+<tr><th></th><th>CNN</th><th>DCT</th></tr>
+<tr><td>Mẫu lấy từ đâu</td><td><b>học</b> từ dữ liệu (gradient descent)</td><td><b>cố định</b> bằng công thức, không cần học</td></tr>
+<tr><td>Cách áp mẫu</td><td>kernel nhỏ (vài ô) <b>trượt</b> khắp ảnh, ra một bản đồ</td><td>mỗi sóng <b>dài đúng 40 ô</b>, phủ hết một lần, <b>không trượt</b>, ra một số</td></tr>
+<tr><td>Gần giống với</td><td></td><td>một lớp fully-connected 40 → 40 có trọng số đóng băng</td></tr>
+</table></div>
+<p><span class="fix">Chỉnh thêm một chữ:</span> sóng mẫu của DCT là sóng <b>cosin</b>, và mỗi sóng không tương ứng với một "đặc trưng của giọng" như f0 hay formant. Nó chỉ là một <b>kiểu nhấp nhô</b> (thoải hay dày). Formant hiện ra nhờ <b>nhiều</b> sóng thoải cộng lại.</p>
+</div>
+
+<div class="qa">
+<p class="q">Các sóng cosin mẫu đó lấy từ đâu ra? Tác giả làm sao biết mà xài?</p>
+<p>Người làm MFCC (Davis và Mermelstein, 1980) <b>không tự vẽ</b> các sóng này. Họ lấy một công cụ toán có sẵn:</p>
+<ul>
+<li><b>Từ Fourier</b>: đường nào cũng viết được thành tổng các sóng sin, cosin. Bạn đã thấy ở trang 03: cộng dần các họa âm thì dựng lại được luồng hơi. DCT là cùng ý đó, chỉ dùng toàn cosin. Công thức của sóng số k ở điểm n là <span class="formula">cos(π · k · (n + 0,5) / 40)</span></li>
+<li><b>Các sóng không giẫm chân nhau</b> (trực giao, orthogonal): nhân hai sóng khác số với nhau rồi cộng lại thì ra đúng 0. Nhờ vậy mỗi hệ số đo một kiểu hình dáng <b>riêng</b>, không lặp thông tin của hệ số khác. Đây là chỗ gỡ vướng "40 số Mel tương quan nhau" ở mục 1.</li>
+<li><b>Gần với cách tốt nhất mà lại rẻ</b>: cách khử tương quan tốt nhất là <b>PCA</b> (tên trong xử lý tín hiệu là KLT, Karhunen-Loève Transform), nhưng PCA phải tính lại từ dữ liệu. Ahmed, Natarajan và Rao (1974, người đề xuất DCT) chỉ ra rằng với dữ liệu mà các số cạnh nhau tương quan mạnh, như 40 số Mel, các sóng cosin cố định cho kết quả <b>rất gần</b> PCA. Không cần học, không cần dữ liệu.</li>
+</ul>
+</div>
+
+<h3>c. Cộng ngược lại các sóng: hệ số đầu vẽ khuôn, hệ số cuối vẽ lược</h3>
+<p>Có 40 hệ số rồi thì làm ngược được: lấy c<sub>k</sub> nhân sóng k rồi cộng các sóng lại, ra đường 40 số. Thử chỉ cộng vài sóng đầu xem được gì.</p>
+<div class="ctrl">
+  <span class="grp">Âm: <button data-v3="a" class="on">"a"</button><button data-v3="i">"i"</button></span>
+  <span class="grp">Cộng <input type="range" id="k3" min="1" max="40" step="1" value="13"> <b id="k3v"></b></span>
+  <button id="sweep3">▶ Cộng dần từ 1</button>
+</div>
+<div class="fig"><canvas id="c3a"></canvas></div>
+<div class="readout" id="r3"></div>
+<h3>d. 40 hệ số DCT của frame này</h3>
+<div class="fig"><canvas id="c3b"></canvas></div>
+<div class="note"><b>Nhìn vào hình:</b>
+<br>• Bấm "Cộng dần". Một sóng (c0) chỉ cho đường <b>phẳng</b>, bằng độ to trung bình. Thêm c1 thì đường <b>nghiêng</b>. Thêm vài sóng nữa đã thấy các bướu <b>formant</b>.
+<br>• Tới khoảng <b>13 sóng</b>, đường cam đã theo đúng <b>hình dạng chung</b>, tức là <b>cái khuôn</b>. Nó chỉ chưa theo các khía lăn tăn bên trái (vùng thấp, tam giác hẹp nên còn thấy từng họa âm).
+<br>• Các khía đó là phần còn sót lại của <b>cái lược</b>. Muốn vẽ chúng phải dùng các sóng nhấp nhô dày, tức là các hệ số cuối.
+<br>• Kéo lên 40 thì đường cam trùng hoàn toàn đường xám: DCT <b>không làm mất gì</b>, nó chỉ là một cách viết khác của cùng 40 số.</div>
+</section>
+
+<section id="s4">
+<h2><span class="n">7</span>Giữ 13 hệ số đầu: vì sao lại là 13?</h2>
+<div class="qa">
+<p class="q">13 sóng đầu đã đủ thì sao các hệ số sau vẫn tồn tại?</p>
+<p>Vì DCT là phép toán, nó <b>không biết</b> bạn định dùng kết quả vào việc gì: 40 số vào thì luôn ra đủ 40 hệ số (mục 6c: giữ đủ 40 thì dựng lại y nguyên). Chính <b>người dùng</b> chủ động cắt: giữ c0 đến c12, bỏ c13 đến c39.</p>
+</div>
+<div class="qa">
+<p class="q">Có phải người ta thử nhiều lần và thấy tới 13 là đủ tốt, phía sau không còn mang lại nhiều giá trị?</p>
+<p><b>Đúng vậy.</b> Con số 12, 13 là kết quả <b>thực nghiệm</b> từ những năm 1980: thử nhiều mức, đo độ chính xác nhận dạng, thấy quanh 12 đến 13 là "điểm ngọt". Các bộ công cụ quen thuộc như HTK và Kaldi đều mặc định 13. Hai phía của điểm ngọt:</p>
+<ul>
+<li><b>Giữ quá ít</b> (ví dụ 5): khuôn bị vẽ quá thô, formant bị san phẳng, "a" và "o" bắt đầu lẫn nhau.</li>
+<li><b>Giữ quá nhiều</b> (ví dụ cả 40): kéo theo cả <b>cái lược</b> (giọng cao trầm của từng người) và nhiễu. Cùng một chữ mà mỗi người nói ra một bộ số khác, máy khó nhận ra là cùng chữ.</li>
+</ul>
+<p class="muted">13 không phải con số thần kỳ. Nó phụ thuộc số tam giác, sample rate và việc cần làm. Ví dụ việc phân biệt <b>người nói</b> thì lại cần giữ nhiều hệ số hơn, vì thông tin giọng nằm ở phía sau.</p>
+</div>
+<p>Bạn có thể tự "thử nhiều lần" giống như người ta đã làm. Hình dưới lấy 4 frame ("a" và "i", mỗi âm nói bằng giọng 200 Hz và 300 Hz), giữ K hệ số đầu (bỏ c0), rồi đo hai khoảng cách: <b>đổi giọng</b> làm số thay đổi bao nhiêu, và <b>đổi chữ</b> làm số thay đổi bao nhiêu.</p>
+<div class="fig"><canvas id="cK"></canvas></div>
+<div class="readout" id="rK"></div>
+<div class="note"><b>Nhìn vào hình:</b>
+<br>• Đường tím (đổi chữ) tăng nhanh ở các hệ số đầu rồi gần như đứng yên: thông tin "chữ gì" nằm gọn ở các hệ số đầu.
+<br>• Đường xanh (đổi giọng) gần như nằm yên tới khoảng K = 13, rồi <b>tăng gần gấp đôi</b> ở các hệ số sau: đó là cái lược đang lọt vào.
+<br>• Muốn đoán chữ thì cần đường tím <b>cao</b>, đường xanh <b>thấp</b>. Cắt quanh 13 giữ được gần đủ phần tím mà chưa lấy nhiều phần xanh.</div>
+
+<h3>Kiểm tra bằng mắt: 4 frame trước và sau khi cắt</h3>
+<p>a. 40 số Mel sau log của 4 frame:</p>
+<div class="fig"><canvas id="c4a"></canvas></div>
+<p>b. MFCC c1 đến c12 của 4 frame:</p>
+<div class="fig"><canvas id="c4b"></canvas></div>
+<div class="readout" id="r4"></div>
+<div class="note"><b>Nhìn vào hình:</b>
+<br>• Ở hình a, hai đường "a" (xanh) khác nhau khá nhiều ở vùng thấp, vì f0 khác thì họa âm rơi vào tam giác khác.
+<br>• Ở hình b, hai đường "a" <b>đi sát nhau hơn</b>, hai đường "i" (tím) cũng vậy, còn "a" và "i" thì <b>tách xa</b>. Bảng ở trên cho thấy điều đó bằng con số.
+<br>• Không vẽ c0, vì c0 chỉ là <b>độ to trung bình</b> của cả frame: nói to hay nhỏ thì c0 đổi, nhưng chữ không đổi.
+<br>• Tách chưa hoàn hảo: khác giọng thì MFCC vẫn lệch một chút. Nhưng khác chữ thì lệch nhiều hơn hẳn.</div>
+</section>
+
+<section id="s5">
+<h2><span class="n">8</span>Làm cho mọi frame: ra bảng MFCC của cả câu</h2>
+<p>Lặp lại cho từng frame của câu "a s i" (giống trang spectrogram và trang Mel). Mỗi frame còn 13 số, xếp các cột cạnh nhau là ra <b>ma trận MFCC</b>. Hình kiểu này còn được gọi là <b>cepstrogram</b>: spectrogram vẽ phổ (spectrum) theo thời gian, cepstrogram vẽ hệ số cepstrum theo thời gian.</p>
+<div class="ctrl"><button id="playX">▶ Nghe âm thanh</button></div>
+<h3>a. Mel spectrogram sau log (40 hàng)</h3>
+<div class="fig"><canvas id="c5a"></canvas></div>
+<h3>b. MFCC (hàng c1 đến c12; cam là dương, xanh là âm)</h3>
+<div class="fig"><canvas id="c5b"></canvas></div>
+<h3>c. Dựng lại Mel spectrogram chỉ từ 13 hệ số MFCC</h3>
+<div class="fig"><canvas id="c5c"></canvas></div>
+<div class="note"><b>Nhìn vào hình:</b>
+<br>• Hình b <b>không đọc bằng mắt</b> như spectrogram được: mỗi hàng là lượng của một sóng cosin, không phải một tần số. Chỉ thấy "a", "s", "i" có <b>mẫu màu khác nhau</b>, còn suốt một âm thì màu khá đều.
+<br>• Hình c là hình a dựng lại từ 13 số. So với hình a: các <b>sọc họa âm</b> ở đáy (nhất là ở "i", nơi giọng cao dần) gần như biến mất, chỉ còn các <b>dải formant</b> mượt. Đó chính là "giữ khuôn, bỏ lược" khi nhìn trên cả câu.</div>
+</section>
+
+<section id="sd">
+<h2><span class="n">9</span>Delta và delta-delta: thêm "vận tốc" và "gia tốc"</h2>
+<p><b>Vấn đề:</b> 13 số của một frame chỉ là <b>ảnh chụp tĩnh</b> khẩu hình trong 25 ms. Nhưng nói là một dòng chảy: nói "ai" thì miệng đi từ há to ("a") sang dẹt môi ("i"). Chỉ nhìn một tấm ảnh thì không biết miệng <b>đang đứng yên</b> hay <b>đang chuyển</b> sang âm khác, và chuyển nhanh hay chậm.</p>
+<p><b>Cách giải:</b> nghĩ tới chiếc ô tô. Biết <b>vị trí</b> từng giây thì tính được <b>vận tốc</b> (vị trí đổi nhanh cỡ nào) và <b>gia tốc</b> (vận tốc đang tăng hay đang phanh). Làm y như vậy với từng hệ số MFCC theo thời gian:</p>
+<div class="tablewrap"><table>
+<tr><th>Tên</th><th>Giống ô tô</th><th>Trả lời câu hỏi</th><th>Thêm</th></tr>
+<tr><td><b>static</b> (tĩnh): c0 đến c12</td><td>vị trí</td><td>khẩu hình lúc này thế nào?</td><td>13 số</td></tr>
+<tr><td><b>delta</b> Δ (đạo hàm bậc 1)</td><td>vận tốc</td><td>khẩu hình đang đổi nhanh cỡ nào, theo chiều nào?</td><td>13 số</td></tr>
+<tr><td><b>delta-delta</b> ΔΔ (đạo hàm bậc 2)</td><td>gia tốc</td><td>sự thay đổi đó đang tăng tốc hay đang phanh?</td><td>13 số</td></tr>
+</table></div>
+<p><b>Tính thế nào:</b> delta của frame t không lấy đúng hiệu "frame sau trừ frame trước", vì như vậy rất dễ bị giật do nhiễu. Người ta nhìn <b>2 frame mỗi bên</b> và cho frame xa trọng số lớn hơn:</p>
+<div class="fig">
+<svg viewBox="0 0 940 150" role="img" aria-label="Cách tính delta từ 2 frame mỗi bên">
+<g font-family="Inter,system-ui,sans-serif" text-anchor="middle">
+  <g stroke="#c4c2bc" fill="#f7f7f5">
+    <rect x="130" y="20" width="110" height="44" rx="6"/><rect x="270" y="20" width="110" height="44" rx="6"/>
+    <rect x="410" y="20" width="110" height="44" rx="6" fill="#fdf1e6" stroke="#d9730d"/>
+    <rect x="550" y="20" width="110" height="44" rx="6"/><rect x="690" y="20" width="110" height="44" rx="6"/>
+  </g>
+  <g font-size="13" font-weight="600" fill="#37352f">
+    <text x="185" y="47">c(t−2)</text><text x="325" y="47">c(t−1)</text><text x="465" y="47" fill="#d9730d">frame t</text><text x="605" y="47">c(t+1)</text><text x="745" y="47">c(t+2)</text>
+  </g>
+  <g fill="none" stroke-width="1.5">
+    <path d="M325,64 Q395,92 465,112" stroke="#337ea9"/><path d="M605,64 Q535,92 465,112" stroke="#337ea9"/>
+    <path d="M185,64 Q325,100 465,112" stroke="#448361" stroke-dasharray="5 4"/><path d="M745,64 Q605,100 465,112" stroke="#448361" stroke-dasharray="5 4"/>
+  </g>
+  <g font-size="11">
+    <text x="372" y="84" fill="#337ea9">× 1</text><text x="560" y="84" fill="#337ea9">× 1</text>
+    <text x="250" y="98" fill="#448361">× 2</text><text x="684" y="98" fill="#448361">× 2</text>
+  </g>
+  <text x="465" y="134" font-size="13" fill="#37352f">Δ(t) = [ 1 × (c(t+1) − c(t−1)) + 2 × (c(t+2) − c(t−2)) ] / 10</text>
+</g>
+</svg>
+</div>
+<p class="muted">Chia 10 = 2 × (1² + 2²) để Δ có đơn vị "đổi bao nhiêu mỗi frame", giống độ dốc của đường thẳng vẽ khớp qua 5 điểm. ΔΔ thì áp đúng công thức này lên dãy Δ.</p>
+<p>Chọn một hệ số, xem nó và hai "người anh em" của nó chạy theo thời gian trong câu "a s i":</p>
+<div class="ctrl"><span class="grp">Hệ số <input type="range" id="dc" min="1" max="12" step="1" value="1"> <b id="dcv"></b></span></div>
+<div class="fig"><canvas id="cdl"></canvas></div>
+<div class="note"><b>Nhìn vào hình:</b>
+<br>• Hàng trên (static) giống <b>vị trí</b>: trong một âm đứng yên thì gần như phẳng, sang âm khác thì nhảy bậc.
+<br>• Hàng giữa (Δ, vận tốc): gần 0 khi khẩu hình giữ nguyên (suốt "a", suốt "i"), và <b>vọt thành một gai</b> ở mỗi chỗ chuyển âm. Gai hướng lên hay xuống tùy c1 đang tăng hay đang giảm.
+<br>• Hàng dưới (ΔΔ, gia tốc): mỗi gai của Δ thành một cặp <b>hai gai ngược chiều</b>: nửa đầu chỗ chuyển là "tăng tốc", nửa sau là "phanh lại".
+<br>• Kéo thanh trượt sang các hệ số khác: hình dạng khác nhau, nhưng quy luật "đứng yên thì Δ gần 0, chuyển âm thì Δ có gai" vẫn giữ.</div>
+</section>
+
+<section id="s39">
+<h2><span class="n">10</span>Kết quả cuối cùng: mỗi frame là một cột 39 số</h2>
+<div class="qa">
+<p class="q">Nghĩa là cái cuối cùng đưa vào model là các cột theo thời gian, mỗi cột 39 vạch: 13 cho năng lượng, 13 cho vận tốc, 13 cho gia tốc?</p>
+<p><b>Đúng cấu trúc</b>, chỉ <span class="fix">chỉnh một chữ</span>: 13 số đầu không phải "năng lượng" mà là <b>13 hệ số MFCC tĩnh</b>, tức là hình dáng khuôn. Trong đó chỉ có c0 là gần với năng lượng (độ to trung bình), còn c1 đến c12 là độ nghiêng, độ cong, các gợn của khuôn.</p>
+</div>
+<div class="fig"><canvas id="c39"></canvas></div>
+<div class="note"><b>Nhìn vào hình:</b>
+<br>• Trục ngang là thời gian, mỗi cột dọc là <b>một frame</b> (cách nhau 10 ms), mỗi cột có <b>39 số</b> xếp thành 3 khối 13 hàng.
+<br>• Khối static đổi màu theo <b>âm đang nói</b>, và giữ gần như nguyên màu suốt một âm.
+<br>• Hai khối Δ và ΔΔ gần như trắng (gần 0) suốt "a", vì khẩu hình và giọng giữ nguyên; đậm màu ở <b>chỗ chuyển âm</b>. Trong "s" chúng lốm đốm vì tiếng xì là nhiễu, frame nào cũng hơi khác frame trước.
+<br>• Một giây âm thanh có khoảng 100 frame, nên một giây thành một bảng <b>39 × 100</b>. Đây là thứ được đưa vào model.
+<br>• Để dễ nhìn, mỗi hàng được chia cho giá trị lớn nhất của chính hàng đó.</div>
+<div class="qa">
+<p class="q">Còn liftering là gì, có phải tên của biểu đồ này không?</p>
+<p><b>Không</b>. Tên biểu đồ là <b>cepstrogram</b> (hay ma trận MFCC, mục 8). <b>Liftering</b> là một bước <b>tùy chọn</b> làm ngay sau DCT. Lọc ở miền tần số gọi là <i>filtering</i>; ở miền cepstrum, người ta chơi chữ đảo chữ cái (giống spectrum thành cepstrum) nên gọi là <i>liftering</i>.</p>
+<p>Lý do cần: các hệ số càng về sau càng nhỏ (xem mục 6d), nên c10, c11, c12 dễ bị lu mờ so với c1, c2. Lifter nhân mỗi hệ số với một trọng số tăng dần để nâng các hệ số sau lên cùng tầm. Công thức hay dùng (HTK, Kaldi với L = 22):</p>
+<div class="formula">c'ₙ = (1 + (L/2) · sin(π · n / L)) · cₙ</div>
+<p class="muted">Có thư viện bật sẵn (Kaldi), có thư viện tắt mặc định (librosa). Nó không thêm thông tin gì, chỉ đổi cân nặng giữa các hệ số.</p>
+</div>
+</section>
+
+<section>
+<h2>Tóm tắt</h2>
+<div class="tablewrap"><table>
+<tr><th>Đặc trưng</th><th>Làm thế nào</th><th>Điểm mạnh</th><th>Điểm yếu</th></tr>
+<tr><td><b>Mel spectrogram</b></td><td>năng lượng FFT gom bằng 40 tam giác Mel</td><td>giữ đủ bức tranh thời gian, tần số; nhìn bằng mắt được</td><td>số to số nhỏ chênh hàng triệu lần; lược và khuôn còn nhân nhau</td></tr>
+<tr><td><b>log-Mel spectrogram</b></td><td>Mel spectrogram + log</td><td>độ to khớp cách tai nghe; lược và khuôn thành cộng nhau</td><td>vẫn 40 số, các số cạnh nhau tương quan, vẫn chứa lược</td></tr>
+<tr><td><b>MFCC</b></td><td>log-Mel + DCT + giữ 13 hệ số đầu</td><td>gọn (13 số); các số gần như không tương quan; bỏ phần lớn lược</td><td>mất chi tiết phổ mịn (nén có mất mát); không nhìn bằng mắt được</td></tr>
+<tr><td><b>MFCC + Δ + ΔΔ</b></td><td>thêm vận tốc và gia tốc của 13 số</td><td>biết khẩu hình đang đứng yên hay đang chuyển</td><td>39 số mỗi frame</td></tr>
+</table></div>
+<ul>
+<li><b>Tam giác Mel</b> cộng <b>năng lượng</b> (độ lớn bình phương) của các vạch FFT, mỗi tam giác ra một số.</li>
+<li><b>Log</b>: nén số (hàng triệu lần thành vài chục dB), khớp cách tai nghe độ to, và quan trọng nhất là đổi <b>lược × khuôn</b> thành <b>lược + khuôn</b>.</li>
+<li><b>DCT</b>: so đường 40 số với 40 sóng cosin mẫu cố định (nhân từng cặp rồi cộng), ra 40 hệ số. Hệ số đầu vẽ hình dáng chung (khuôn), hệ số cuối vẽ chi tiết lăn tăn (lược).</li>
+<li><b>Giữ 13 hệ số đầu</b>: con số rút ra từ thực nghiệm. Giữ được "chữ gì", bỏ bớt "giọng ai".</li>
+<li><b>Delta, delta-delta</b>: vận tốc và gia tốc của 13 số, tính từ 2 frame mỗi bên. Tổng cộng <b>39 số mỗi frame</b>.</li>
+</ul>
+<h3>Thuật ngữ mới</h3>
+<div class="tablewrap"><table>
+<tr><th>Nói thường</th><th>Thuật ngữ</th></tr>
+<tr><td>độ dài của số phức FFT</td><td>độ lớn, biên độ (magnitude)</td></tr>
+<tr><td>độ lớn bình phương</td><td>năng lượng, công suất (power)</td></tr>
+<tr><td>kéo số to số nhỏ về cùng một tầm bằng log</td><td>nén dải động (dynamic range compression), thang dB</td></tr>
+<tr><td>các số lặp lại thông tin của nhau</td><td>tương quan (correlated); gỡ ra thì gọi là khử tương quan (decorrelation)</td></tr>
+<tr><td>so một đường với các sóng cosin mẫu</td><td>DCT (Discrete Cosine Transform, biến đổi cosin rời rạc)</td></tr>
+<tr><td>các sóng mẫu không giẫm chân nhau</td><td>trực giao (orthogonal)</td></tr>
+<tr><td>lượng của mỗi sóng cosin</td><td>hệ số (coefficient), c0, c1, …</td></tr>
+<tr><td>13 hệ số đầu sau log và DCT</td><td>MFCC (Mel-Frequency Cepstral Coefficients)</td></tr>
+<tr><td>bảng MFCC của cả câu</td><td>ma trận MFCC, cepstrogram</td></tr>
+<tr><td>vận tốc, gia tốc của hệ số</td><td>delta (Δ), delta-delta (ΔΔ); còn gọi là đặc trưng động (dynamic features)</td></tr>
+<tr><td>nâng các hệ số sau lên cùng tầm</td><td>liftering</td></tr>
+</table></div>
+<p class="muted">Về tên gọi: <b>cepstrum</b> là chữ <i>spectrum</i> đảo 4 chữ cái đầu (spec → ceps). Đặt tên vậy vì đây là "phổ của phổ": FFT tìm các sóng trong <b>sóng âm</b>, còn DCT tìm các sóng trong <b>đường phổ</b>.</p>
+<p class="muted">Thông số dùng trong trang: sample rate 16 kHz, frame 25 ms, dịch 10 ms, cửa sổ Hann, FFT 512 điểm, 40 tam giác Mel từ 0 đến 8000 Hz, log tính bằng dB và chặn dưới ở 60 dB thấp hơn đỉnh của frame (mục 1 đến 7) hoặc 70 dB thấp hơn đỉnh của cả câu (mục 8 đến 10), DCT loại II có chuẩn hóa, delta dùng 2 frame mỗi bên. Thư viện khác có thể dùng log tự nhiên thay cho dB, hoặc số tam giác khác, nên con số cụ thể sẽ lệch, nhưng hình dạng giống nhau.</p>
+</section>
+</div>
+
+<script>
+const SR = 16000, N = SR, WIN = 400, HOP = 160, NFFT = 512, BINS = NFFT / 2 + 1, BIN_HZ = SR / NFFT, FMAX = 8000, NM = 40, NC = 13;
+const C = {ink:'#37352f', mute:'#787774', line:'#dcdbd7', grey:'#9b9a97', frame:'#d9730d', hl:'#d44c47', acc:'#337ea9', ok:'#448361', i:'#9065b0'};
+const hz2mel = f => 2595 * Math.log10(1 + f / 700), mel2hz = m => 700 * (10 ** (m / 2595) - 1), MMAX = hz2mel(FMAX);
+const clamp = v => Math.max(0, Math.min(1, v));
+
+function fft(re, im) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let b = n >> 1;
+    for (; j & b; b >>= 1) j ^= b;
+    j ^= b;
+    if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang), h = len >> 1;
+    for (let i = 0; i < n; i += len) {
+      let cr = 1, ci = 0;
+      for (let k = 0; k < h; k++) {
+        const p = i + k, q = p + h;
+        const vr = re[q] * cr - im[q] * ci, vi = re[q] * ci + im[q] * cr;
+        re[q] = re[p] - vr; im[q] = im[p] - vi;
+        re[p] += vr; im[p] += vi;
+        const t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t;
+      }
+    }
+  }
+}
+
+const hann = Float64Array.from({length: WIN}, (_, n) => 0.5 - 0.5 * Math.cos(2 * Math.PI * n / (WIN - 1)));
+const gauss = (f, c, w) => Math.exp(-0.5 * ((f - c) / w) ** 2);
+const envA = f => 0.06 + gauss(f, 800, 160) + 0.8 * gauss(f, 1250, 180) + 0.25 * gauss(f, 2600, 220);
+const envI = f => 0.06 + gauss(f, 300, 110) + 0.7 * gauss(f, 2300, 220) + 0.4 * gauss(f, 3000, 220);
+const ENV = {a: envA, i: envI};
+
+const MELPTS = Array.from({length: NM + 2}, (_, i) => mel2hz(i / (NM + 1) * MMAX));
+const BANK = Array.from({length: NM}, (_, i) => {
+  const a = MELPTS[i], b = MELPTS[i + 1], c = MELPTS[i + 2];
+  return Float64Array.from({length: BINS}, (_, k) => { const f = k * BIN_HZ; return f <= a || f >= c ? 0 : f <= b ? (f - a) / (b - a) : (c - f) / (c - b); });
+});
+const melOf = p => BANK.map(w => { let s = 0; for (let k = 0; k < BINS; k++) s += w[k] * p[k]; return s; });
+// The floor keeps empty filters (no harmonic inside) from going to minus infinity after the log.
+const toDb = (a, floor) => a.map(v => 10 * Math.log10(Math.max(v, floor)));
+const basis = (k, j, n) => Math.sqrt((k ? 2 : 1) / n) * Math.cos(Math.PI * k * (j + 0.5) / n);
+const dct = x => { const n = x.length; return Array.from({length: n}, (_, k) => { let s = 0; for (let j = 0; j < n; j++) s += x[j] * basis(k, j, n); return s; }); };
+const idct = (c, K, n) => Array.from({length: n}, (_, j) => { let s = 0; for (let k = 0; k < K; k++) s += c[k] * basis(k, j, n); return s; });
+
+function framePow(env, f0) {
+  const re = new Float64Array(NFFT), im = new Float64Array(NFFT);
+  for (let n = 0; n < WIN; n++) {
+    let v = 0;
+    // Spread-out starting phases avoid one sharp pulse per period, which a 25 ms window would make uneven.
+    for (let k = 1; k * f0 < 7800; k++) v += env(k * f0) * Math.sin(2 * Math.PI * k * f0 * n / SR + k * k * 0.7) / Math.sqrt(k);
+    re[n] = v * hann[n];
+  }
+  fft(re, im);
+  return Float64Array.from({length: BINS}, (_, k) => re[k] * re[k] + im[k] * im[k]);
+}
+const FCACHE = {};
+function frameInfo(v, f0) {
+  const key = v + f0;
+  if (!FCACHE[key]) {
+    const pow = framePow(ENV[v], f0), mel = melOf(pow), ldb = toDb(mel, Math.max(...mel) * 1e-6);
+    FCACHE[key] = {pow, mel, ldb, cc: dct(ldb)};
+  }
+  return FCACHE[key];
+}
+
+const SEG = [
+  {k: 'a', t0: 0.03, t1: 0.38, label: '"a" giọng đều'},
+  {k: 's', t0: 0.42, t1: 0.55, label: '"s" tiếng xì'},
+  {k: 'i', t0: 0.58, t1: 0.95, label: '"i" giọng cao dần'},
+];
+const taper = f => f < 3500 ? 1 : Math.max(0, (4000 - f) / 500);
+const fade = (t, t0, t1) => Math.max(0, Math.min(1, (t - t0) / 0.015, (t1 - t) / 0.015));
+const x = new Float32Array(N);
+function addVoiced(t0, t1, f0a, f0b, env) {
+  const ph = new Float64Array(40);
+  for (let n = Math.floor(t0 * SR); n < t1 * SR; n++) {
+    const t = n / SR, f0 = f0a + (f0b - f0a) * (t - t0) / (t1 - t0);
+    let v = 0;
+    for (let k = 1; k < 40; k++) {
+      const f = k * f0;
+      ph[k] += 2 * Math.PI * f / SR;
+      if (f < 4000) v += env(f) * taper(f) * Math.sin(ph[k]) / Math.sqrt(k);
+    }
+    x[n] += fade(t, t0, t1) * v;
+  }
+}
+addVoiced(SEG[0].t0, SEG[0].t1, 200, 200, envA);
+addVoiced(SEG[2].t0, SEG[2].t1, 200, 320, envI);
+{
+  let seed = 7, p1 = 0, p2 = 0;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647 * 2 - 1;
+  for (let n = Math.floor(SEG[1].t0 * SR); n < SEG[1].t1 * SR; n++) {
+    const w = rnd(), d1 = w - p1, d2 = d1 - p2;
+    p1 = w; p2 = d1;
+    x[n] += 0.45 * fade(n / SR, SEG[1].t0, SEG[1].t1) * d2;
+  }
+}
+{
+  let mx = 0;
+  for (const v of x) mx = Math.max(mx, Math.abs(v));
+  for (let n = 0; n < N; n++) x[n] *= 0.9 / mx;
+}
+const NF = Math.floor((N - WIN) / HOP) + 1;
+const UTT = (() => {
+  const mels = [];
+  for (let f = 0; f < NF; f++) {
+    const re = new Float64Array(NFFT), im = new Float64Array(NFFT);
+    for (let n = 0; n < WIN; n++) re[n] = x[f * HOP + n] * hann[n];
+    fft(re, im);
+    mels.push(melOf(Float64Array.from({length: BINS}, (_, k) => re[k] * re[k] + im[k] * im[k])));
+  }
+  let mx = 0;
+  for (const m of mels) for (const v of m) mx = Math.max(mx, v);
+  const ldb = mels.map(m => toDb(m, mx * 1e-7)), cc = ldb.map(dct);
+  return {ldb, cc, rec: cc.map(c => idct(c, NC, NM))};
+})();
+// Edge frames repeat the first/last frame, so the 5-frame window never reads outside the utterance.
+function delta(rows) {
+  const T = rows.length, at = t => rows[Math.max(0, Math.min(T - 1, t))];
+  return rows.map((row, t) => row.map((_, i) => (at(t + 1)[i] - at(t - 1)[i] + 2 * (at(t + 2)[i] - at(t - 2)[i])) / 10));
+}
+const STAT = UTT.cc.map(c => c.slice(0, NC)), D1 = delta(STAT), D2 = delta(D1);
+const frameT = f => (f * HOP + WIN / 2) / SR;
+
+let actx;
+function play(sig) {
+  actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+  const b = actx.createBuffer(1, sig.length, SR);
+  b.copyToChannel(sig, 0);
+  const src = actx.createBufferSource();
+  src.buffer = b; src.connect(actx.destination); src.start();
+}
+
+function setup(id, h) {
+  const c = document.getElementById(id), w = c.parentElement.clientWidth, d = window.devicePixelRatio || 1;
+  c.width = w * d; c.height = h * d; c.style.width = w + 'px'; c.style.height = h + 'px';
+  const g = c.getContext('2d');
+  g.setTransform(d, 0, 0, d, 0, 0);
+  g.textBaseline = 'middle';
+  return {g, w, h};
+}
+function text(g, s, x, y, color = C.mute, align = 'left', bold = false, bg = false) {
+  g.font = (bold ? '600 ' : '') + '12px Inter, system-ui, sans-serif';
+  g.textAlign = align;
+  if (bg) {
+    const w = g.measureText(s).width, x0 = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
+    g.fillStyle = 'rgba(255,255,255,.92)'; g.fillRect(x0 - 3, y - 9, w + 6, 18);
+  }
+  g.fillStyle = color; g.fillText(s, x, y);
+}
+function hline(g, x0, x1, y, color = C.line) {
+  g.strokeStyle = color; g.lineWidth = 1; g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke();
+}
+function poly(g, xs, ys, color, lw = 2, dash = null) {
+  g.save(); g.strokeStyle = color; g.lineWidth = lw; if (dash) g.setLineDash(dash);
+  g.beginPath(); xs.forEach((xv, j) => j ? g.lineTo(xv, ys[j]) : g.moveTo(xv, ys[j])); g.stroke(); g.restore();
+}
+const alpha = (hex, a) => hex + Math.round(a * 255).toString(16).padStart(2, '0');
+const r0 = v => v.toFixed(0);
+const r1 = v => v.toFixed(1).replace('.', ',');
+const r2 = v => v.toFixed(2).replace('.', ',');
+
+const STOPS = [[0, [251, 251, 250]], [0.35, [201, 225, 238]], [0.6, [90, 160, 200]], [0.8, [44, 95, 138]], [1, [27, 42, 73]]];
+function cmap(v) {
+  for (let j = 1; j < STOPS.length; j++) {
+    if (v <= STOPS[j][0]) {
+      const [a, ca] = STOPS[j - 1], [b, cb] = STOPS[j], u = (v - a) / (b - a);
+      return ca.map((c, k) => Math.round(c + (cb[k] - c) * u));
+    }
+  }
+  return STOPS[STOPS.length - 1][1];
+}
+const NEG = [51, 126, 169], POS = [217, 115, 13], WHITE = [251, 251, 250];
+const cdiv = v => (v < 0 ? NEG : POS).map((c, k) => Math.round(WHITE[k] + (c - WHITE[k]) * Math.min(1, Math.abs(v))));
+function heatImg(rows, colorOf) {
+  const nr = rows[0].length, c = document.createElement('canvas');
+  c.width = rows.length; c.height = nr;
+  const g = c.getContext('2d'), d = g.createImageData(rows.length, nr);
+  rows.forEach((row, f) => row.forEach((v, r) => {
+    const col = colorOf(v), p = ((nr - 1 - r) * rows.length + f) * 4;
+    d.data[p] = col[0]; d.data[p + 1] = col[1]; d.data[p + 2] = col[2]; d.data[p + 3] = 255;
+  }));
+  g.putImageData(d, 0, 0);
+  return c;
+}
+function signedBars(g, B, vals, scale, colorOf) {
+  const bw = B.w / vals.length, Y0 = B.t + B.h / 2;
+  hline(g, B.l, B.l + B.w, Y0, C.grey);
+  vals.forEach((v, n) => {
+    const h = Math.max(-B.h / 2, Math.min(B.h / 2, v * scale));
+    g.fillStyle = colorOf(v, n); g.fillRect(B.l + n * bw + bw * 0.15, h > 0 ? Y0 - h : Y0, bw * 0.7, Math.abs(h));
+  });
+}
+
+let FBJ = 10;
+function drawFB() {
+  document.getElementById('fbjv').textContent = `${FBJ} / 40`;
+  const {pow, ldb} = frameInfo('a', 200), j = FBJ - 1, w = BANK[j];
+  const a = MELPTS[j], b = MELPTS[j + 1], c = MELPTS[j + 2], span = c - a;
+  const lo = Math.max(0, a - span * 0.8), hi = Math.min(FMAX, c + span * 0.8);
+  const k0 = Math.ceil(lo / BIN_HZ), k1 = Math.floor(hi / BIN_HZ), ks = [];
+  for (let k = k0; k <= k1; k++) ks.push(k);
+  let pmax = 0;
+  for (const k of ks) pmax = Math.max(pmax, pow[k]);
+  const R = setup('cfb', 430), g = R.g, L = 60, W = R.w - 80;
+  const X = f => L + (f - lo) / (hi - lo) * W, bw = Math.max(1.5, BIN_HZ / (hi - lo) * W * 0.7);
+  const P1 = {t: 26, h: 110}, P2 = {t: 176, h: 110};
+  text(g, 'năng lượng từng vạch FFT (xám) và tam giác (cam)', L, P1.t - 14, C.ink, 'left', true);
+  hline(g, L, L + W, P1.t + P1.h, C.grey);
+  for (const k of ks) { const h = pow[k] / pmax * P1.h; g.fillStyle = alpha(C.grey, 0.85); g.fillRect(X(k * BIN_HZ) - bw / 2, P1.t + P1.h - h, bw, h); }
+  poly(g, [X(Math.max(lo, a)), X(b), X(Math.min(hi, c))], [P1.t + P1.h, P1.t, P1.t + P1.h], C.frame, 2);
+  text(g, '× 1', X(b), P1.t - 2, C.frame, 'center', true, true);
+  text(g, '× 0', X(a) - 4, P1.t + P1.h - 10, C.frame, 'right');
+  text(g, '× 0', X(c) + 4, P1.t + P1.h - 10, C.frame, 'left');
+  text(g, 'sau khi nhân: cộng các cột cam lại ra một số', L, P2.t - 14, C.ink, 'left', true);
+  hline(g, L, L + W, P2.t + P2.h, C.grey);
+  let sum = 0, nIn = 0;
+  for (const k of ks) {
+    const v = w[k] * pow[k]; sum += v; if (w[k] > 0) nIn++;
+    const h = v / pmax * P2.h;
+    g.fillStyle = C.frame; g.fillRect(X(k * BIN_HZ) - bw / 2, P2.t + P2.h - h, bw, h);
+  }
+  const tick = hi - lo > 2000 ? 500 : hi - lo > 600 ? 200 : hi - lo > 250 ? 50 : 20;
+  for (let f = Math.ceil(lo / tick) * tick; f <= hi; f += tick) text(g, String(f), X(f), P2.t + P2.h + 12, C.mute, 'center');
+  text(g, 'Hz', L + W + 4, P2.t + P2.h + 12, C.mute, 'left');
+  const S = {t: 340, h: 60}, sbw = W / NM, dmx = Math.max(...ldb);
+  text(g, '40 con số của 40 tam giác (dB): một cột của Mel spectrogram', L, S.t - 14, C.ink, 'left', true);
+  hline(g, L, L + W, S.t + S.h, C.grey);
+  ldb.forEach((v, n) => {
+    const h = clamp((v - (dmx - 60)) / 60) * S.h;
+    g.fillStyle = n === j ? C.frame : alpha(C.acc, 0.55); g.fillRect(L + n * sbw + sbw * 0.12, S.t + S.h - h, sbw * 0.76, h);
+  });
+  text(g, 'tam giác 1', L, S.t + S.h + 12, C.mute, 'left');
+  text(g, 'tam giác 40', L + W, S.t + S.h + 12, C.mute, 'right');
+  document.getElementById('rfb').innerHTML = `Tam giác ${FBJ}: chân trái ${r0(a)} Hz, đỉnh ${r0(b)} Hz, chân phải ${r0(c)} Hz, phủ <b>${nIn} vạch</b> FFT. ` +
+    `Cộng lại được một số năng lượng; đổi sang dB là <b>${r1(10 * Math.log10(Math.max(sum, 1e-30)))} dB</b>.`;
+}
+
+let SC1 = 'lin';
+function draw1() {
+  const {mel, ldb} = frameInfo('a', 200), R = setup('c1', 230), g = R.g, B = {l: 60, t: 20, w: R.w - 80, h: 160}, bw = B.w / NM;
+  const mx = Math.max(...mel), dmx = Math.max(...ldb);
+  const H = j => SC1 === 'lin' ? mel[j] / mx : clamp((ldb[j] - (dmx - 60)) / 60);
+  for (let j = 0; j < NM; j++) {
+    const h = H(j) * B.h;
+    g.fillStyle = alpha(C.acc, 0.8); g.fillRect(B.l + j * bw + bw * 0.12, B.t + B.h - h, bw * 0.76, h);
+  }
+  hline(g, B.l, B.l + B.w, B.t + B.h, C.grey);
+  if (SC1 === 'lin') { text(g, 'lớn nhất', B.l - 6, B.t, C.mute, 'right'); text(g, '0', B.l - 6, B.t + B.h, C.mute, 'right'); }
+  else { text(g, `${r0(dmx)} dB`, B.l - 6, B.t, C.mute, 'right'); text(g, `${r0(dmx - 60)} dB`, B.l - 6, B.t + B.h, C.mute, 'right'); }
+  text(g, 'tam giác 1 (tần số thấp)', B.l, B.t + B.h + 14, C.mute, 'left');
+  text(g, 'tam giác 40 (tần số cao)', B.l + B.w, B.t + B.h + 14, C.mute, 'right');
+  text(g, SC1 === 'lin' ? 'năng lượng, chưa log' : 'dB, đã log', B.l + B.w / 2, B.t + B.h + 14, C.ink, 'center', true);
+  const ratio = mx / Math.min(...mel), span = 10 * Math.log10(ratio);
+  document.getElementById('r1').innerHTML = SC1 === 'lin'
+    ? `Số lớn nhất gấp khoảng <b>${(Math.round(ratio / 1e5) / 10).toLocaleString('vi-VN')} triệu lần</b> số nhỏ nhất.`
+    : `Sau log: hai số đó chỉ còn chênh nhau <b>${r0(span)} dB</b>.`;
+}
+
+let SC2 = 'lin', F02 = 200;
+function draw2() {
+  document.getElementById('f02v').textContent = F02 + ' Hz';
+  const R = setup('c2', 400), g = R.g, L = 60, W = R.w - L - 20, F2 = 4000, PH = 90, GAP = 34;
+  const isLog = SC2 === 'log', ENVMAX = 1.06;
+  const khuon = f => envA(f) / ENVMAX;
+  const luoc = f => { let s = 0; for (let k = 1; k * F02 < F2 + 100; k++) s += gauss(f, k * F02, 14); return Math.min(1, s); };
+  const lg = v => 10 * Math.log10(Math.max(v, 0.01));
+  const xs = [], fs = [];
+  for (let p = 0; p <= W; p++) { xs.push(L + p); fs.push(p / W * F2); }
+  const rows = [
+    {name: isLog ? 'log lược (họa âm)' : 'lược (họa âm)', fn: f => isLog ? lg(luoc(f)) : luoc(f), c: C.ink},
+    {name: isLog ? 'log khuôn (formant)' : 'khuôn (formant)', fn: f => isLog ? lg(khuon(f)) : khuon(f), c: C.ok},
+    {name: isLog ? 'log phổ = log lược + log khuôn' : 'phổ = lược × khuôn', fn: f => isLog ? lg(luoc(f)) + lg(khuon(f)) : luoc(f) * khuon(f), c: C.acc},
+  ];
+  const lo = isLog ? -36 : 0, hi = isLog ? 0 : 1;
+  rows.forEach((row, j) => {
+    const t = 22 + j * (PH + GAP), Y = v => t + PH - (v - lo) / (hi - lo) * PH;
+    text(g, row.name, L, t - 12, row.c, 'left', true);
+    hline(g, L, L + W, Y(lo), C.grey);
+    text(g, isLog ? '0 dB' : '1', L - 6, Y(hi), C.mute, 'right');
+    text(g, isLog ? `${lo} dB` : '0', L - 6, Y(lo), C.mute, 'right');
+    if (j === 2) poly(g, xs, fs.map(f => Y(isLog ? lg(khuon(f)) : khuon(f))), C.ok, 1.5, [5, 4]);
+    poly(g, xs, fs.map(f => Y(row.fn(f))), row.c, 1.6);
+  });
+  const yb = 22 + 3 * (PH + GAP) - GAP + 14;
+  for (let f = 0; f <= F2; f += 500) text(g, String(f), L + f / F2 * W, yb, C.mute, 'center');
+  text(g, 'Hz', L + W + 4, yb, C.mute, 'left');
+}
+
+const BASIS_COL = [C.grey, C.frame, C.acc, C.ok, C.i, C.hl];
+function drawWaves() {
+  const R = setup('c3w', 110), g = R.g, nw = 6, gap = 14, cw = (R.w - gap * (nw - 1)) / nw, ch = 60;
+  for (let k = 0; k < nw; k++) {
+    const x0 = k * (cw + gap), t = 26, xs = [], ys = [];
+    g.fillStyle = '#f7f7f5'; g.fillRect(x0, t, cw, ch);
+    hline(g, x0, x0 + cw, t + ch / 2, C.line);
+    for (let n = 0; n < NM; n++) { xs.push(x0 + (n + 0.5) / NM * cw); ys.push(t + ch / 2 - Math.cos(Math.PI * k * (n + 0.5) / NM) * ch * 0.42); }
+    poly(g, xs, ys, BASIS_COL[k], 2);
+    text(g, `sóng ${k}` + (k === 0 ? ': phẳng' : k === 1 ? ': nghiêng' : k === 2 ? ': cong' : ''), x0 + cw / 2, 12, BASIS_COL[k], 'center', true);
+  }
+  text(g, '… đến sóng 39 (nhấp nhô dày nhất)', R.w, 26 + 60 + 14, C.mute, 'right');
+}
+
+let DK = 1, VD = 'a';
+function drawDot() {
+  document.getElementById('dkv').textContent = `${DK}`;
+  const {ldb, cc} = frameInfo(VD, 200), wk = ldb.map((_, n) => basis(DK, n, NM)), prod = ldb.map((v, n) => v * wk[n]);
+  const R = setup('cdot', 400), g = R.g, L = 60, W = R.w - 80, PH = 84, GAP = 44;
+  const panels = [
+    {name: `40 số Mel sau log của "${VD}" (dB)`, vals: ldb, col: () => alpha(C.grey, 0.9)},
+    {name: `sóng mẫu số ${DK}`, vals: wk, col: () => BASIS_COL[DK] || C.frame},
+    {name: 'nhân từng cặp: cam là tích dương, xanh là tích âm', vals: prod, col: v => v >= 0 ? C.frame : C.acc},
+  ];
+  panels.forEach((p, j) => {
+    const t = 22 + j * (PH + GAP), m = Math.max(...p.vals.map(Math.abs)) || 1;
+    text(g, p.name, L, t - 12, C.ink, 'left', true);
+    if (j < 2) text(g, j === 0 ? '×' : '=', L - 30, t + PH + GAP / 2, C.ink, 'center', true);
+    signedBars(g, {l: L, t, w: W, h: PH}, p.vals, (PH / 2) / m, p.col);
+  });
+  const pos = prod.filter(v => v > 0).reduce((s, v) => s + v, 0), neg = prod.filter(v => v < 0).reduce((s, v) => s + v, 0);
+  document.getElementById('rdot').innerHTML = `Cộng 40 tích: phần dương ${r1(pos)}, phần âm ${r1(neg)}, tổng <b>c${DK} = ${r1(cc[DK])}</b>.` +
+    (DK === 0 ? ' Sóng 0 phẳng nên c0 chỉ là tổng (đã chia tỉ lệ) của 40 số, tức là độ to trung bình.' : '');
+}
+
+let V3 = 'a', K3 = 13, sweepT;
+function draw3() {
+  document.getElementById('k3').value = K3;
+  document.getElementById('k3v').textContent = `${K3} sóng đầu`;
+  const {ldb, cc} = frameInfo(V3, 200), rec = idct(cc, K3, NM);
+  {
+    const R = setup('c3a', 260), g = R.g, B = {l: 60, t: 16, w: R.w - 80, h: 200};
+    const all = ldb.concat(rec), lo = Math.min(...all) - 4, hi = Math.max(...all) + 4;
+    const X = n => B.l + (n + 0.5) / NM * B.w, Y = v => B.t + B.h - (v - lo) / (hi - lo) * B.h;
+    for (let v = Math.ceil(lo / 10) * 10; v <= hi; v += 10) { hline(g, B.l, B.l + B.w, Y(v), '#efeeeb'); text(g, `${v} dB`, B.l - 6, Y(v), C.mute, 'right'); }
+    const xs = ldb.map((_, n) => X(n));
+    poly(g, xs, ldb.map(Y), C.grey, 1.5);
+    ldb.forEach((v, n) => { g.fillStyle = C.grey; g.beginPath(); g.arc(X(n), Y(v), 2.5, 0, 2 * Math.PI); g.fill(); });
+    poly(g, xs, rec.map(Y), C.frame, 3);
+    text(g, 'tam giác 1 (tần số thấp)', B.l, B.t + B.h + 14, C.mute, 'left');
+    text(g, 'tam giác 40 (tần số cao)', B.l + B.w, B.t + B.h + 14, C.mute, 'right');
+    text(g, '● xám: 40 số Mel sau log', B.l + B.w * 0.36, B.t + B.h + 14, C.grey, 'center', true);
+    text(g, `cam: cộng ${K3} sóng đầu`, B.l + B.w * 0.64, B.t + B.h + 14, C.frame, 'center', true);
+  }
+  {
+    const R = setup('c3b', 170), g = R.g, B = {l: 60, t: 18, w: R.w - 80, h: 120}, bw = B.w / NM;
+    const sm = Math.max(...cc.slice(1).map(Math.abs));
+    signedBars(g, B, cc, (B.h / 2) / sm, (v, k) => k < K3 ? C.frame : '#c9c8c3');
+    if (Math.abs(cc[0]) > sm) text(g, `c0 = ${r0(cc[0])} (cột bị cắt bớt cho vừa hình)`, B.l + bw, B.t - 6, C.frame, 'left');
+    text(g, 'c0', B.l + bw / 2, B.t + B.h + 14, C.mute, 'center');
+    text(g, 'c39', B.l + B.w - bw / 2, B.t + B.h + 14, C.mute, 'center');
+    text(g, `cam: ${K3} hệ số được giữ`, B.l + B.w / 2, B.t + B.h + 14, C.frame, 'center', true);
+  }
+  document.getElementById('r3').innerHTML = `Đang cộng <b>${K3}</b> sóng đầu (c0 → c${K3 - 1}), bỏ <b>${NM - K3}</b> sóng sau.` +
+    (K3 === NC ? ' Đây là số hệ số hay dùng cho MFCC.' : K3 === NM ? ' Đủ cả 40 sóng: trùng hoàn toàn với 40 số ban đầu.' : '');
+}
+
+const COMBOS = [{v: 'a', f0: 200, c: C.acc, d: null}, {v: 'a', f0: 300, c: C.acc, d: [6, 4]}, {v: 'i', f0: 200, c: C.i, d: null}, {v: 'i', f0: 300, c: C.i, d: [6, 4]}];
+const dist = (a, b, s, e) => Math.sqrt(a.slice(s, e).reduce((acc, v, i) => acc + (v - b[s + i]) ** 2, 0));
+
+function drawK() {
+  const inf = COMBOS.map(o => frameInfo(o.v, o.f0)), Ks = [], voice = [], vowel = [];
+  for (let K = 2; K <= NM; K++) {
+    Ks.push(K);
+    voice.push((dist(inf[0].cc, inf[1].cc, 1, K) + dist(inf[2].cc, inf[3].cc, 1, K)) / 2);
+    vowel.push((dist(inf[0].cc, inf[2].cc, 1, K) + dist(inf[1].cc, inf[3].cc, 1, K)) / 2);
+  }
+  const R = setup('cK', 260), g = R.g, B = {l: 60, t: 28, w: R.w - 80, h: 190};
+  const m = Math.max(...voice, ...vowel) * 1.08, X = K => B.l + (K - 2) / (NM - 2) * B.w, Y = v => B.t + B.h - v / m * B.h;
+  for (let v = 0; v <= m; v += 20) { hline(g, B.l, B.l + B.w, Y(v), '#efeeeb'); text(g, String(v), B.l - 6, Y(v), C.mute, 'right'); }
+  g.fillStyle = alpha(C.frame, 0.1); g.fillRect(X(12), B.t, X(14) - X(12), B.h);
+  text(g, 'giữ 13', X(13), B.t - 10, C.frame, 'center', true);
+  poly(g, Ks.map(X), vowel.map(Y), C.i, 2.5);
+  poly(g, Ks.map(X), voice.map(Y), C.acc, 2.5);
+  text(g, 'đổi chữ ("a" và "i")', X(NM), Y(vowel[vowel.length - 1]) - 12, C.i, 'right', true, true);
+  text(g, 'đổi giọng (200 và 300 Hz)', X(NM), Y(voice[voice.length - 1]) + 14, C.acc, 'right', true, true);
+  for (const K of [2, 5, 10, 13, 20, 30, 40]) text(g, String(K), X(K), B.t + B.h + 14, C.mute, 'center');
+  text(g, 'số hệ số giữ lại (K)', B.l + B.w / 2, B.t + B.h + 30, C.ink, 'center', true);
+  const at = K => Ks.indexOf(K), ratio = K => voice[at(K)] / vowel[at(K)];
+  document.getElementById('rK').innerHTML = `Tỉ lệ <b>đổi giọng / đổi chữ</b> (càng nhỏ càng tốt cho việc đoán chữ): giữ 5 hệ số là <b>${r2(ratio(5))}</b>, giữ 13 là <b>${r2(ratio(13))}</b>, giữ cả 40 là <b>${r2(ratio(40))}</b>.` +
+    '<span class="muted">Khoảng cách: lấy hiệu từng cặp hệ số c1 đến c(K−1), bình phương, cộng lại rồi lấy căn; trung bình trên hai cặp.</span>';
+}
+
+function draw4() {
+  const infos = COMBOS.map(o => frameInfo(o.v, o.f0));
+  const legend = (g, B) => COMBOS.forEach((o, j) => {
+    const x0 = B.l + j * 150;
+    poly(g, [x0, x0 + 26], [B.t - 8, B.t - 8], o.c, 2.5, o.d);
+    text(g, `"${o.v}", f0 = ${o.f0} Hz`, x0 + 32, B.t - 8, o.c, 'left', true);
+  });
+  {
+    const R = setup('c4a', 240), g = R.g, B = {l: 60, t: 26, w: R.w - 80, h: 180};
+    const all = infos.flatMap(i => i.ldb), lo = Math.min(...all) - 3, hi = Math.max(...all) + 3;
+    const X = n => B.l + (n + 0.5) / NM * B.w, Y = v => B.t + B.h - (v - lo) / (hi - lo) * B.h;
+    for (let v = Math.ceil(lo / 20) * 20; v <= hi; v += 20) { hline(g, B.l, B.l + B.w, Y(v), '#efeeeb'); text(g, `${v} dB`, B.l - 6, Y(v), C.mute, 'right'); }
+    infos.forEach((inf, j) => poly(g, inf.ldb.map((_, n) => X(n)), inf.ldb.map(Y), COMBOS[j].c, 2, COMBOS[j].d));
+    legend(g, B);
+    text(g, 'tam giác 1', B.l, B.t + B.h + 14, C.mute, 'left');
+    text(g, 'tam giác 40', B.l + B.w, B.t + B.h + 14, C.mute, 'right');
+  }
+  {
+    const R = setup('c4b', 240), g = R.g, B = {l: 60, t: 26, w: R.w - 80, h: 180};
+    const all = infos.flatMap(i => i.cc.slice(1, NC)), m = Math.max(...all.map(Math.abs)) * 1.08;
+    const X = k => B.l + (k - 1) / (NC - 2) * B.w, Y = v => B.t + B.h / 2 - v / m * (B.h / 2);
+    hline(g, B.l, B.l + B.w, Y(0), C.grey);
+    text(g, '0', B.l - 6, Y(0), C.mute, 'right');
+    infos.forEach((inf, j) => {
+      const ks = Array.from({length: NC - 1}, (_, i) => i + 1);
+      poly(g, ks.map(X), ks.map(k => Y(inf.cc[k])), COMBOS[j].c, 2, COMBOS[j].d);
+      ks.forEach(k => { g.fillStyle = COMBOS[j].c; g.beginPath(); g.arc(X(k), Y(inf.cc[k]), 2.5, 0, 2 * Math.PI); g.fill(); });
+    });
+    for (let k = 1; k < NC; k++) text(g, 'c' + k, X(k), B.t + B.h + 14, C.mute, 'center');
+    legend(g, B);
+  }
+  const pairs = [[0, 1, 'cùng "a", khác giọng'], [2, 3, 'cùng "i", khác giọng'], [0, 2, '"a" và "i", cùng giọng 200 Hz'], [1, 3, '"a" và "i", cùng giọng 300 Hz']];
+  document.getElementById('r4').innerHTML = '<div class="tablewrap"><table><tr><th>Cặp so sánh</th><th>Khoảng cách trên 40 số Mel sau log</th><th>Khoảng cách trên MFCC c1 đến c12</th></tr>' +
+    pairs.map(([a, b, name]) => `<tr><td>${name}</td><td>${r0(dist(infos[a].ldb, infos[b].ldb, 0, NM))}</td><td><b>${r0(dist(infos[a].cc, infos[b].cc, 1, NC))}</b></td></tr>`).join('') +
+    '</table></div><span class="muted">Số càng nhỏ thì hai frame càng giống nhau.</span>';
+}
+
+function draw0() {
+  const S = [COMBOS[0], COMBOS[1], {v: 'i', f0: 200, c: C.i, d: null}], infos = S.map(o => frameInfo(o.v, o.f0));
+  const R = setup('c0', 240), g = R.g, B = {l: 60, t: 26, w: R.w - 80, h: 180};
+  const all = infos.flatMap(i => i.ldb), lo = Math.min(...all) - 3, hi = Math.max(...all) + 3;
+  const X = n => B.l + (n + 0.5) / NM * B.w, Y = v => B.t + B.h - (v - lo) / (hi - lo) * B.h;
+  for (let v = Math.ceil(lo / 20) * 20; v <= hi; v += 20) { hline(g, B.l, B.l + B.w, Y(v), '#efeeeb'); text(g, `${v} dB`, B.l - 6, Y(v), C.mute, 'right'); }
+  infos.forEach((inf, j) => poly(g, inf.ldb.map((_, n) => X(n)), inf.ldb.map(Y), S[j].c, 2, S[j].d));
+  S.forEach((o, j) => {
+    const x0 = B.l + j * 150;
+    poly(g, [x0, x0 + 26], [B.t - 8, B.t - 8], o.c, 2.5, o.d);
+    text(g, `"${o.v}", f0 = ${o.f0} Hz`, x0 + 32, B.t - 8, o.c, 'left', true);
+  });
+  text(g, 'tam giác 1', B.l, B.t + B.h + 14, C.mute, 'left');
+  text(g, 'tam giác 40', B.l + B.w, B.t + B.h + 14, C.mute, 'right');
+  const d = (a, b) => r0(dist(a, b, 0, NM));
+  document.getElementById('r0').innerHTML = `Khoảng cách giữa hai frame: cùng "a", khác giọng = <b>${d(infos[0].ldb, infos[1].ldb)}</b>; khác chữ "a" và "i", cùng giọng = <b>${d(infos[0].ldb, infos[2].ldb)}</b>. ` +
+    '<span class="muted">(lấy hiệu từng cặp số, bình phương, cộng lại rồi lấy căn; số càng nhỏ thì hai frame càng giống nhau)</span>';
+}
+
+function timeAxis(g, B) {
+  const X = t => B.l + t * B.w;
+  for (let t = 0; t <= 1.0001; t += 0.2) text(g, t.toFixed(1) + ' s', X(t), B.t + B.h + 14, C.mute, 'center');
+  return X;
+}
+
+function draw5() {
+  let mx = -Infinity;
+  for (const r of UTT.ldb) for (const v of r) mx = Math.max(mx, v);
+  const DR = 70, heat = v => cmap(clamp((v - (mx - DR)) / DR));
+  let cm = 0;
+  for (const c of UTT.cc) for (let k = 1; k < NC; k++) cm = Math.max(cm, Math.abs(c[k]));
+  const imgs = [heatImg(UTT.ldb, heat), heatImg(UTT.cc.map(c => c.slice(1, NC)), v => cdiv(v / cm)), heatImg(UTT.rec, heat)];
+  ['c5a', 'c5b', 'c5c'].forEach((id, j) => {
+    const R = setup(id, j === 1 ? 170 : 210), g = R.g, B = {l: 60, t: 24, w: R.w - 80, h: R.h - 54};
+    g.imageSmoothingEnabled = false;
+    g.drawImage(imgs[j], B.l, B.t, B.w, B.h);
+    const X = timeAxis(g, B);
+    SEG.forEach(s => text(g, s.label, X((s.t0 + s.t1) / 2), B.t - 12, C.ink, 'center', true));
+    if (j === 1) { text(g, 'c12', B.l - 6, B.t + 6, C.mute, 'right'); text(g, 'c1', B.l - 6, B.t + B.h - 6, C.mute, 'right'); }
+    else { text(g, 'cao', B.l - 6, B.t + 6, C.mute, 'right'); text(g, 'thấp', B.l - 6, B.t + B.h - 6, C.mute, 'right'); }
+  });
+}
+
+let DC = 1;
+function drawDelta() {
+  document.getElementById('dcv').textContent = `c${DC}`;
+  const R = setup('cdl', 450), g = R.g, L = 60, W = R.w - 80, PH = 96, GAP = 40, T0 = 44;
+  const rows = [
+    {name: `static: c${DC} theo thời gian (vị trí)`, v: STAT.map(r => r[DC]), c: C.ink},
+    {name: `delta: Δc${DC} (vận tốc)`, v: D1.map(r => r[DC]), c: C.frame},
+    {name: `delta-delta: ΔΔc${DC} (gia tốc)`, v: D2.map(r => r[DC]), c: C.acc},
+  ];
+  const xs = STAT.map((_, f) => L + frameT(f) * W);
+  rows.forEach((row, j) => {
+    const t = T0 + j * (PH + GAP), m = Math.max(...row.v.map(Math.abs)) * 1.1 || 1, Y = v => t + PH / 2 - v / m * (PH / 2);
+    SEG.forEach(s => { g.fillStyle = '#f7f7f5'; g.fillRect(L + s.t0 * W, t, (s.t1 - s.t0) * W, PH); });
+    if (j === 0) SEG.forEach(s => text(g, s.label, L + (s.t0 + s.t1) / 2 * W, t - 10, C.mute, 'center'));
+    text(g, row.name, L, t - (j === 0 ? 24 : 10), row.c, 'left', true);
+    hline(g, L, L + W, Y(0), C.grey);
+    text(g, '0', L - 6, Y(0), C.mute, 'right');
+    poly(g, xs, row.v.map(Y), row.c, 1.8);
+  });
+  timeAxis(g, {l: L, w: W, t: T0 + 2 * (PH + GAP), h: PH});
+}
+
+function draw39() {
+  const R = setup('c39', 360), g = R.g, B = {l: 110, t: 26, w: R.w - 130, h: 300};
+  const blocks = [STAT, D1, D2].map(rows => {
+    const m = Array.from({length: NC}, (_, k) => Math.max(...rows.map(r => Math.abs(r[k]))) || 1);
+    return rows.map(r => r.map((v, k) => v / m[k]));
+  });
+  // heatImg puts index 0 at the bottom, so the top-to-bottom stack is reversed before drawing.
+  const cols = blocks[0].map((_, f) => [...blocks[0][f], ...blocks[1][f], ...blocks[2][f]].reverse());
+  g.imageSmoothingEnabled = false;
+  g.drawImage(heatImg(cols, cdiv), B.l, B.t, B.w, B.h);
+  const bh = B.h / 3, names = ['13 static (c0 đến c12)', '13 delta Δ', '13 delta-delta ΔΔ'];
+  names.forEach((n, j) => {
+    if (j) hline(g, B.l - 100, B.l + B.w, B.t + j * bh, C.ink);
+    text(g, n.split(' (')[0], B.l - 8, B.t + j * bh + bh / 2 - 8, C.ink, 'right', true);
+    text(g, j === 0 ? '(c0 đến c12)' : j === 1 ? 'vận tốc' : 'gia tốc', B.l - 8, B.t + j * bh + bh / 2 + 10, C.mute, 'right');
+  });
+  const X = timeAxis(g, B);
+  SEG.forEach(s => text(g, s.label, X((s.t0 + s.t1) / 2), B.t - 12, C.ink, 'center', true));
+}
+
+function drawAll() { draw0(); drawFB(); draw1(); draw2(); drawWaves(); drawDot(); draw3(); drawK(); draw4(); draw5(); drawDelta(); draw39(); }
+
+function toggle(attr, val) { document.querySelectorAll(`[data-${attr}]`).forEach(b => b.classList.toggle('on', b.dataset[attr] === val)); }
+document.addEventListener('click', e => {
+  const t = e.target.closest('button');
+  if (!t) return;
+  if (t.dataset.sc1) { SC1 = t.dataset.sc1; toggle('sc1', SC1); draw1(); }
+  if (t.dataset.sc2) { SC2 = t.dataset.sc2; toggle('sc2', SC2); draw2(); }
+  if (t.dataset.v3) { V3 = t.dataset.v3; toggle('v3', V3); draw3(); }
+  if (t.dataset.vd) { VD = t.dataset.vd; toggle('vd', VD); drawDot(); }
+});
+document.getElementById('fbj').addEventListener('input', e => { FBJ = +e.target.value; drawFB(); });
+document.getElementById('dk').addEventListener('input', e => { DK = +e.target.value; drawDot(); });
+document.getElementById('dc').addEventListener('input', e => { DC = +e.target.value; drawDelta(); });
+document.getElementById('f02').addEventListener('input', e => { F02 = +e.target.value; draw2(); });
+document.getElementById('k3').addEventListener('input', e => { clearInterval(sweepT); K3 = +e.target.value; draw3(); });
+document.getElementById('sweep3').addEventListener('click', () => {
+  clearInterval(sweepT); K3 = 1; draw3();
+  sweepT = setInterval(() => { if (K3 >= NM) return clearInterval(sweepT); K3++; draw3(); }, 260);
+});
+document.getElementById('playX').addEventListener('click', () => play(x));
+drawAll();
+let rt;
+window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(drawAll, 120); });
+</script>
+</body>
+</html>

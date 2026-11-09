@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Attention 4: Decoder viết từng chữ</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../lib/nn.js"></script>
+<script src="../lib/attn.js"></script>
+<script src="../build/att-4-decoder.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn thành phần', '3 Query, key, value', '4 Decoder viết từng chữ', '5 Transformer, Conformer'];
+const ROWS = ATT.OUT.map((_, i) => ATT.attnRow(i));
+const M = {x: 380, y: 250, cw: 26, rh: 46};
+const lab = c => (c === ' ' ? '␣' : c);
+
+function matrix(rows, shown, o = {}) {
+  const {x, y, cw, rh} = M;
+  rows.forEach((row, i) => {
+    const mx = Math.max(...row);
+    for (let t = 0; t < ATT.TF; t++) rrect(x + t * cw, y + i * rh, cw - 1, rh - 3, 2, i < shown ? Clip.heat(0.06 + 0.85 * row[t] / mx) : '#f4f3f0');
+    text(i < shown ? lab((o.labels || ATT.OUT)[i]) : '?', x - 16, y + i * rh + rh / 2, {size: 24, weight: 700, color: i < shown ? COL.frame : COL.line2, align: 'right', mono: true});
+  });
+  for (let t = 0; t <= ATT.TF; t += 10) text(`${t * 40} ms`, x + t * cw, y - 18, {size: 18, color: COL.mute, align: 'center'});
+  text('vector của encoder (40 ms mỗi vector) →', x + ATT.TF * cw, y + rows.length * rh + 26, {size: 20, color: COL.mute, align: 'right'});
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Attention', 'Phần 4/5: decoder viết từng chữ', 3, PARTS);
+
+function shotWrite(G, t) {
+  const su = S('setup'), so = S('sos'), ss = S('steps'), ds = D('steps'), sm = S('matrix'), sl = S('learned'), se = S('eos');
+  heading(t < sm ? 'Câu "xin chào": viết từng ký tự' : 'Ma trận attention');
+  let shown = 0;
+  if (t >= so + 0.5) shown = 1;
+  if (t >= ss) shown = 1 + Math.min(7, Math.floor(8 * P(t, ss + 0.5, ds * 0.85)));
+  if (t >= sm) shown = 8;
+  if (t >= se + 0.3) shown = 9;
+  fade(G, P(t, su + 0.3, 0.5), () => matrix(ROWS, shown));
+  const written = ATT.OUT.slice(0, shown).filter(c => c !== '<eos>').join('');
+  if (t < sm) fade(G, P(t, so + 0.3, 0.5), () => {
+    text(`đã viết: "${written}"`, 960, 750, {size: 30, weight: 700, color: COL.ok, align: 'center'});
+    const prev = shown === 0 ? '<sos>' : lab(ATT.OUT[shown - 1]);
+    text(`đầu vào bước kế: ${prev} + đoạn âm thanh`, 960, 800, {size: 24, color: COL.mute, align: 'center'});
+  });
+  fade(G, P(t, sm + D('matrix') * 0.4, 0.5), () => {
+    const {x, y, cw, rh} = M;
+    line(x + ATT.CENT[0] * cw, y + rh / 2, x + ATT.CENT[8] * cw, y + 8.5 * rh, COL.ok + 'aa', 3, [10, 8]);
+  });
+  fade(G, P(t, sl + 0.3, 0.5), () => text('không ai dạy đường chéo: tự học, chính là căn chỉnh', 1050, 780, {size: 28, weight: 700, color: COL.ok, align: 'center'}));
+  fade(G, P(t, se + 0.3, 0.5), () => text('<eos>: hết câu, mô hình tự quyết độ dài', 1050, 820, {size: 24, color: COL.frame, align: 'center'}));
+}
+
+function shotTeacher(G, t) {
+  const st = S('teacher'), dt = D('teacher'), sb = S('beam'), db = D('beam');
+  heading(t < sb ? 'Khi học: teacher forcing' : 'Khi dùng: chữ của chính nó, beam search');
+  const truth = ['<sos>', 'x', 'i', 'n', '␣', 'c'], pred = ['x', 'y', 'n', '␣', 'c', 'h'];
+  fade(G, P(t, st + 0.3, 0.5), () => {
+    text('đầu vào', 360, 330, {size: 24, color: COL.mute, align: 'right'});
+    text('mô hình đoán', 360, 470, {size: 24, color: COL.mute, align: 'right'});
+    truth.forEach((c, k) => {
+      const x = 400 + k * 200, teach = t < sb;
+      const inp = teach ? c : (k === 0 ? '<sos>' : pred[k - 1]);
+      rrect(x, 296, 150, 66, 12, teach ? '#e8f3ec' : COL.frameSoft, teach ? COL.ok : COL.frame, 2);
+      text(inp, x + 75, 329, {size: 28, weight: 700, color: teach ? COL.ok : COL.frame, align: 'center', mono: true});
+      arrow(x + 75, 370, x + 75, 430, COL.mute, 2.5);
+      const bad = pred[k] === 'y';
+      rrect(x, 436, 150, 66, 12, bad ? COL.hlSoft : COL.card, bad ? COL.hl : COL.line2, bad ? 3 : 1.5);
+      text(pred[k], x + 75, 469, {size: 28, weight: 700, color: bad ? COL.hl : COL.ink, align: 'center', mono: true});
+      if (k > 0 && !teach) arrow(x - 50 + 0, 469, x + 10, 340, COL.frame + '88', 2, 8);
+    });
+  });
+  if (t < sb) fade(G, P(t, st + dt * 0.5, 0.5), () => text('đầu vào lấy từ câu đúng: một chữ đoán sai ("y") không kéo cả câu sai theo', 960, 600, {size: 26, weight: 700, color: COL.ok, align: 'center'}));
+  else fade(G, P(t, sb + db * 0.4, 0.5), () => text('không có câu đúng: dùng chữ vừa đoán, giữ vài câu tốt nhất (beam search)', 960, 600, {size: 26, weight: 700, color: COL.frame, align: 'center'}));
+}
+
+function shotWeak(G, t) {
+  const sw = S('weak'), dw = D('weak'), sh = S('hybrid'), dh = D('hybrid');
+  heading(t < sh ? 'Điểm yếu: bỏ qua, quay lại' : 'Cách chữa: học chung với CTC');
+  // A broken alignment: step 4 jumps ahead (drops a letter), step 6 jumps back (repeats one).
+  const cent = [9, 13, 17, 30, 34, 27, 30, 39, 47], rows = cent.map((c, i) => { const r = GMM.rng(200 + i); return NN.softmax(Array.from({length: ATT.TF}, (_, k) => -((k - c) ** 2) / 6 + 0.4 * GMM.randn(r))); });
+  fade(G, P(t, sw + 0.3, 0.5), () => {
+    matrix(rows, 9, {labels: ['x', 'i', 'n', 'h', 'à', 'c', 'h', 'o', '<eos>']});
+    const {x, y, cw, rh} = M;
+    rrect(x - 40, y + 3 * rh - 2, ATT.TF * cw + 44, rh, 6, null, COL.hl, 3);
+    rrect(x - 40, y + 5 * rh - 2, ATT.TF * cw + 44, rh, 6, null, COL.hl, 3);
+    text('bỏ qua: mất "␣c"', x + ATT.TF * cw + 20, y + 3.5 * rh, {size: 20, weight: 700, color: COL.hl});
+    text('quay lại: lặp', x + ATT.TF * cw + 20, y + 5.5 * rh, {size: 20, weight: 700, color: COL.hl});
+  });
+  fade(G, P(t, sh + 0.3, 0.5), () => {
+    card(400, 700, 1120, 110, {stroke: COL.ok});
+    text('hybrid CTC/attention (Watanabe và cộng sự, 2017): CTC buộc căn đi từ trái sang phải', 960, 755, {size: 26, weight: 700, color: COL.ok, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['decoder viết từng chữ: chữ vừa viết + đoạn âm thanh'], ['ma trận attention tự thành đường chéo'], ['teacher forcing khi học, beam search khi dùng'], ['dễ bỏ qua / lặp: học chung với CTC']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text('✓', 400, 290 + j * 84, {size: 34, weight: 700, color: COL.ok});
+      text(a, 450, 290 + j * 84, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 760, 680, 'Phần 5: Transformer và Conformer  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 4', [
+  ['ký hiệu bắt đầu / kết thúc', '<sos> / <eos>', 'mô hình tự quyết độ dài'],
+  ['bảng nơi decoder nhìn', 'ma trận attention (alignment)', 'gần như đường chéo'],
+  ['đưa câu đúng vào khi học', 'teacher forcing', 'học nhanh, ổn định'],
+  ['học chung với CTC', 'hybrid CTC/attention', 'Watanabe 2017'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'setup', to: 'eos', draw: shotWrite},
+    {from: 'teacher', to: 'beam', draw: shotTeacher},
+    {from: 'weak', to: 'hybrid', draw: shotWeak},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/att-4-decoder.wav');
+</script>
+</body>
+</html>

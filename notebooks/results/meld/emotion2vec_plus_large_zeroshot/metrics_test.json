@@ -1,0 +1,97 @@
+{
+  "name": "emotion2vec_plus_large_zeroshot",
+  "dataset": "meld",
+  "split": "test",
+  "notes": "restricted argmax over dataset classes, no training",
+  "ser": {
+    "wa": 0.4592074592074592,
+    "ua": 0.3008671388765873,
+    "macro_f1": 0.28707906706519476,
+    "weighted_f1": 0.4582700964716334,
+    "recall_by_emotion": {
+      "neutral": 0.5665859564164649,
+      "joy": 0.5516372795969773,
+      "surprise": 0.39928057553956836,
+      "anger": 0.2433234421364985,
+      "sadness": 0.32524271844660196,
+      "disgust": 0.0,
+      "fear": 0.02
+    },
+    "n": 2574,
+    "n_invalid_pred": 0,
+    "labels": [
+      "neutral",
+      "joy",
+      "surprise",
+      "anger",
+      "sadness",
+      "disgust",
+      "fear"
+    ],
+    "confusion": [
+      [
+        702,
+        271,
+        100,
+        59,
+        93,
+        7,
+        7
+      ],
+      [
+        100,
+        219,
+        44,
+        14,
+        15,
+        3,
+        2
+      ],
+      [
+        62,
+        73,
+        111,
+        15,
+        16,
+        1,
+        0
+      ],
+      [
+        100,
+        71,
+        48,
+        82,
+        28,
+        5,
+        3
+      ],
+      [
+        71,
+        33,
+        21,
+        9,
+        67,
+        2,
+        3
+      ],
+      [
+        21,
+        18,
+        9,
+        13,
+        5,
+        0,
+        1
+      ],
+      [
+        15,
+        14,
+        7,
+        5,
+        8,
+        0,
+        1
+      ]
+    ]
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "name": "cascade_fusion_gated_gt_wavlm_f1",
+  "dataset": "iemocap",
+  "split": "test",
+  "notes": "gated; predictions = 1-seed ensemble; uses GROUND-TRUTH text (upper bound)",
+  "ser": {
+    "wa": 0.7336405529953917,
+    "ua": 0.7716045722092923,
+    "macro_f1": 0.7407845228481623,
+    "weighted_f1": 0.7248850628364986,
+    "recall_by_emotion": {
+      "neutral": 0.4947916666666667,
+      "joy": 0.8776978417266187,
+      "anger": 0.8427947598253275,
+      "sadness": 0.8711340206185567
+    },
+    "n": 1085,
+    "n_invalid_pred": 0,
+    "labels": [
+      "neutral",
+      "joy",
+      "anger",
+      "sadness"
+    ],
+    "confusion": [
+      [
+        190,
+        87,
+        16,
+        91
+      ],
+      [
+        16,
+        244,
+        11,
+        7
+      ],
+      [
+        12,
+        18,
+        193,
+        6
+      ],
+      [
+        14,
+        8,
+        3,
+        169
+      ]
+    ]
+  },
+  "seeds": [
+    {
+      "seed": 0,
+      "dev_ua": 0.8706713410702773,
+      "test_ua": 0.7716045722092923,
+      "test_wf1": 0.7248850628364986
+    }
+  ],
+  "ua_mean": 0.7716045722092923,
+  "ua_std": NaN,
+  "wf1_mean": 0.7248850628364986,
+  "wf1_std": NaN
+}

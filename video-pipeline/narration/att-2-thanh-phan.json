@@ -1,0 +1,33 @@
+{
+  "clip": "att-2-thanh-phan",
+  "title": "Attention · Phần 2: Bốn thành phần",
+  "segments": [
+    {"id": "intro",
+     "sub": "Attention, phần 2: bốn thành phần.",
+     "say": "Ờ ten sần, phần hai: bốn thành phần."},
+    {"id": "pipe",
+     "sub": "Đường đi: log-Mel → encoder → T vector → attention → decoder → chữ tiếp theo, rồi chữ đó quay lại làm đầu vào cho bước sau.",
+     "say": "Đường đi: lóc meo vào en cô đơ, ra tê vector. Ờ ten sần chọn thông tin từ các vector đó cho đi cô đơ, đi cô đơ viết ra chữ tiếp theo, rồi chữ đó quay lại làm đầu vào cho bước sau."},
+    {"id": "enc",
+     "sub": "Thành phần 1: encoder. Đọc toàn bộ âm thanh, đổi mỗi frame thành một vector đã \"hiểu\" ngữ cảnh xung quanh. Phần 5.",
+     "say": "Thành phần thứ nhất: en cô đơ. Nó đọc toàn bộ âm thanh, và đổi mỗi frame thành một vector đã hiểu ngữ cảnh xung quanh. Nằm ở phần năm."},
+    {"id": "dec",
+     "sub": "Thành phần 2: decoder tự hồi quy (autoregressive). Viết từng chữ; chữ vừa viết được đưa ngược lại làm đầu vào. Dùng được chữ đã viết, không cần LM ngoài. Phần 4.",
+     "say": "Thành phần thứ hai: đi cô đơ tự hồi quy. Nó viết từng chữ, và chữ vừa viết được đưa ngược lại làm đầu vào. Nhờ vậy dùng được các chữ đã viết, không cần eo em bên ngoài. Nằm ở phần bốn."},
+    {"id": "att",
+     "sub": "Thành phần 3: attention. Mỗi bước, decoder chấm điểm mọi frame của encoder, softmax ra trọng số, lấy trung bình có trọng số. Tự tìm đúng đoạn âm thanh cho từng chữ, không cần căn trước. Phần 3 và 4.",
+     "say": "Thành phần thứ ba: ờ ten sần. Ở mỗi bước, đi cô đơ chấm điểm mọi frame của en cô đơ, dùng xóp mắc để ra trọng số, rồi lấy trung bình có trọng số. Nó tự tìm đúng đoạn âm thanh cho từng chữ, không cần căn trước. Nằm ở phần ba và bốn."},
+    {"id": "self",
+     "sub": "Thành phần 4: self-attention (Transformer), thêm convolution (Conformer). Dùng chính attention để các frame nhìn nhau, thay cho đọc tuần tự. Giải quyết vấn đề chậm và khó nhớ xa. Phần 5.",
+     "say": "Thành phần thứ tư: xeo ờ ten sần của Trans pho mơ, và thêm tích chập ở Con pho mơ. Dùng chính ờ ten sần để các frame nhìn lẫn nhau, thay cho việc đọc tuần tự. Giải quyết vấn đề chậm và khó nhớ xa. Nằm ở phần năm."},
+    {"id": "hist",
+     "sub": "Lịch sử: attention ra đời cho dịch máy (Bahdanau và cộng sự, 2014). Chorowski (2015) và LAS, Listen Attend and Spell (Chan và cộng sự, 2016), đưa nó vào nhận dạng tiếng nói.",
+     "say": "Về lịch sử, ờ ten sần ra đời cho dịch máy, của Ba đa nau và cộng sự năm hai nghìn mười bốn. Cho rốp ski năm hai nghìn mười lăm, và mô hình Lít sần Ờ ten en Spen của Chan và cộng sự năm hai nghìn mười sáu, đưa nó vào nhận dạng tiếng nói."},
+    {"id": "result",
+     "sub": "Tóm lại: encoder đọc âm thanh; decoder viết từng chữ; attention chọn đoạn âm thanh cho mỗi chữ; self-attention cho các frame nhìn nhau. Phần 3: attention tính thế nào.",
+     "say": "Tóm lại: en cô đơ đọc âm thanh; đi cô đơ viết từng chữ; ờ ten sần chọn đoạn âm thanh cho mỗi chữ; và xeo ờ ten sần cho các frame nhìn lẫn nhau. Phần ba: ờ ten sần tính như thế nào."},
+    {"id": "terms",
+     "sub": "Thuật ngữ của phần này.",
+     "say": "Các thuật ngữ của phần này."}
+  ]
+}

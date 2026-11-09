@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Joint network trong ENT là gì</title>
+<link rel="stylesheet" href="assets/learn.css">
+<style>
+svg text { font-family: Inter, system-ui, sans-serif; }
+.fig svg { width: 100%; height: auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<p class="muted"><a href="22-multitask.html">← Học ASR và SER cùng lúc</a> · trang phụ, đào sâu mục 5 (ENT)</p>
+<h1>Joint network trong ENT là gì?</h1>
+<p class="sub">Bạn hỏi: "người ta hay cho audio qua ASR ra chữ, đưa chữ qua một encoder, audio qua một encoder khác, nối hai vector lại rồi cho vào MLP. Vậy đó có phải joint network không?"</p>
+
+<section>
+<h2><span class="n">1</span>Cái bạn mô tả: cascade + ghép đặc trưng</h2>
+<p>Bạn mô tả đúng một kiểu rất phổ biến. Tên chuẩn của nó là <b>cascade</b> (nối tiếp: chạy ASR xong mới đến SER) kết hợp <b>feature-level fusion bằng concatenation</b> (nối hai vector đặc trưng). Trang 21 (Ghép âm thanh và chữ) nói về kiểu này.</p>
+<div class="fig">
+<svg viewBox="0 0 860 230" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#787774"/></marker></defs>
+<g font-size="13" fill="#37352f">
+<rect x="10" y="90" width="80" height="40" rx="6" fill="#fff" stroke="#9b9a97"/><text x="50" y="114" text-anchor="middle">âm thanh</text>
+<polyline points="90,110 105,110 105,50 118,50" fill="none" stroke="#787774" marker-end="url(#a1)"/>
+<polyline points="105,110 105,170 118,170" fill="none" stroke="#787774" marker-end="url(#a1)"/>
+
+<rect x="120" y="30" width="120" height="40" rx="6" fill="#f6f5f4" stroke="#9b9a97"/><text x="180" y="54" text-anchor="middle">ASR (Whisper)</text>
+<line x1="240" y1="50" x2="258" y2="50" stroke="#787774" marker-end="url(#a1)"/>
+<rect x="260" y="30" width="130" height="40" rx="6" fill="#fff" stroke="#d9730d"/><text x="325" y="54" text-anchor="middle" font-style="italic">"tôi chán lắm"</text>
+<line x1="390" y1="50" x2="408" y2="50" stroke="#787774" marker-end="url(#a1)"/>
+<rect x="410" y="30" width="120" height="40" rx="6" fill="#fbecdd" stroke="#d9730d"/><text x="470" y="54" text-anchor="middle">text encoder (BERT)</text>
+<line x1="530" y1="50" x2="548" y2="50" stroke="#787774" marker-end="url(#a1)"/>
+<rect x="550" y="30" width="18" height="40" fill="#d9730d" opacity=".75"/><text x="559" y="84" text-anchor="middle" font-size="12" fill="#d9730d">a</text>
+
+<rect x="120" y="150" width="410" height="40" rx="6" fill="#e7f0f6" stroke="#337ea9"/><text x="325" y="174" text-anchor="middle">audio encoder (wav2vec 2.0) + pooling</text>
+<line x1="530" y1="170" x2="548" y2="170" stroke="#787774" marker-end="url(#a1)"/>
+<rect x="550" y="150" width="18" height="40" fill="#337ea9" opacity=".75"/><text x="559" y="144" text-anchor="middle" font-size="12" fill="#337ea9">b</text>
+
+<polyline points="568,50 580,50 580,100 598,100" fill="none" stroke="#787774"/>
+<polyline points="568,170 580,170 580,120 598,120" fill="none" stroke="#787774" marker-end="url(#a1)"/>
+<rect x="600" y="90" width="80" height="40" rx="6" fill="#fff" stroke="#9b9a97"/><text x="640" y="114" text-anchor="middle">nối [a | b]</text>
+<line x1="680" y1="110" x2="698" y2="110" stroke="#787774" marker-end="url(#a1)"/>
+<rect x="700" y="90" width="60" height="40" rx="6" fill="#f6f5f4" stroke="#9b9a97"/><text x="730" y="114" text-anchor="middle">MLP</text>
+<line x1="760" y1="110" x2="778" y2="110" stroke="#787774" marker-end="url(#a1)"/>
+<rect x="780" y="90" width="70" height="40" rx="6" fill="#e6f1ea" stroke="#448361"/><text x="815" y="114" text-anchor="middle">angry</text>
+<text x="430" y="218" text-anchor="middle" fill="#787774" font-size="12">Ghép <tspan font-weight="600">một lần cho cả câu</tspan>. ASR là một hệ thống riêng, nó chạy xong thì SER mới bắt đầu.</text>
+</g>
+</svg>
+</div>
+<p>Bộ "nối + MLP" ở đây đúng là đang <b>kết hợp</b> hai nguồn, nên gọi nôm là "joint" cũng không sai. Nhưng trong ngành, <b>joint network</b> là tên riêng của một bộ phận trong <b>RNN-T</b> (neural transducer). Nó giống bộ "nối + MLP" ở chỗ cũng trộn âm thanh với chữ, nhưng khác ở <b>chữ lấy từ đâu</b> và <b>trộn bao nhiêu lần</b>.</p>
+</section>
+
+<section>
+<h2><span class="n">2</span>Joint network trong RNN-T, và cái ENT thêm vào</h2>
+<p>RNN-T có ba bộ phận (bài báo, mục 2):</p>
+<ul>
+<li><b>Encoder</b>: nghe âm thanh, mỗi frame <span class="mono">t</span> cho ra một vector <span class="mono">h_t</span>. Bộ phận này đóng vai "tai".</li>
+<li><b>Predictor</b> (prediction network): đọc <b>các chữ chính model đã viết ra</b> cho tới chữ thứ <span class="mono">u</span>, rồi cho ra <span class="mono">g_u</span>. Có thể xem nó như một language model nhỏ, đóng vai "trí nhớ về câu đang viết".</li>
+<li><b>Joint network</b>: nhận <span class="mono">h_t</span> và <span class="mono">g_u</span>, trộn lại, rồi đoán: "ở frame này, sau những chữ đã viết, chữ tiếp theo là gì, hay là <i>blank</i> (chưa viết gì, sang frame sau)".</li>
+</ul>
+<p>ENT dùng lại encoder và predictor, rồi thêm một <b>joint thứ hai cho cảm xúc</b> (Joint<sub>E</sub>) song song với joint của ASR. Trong bài, cả hai joint đều rất đơn giản: <b>cộng</b> <span class="mono">h_t + g_u</span> rồi cho qua <b>một lớp linear</b>. Như vậy là cộng chứ không nối, và chỉ có một lớp chứ không phải MLP nhiều lớp.</p>
+<div class="fig">
+<svg viewBox="0 0 860 340" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#787774"/></marker></defs>
+<g font-size="13" fill="#37352f">
+<rect x="10" y="40" width="100" height="40" rx="6" fill="#fff" stroke="#9b9a97"/><text x="60" y="64" text-anchor="middle">âm thanh x_t</text>
+<line x1="110" y1="60" x2="128" y2="60" stroke="#787774" marker-end="url(#a2)"/>
+<rect x="130" y="40" width="130" height="40" rx="6" fill="#e7f0f6" stroke="#337ea9"/><text x="195" y="58" text-anchor="middle">Encoder</text><text x="195" y="73" text-anchor="middle" font-size="11" fill="#787774">wav2vec 2.0 + LSTM</text>
+
+<rect x="10" y="220" width="100" height="40" rx="6" fill="#fff" stroke="#9b9a97"/><text x="60" y="238" text-anchor="middle">chữ đã viết</text><text x="60" y="253" text-anchor="middle" font-size="11" fill="#787774">y ≤ u</text>
+<line x1="110" y1="240" x2="128" y2="240" stroke="#787774" marker-end="url(#a2)"/>
+<rect x="130" y="220" width="130" height="40" rx="6" fill="#fbecdd" stroke="#d9730d"/><text x="195" y="238" text-anchor="middle">Predictor</text><text x="195" y="253" text-anchor="middle" font-size="11" fill="#787774">LSTM</text>
+
+<polyline points="260,60 330,60 330,205 378,205" fill="none" stroke="#337ea9" stroke-width="1.5" marker-end="url(#a2)"/>
+<line x1="330" y1="105" x2="378" y2="105" stroke="#337ea9" stroke-width="1.5" marker-end="url(#a2)"/>
+<text x="290" y="52" fill="#337ea9" font-weight="600">h_t</text>
+<polyline points="260,240 350,240 350,125 378,125" fill="none" stroke="#d9730d" stroke-width="1.5" marker-end="url(#a2)"/>
+<line x1="350" y1="225" x2="378" y2="225" stroke="#d9730d" stroke-width="1.5" marker-end="url(#a2)"/>
+<text x="290" y="258" fill="#d9730d" font-weight="600">g_u</text>
+
+<rect x="380" y="90" width="170" height="50" rx="6" fill="#f3eef8" stroke="#9065b0"/><text x="465" y="110" text-anchor="middle" font-weight="600">Joint (ASR)</text><text x="465" y="128" text-anchor="middle" font-size="12" fill="#787774">h_t + g_u → linear</text>
+<line x1="550" y1="115" x2="598" y2="115" stroke="#787774" marker-end="url(#a2)"/>
+<rect x="600" y="90" width="230" height="50" rx="6" fill="#fff" stroke="#9065b0"/><text x="715" y="110" text-anchor="middle">softmax: blank + từ vựng</text><text x="715" y="128" text-anchor="middle" font-size="12" fill="#787774">viết chữ tiếp, hay sang frame sau</text>
+
+<rect x="372" y="172" width="466" height="66" rx="8" fill="none" stroke="#448361" stroke-dasharray="5 4"/>
+<text x="834" y="166" text-anchor="end" font-size="12" fill="#448361" font-weight="600">ENT thêm vào</text>
+<rect x="380" y="180" width="170" height="50" rx="6" fill="#e6f1ea" stroke="#448361"/><text x="465" y="200" text-anchor="middle" font-weight="600">Joint<tspan font-size="10" dy="3">E</tspan><tspan dy="-3"> (cảm xúc)</tspan></text><text x="465" y="218" text-anchor="middle" font-size="12" fill="#787774">h_t + g_u → linear</text>
+<line x1="550" y1="205" x2="598" y2="205" stroke="#787774" marker-end="url(#a2)"/>
+<rect x="600" y="180" width="230" height="50" rx="6" fill="#fff" stroke="#448361"/><text x="715" y="200" text-anchor="middle">softmax: 4 cảm xúc</text><text x="715" y="218" text-anchor="middle" font-size="12" fill="#787774">cho đúng ô (t, u) này</text>
+
+<polyline points="830,115 848,115 848,300 60,300 60,262" fill="none" stroke="#9065b0" stroke-dasharray="4 4" marker-end="url(#a2)"/>
+<text x="454" y="320" text-anchor="middle" font-size="12" fill="#9065b0">chữ vừa viết (khác blank) quay lại predictor: model tự đọc lời của chính nó</text>
+</g>
+</svg>
+</div>
+<div class="note blue"><b>Vòng lặp nét đứt là điểm khác lớn nhất so với mục 1.</b> Khi train, predictor đọc transcript đúng (teacher forcing). Khi chạy thật, nó đọc những chữ chính model vừa viết. Không có hệ thống ASR nào đứng ngoài: phần "chép lời" và phần "đoán cảm xúc" dùng chung encoder và predictor, nên gradient của cả hai task cùng chảy về đó.</div>
+</section>
+
+<section>
+<h2><span class="n">3</span>Trộn ở từng ô: lưới cảm xúc</h2>
+<p>Bộ "nối + MLP" ở mục 1 chạy <b>một lần</b> cho cả câu. Joint network thì chạy ở <b>mọi cặp (t, u)</b>, tức là mọi tổ hợp "đang ở frame t và đã viết u chữ". Với T frame và U chữ, ta có một <b>lưới T × U</b> (alignment lattice). Mỗi ô của lưới cảm xúc là một phân phối trên 4 cảm xúc. Hình dưới chỉ tô xác suất của "angry", số liệu là minh họa:</p>
+<div class="fig">
+<svg viewBox="0 0 600 270" xmlns="http://www.w3.org/2000/svg" id="lat"></svg>
+</div>
+<p>Dữ liệu chỉ có <b>một nhãn cho cả câu</b>, không ai đánh dấu đoạn nào giận. ENT xử lý chuyện này bằng <b>lattice max pooling loss</b> (công thức 4 trong bài):</p>
+<ul>
+<li>tìm ô có xác suất <b>cảm xúc đúng</b> cao nhất (ô viền nét đứt) và đẩy xác suất đó lên;</li>
+<li>tìm ô có xác suất <b>neutral</b> thấp nhất, tức ô "khó" nhất, và cũng tối ưu ô đó.</li>
+</ul>
+<p>Như vậy model tự học được ô nào mang cảm xúc, ô nào trung tính. Nhờ đó nó làm được <b>fine-grained SER</b>: biết cảm xúc nằm ở đoạn nào trong câu. Để ra <b>nhãn cho cả câu</b>, bài dùng thêm một nhánh riêng: lấy mean pooling của <span class="mono">h</span> và <span class="mono">g</span> rồi phân loại bằng cross-entropy (mục 3.2). Nhánh này gần với cách ở mục 1 hơn.</p>
+</section>
+
+<section>
+<h2>Tóm tắt: hai cách "trộn" khác nhau ở đâu</h2>
+<div class="tablewrap"><table>
+<tr><th></th><th>Cascade + nối + MLP (mục 1)</th><th>Joint network của ENT (mục 2, 3)</th></tr>
+<tr><td>chữ lấy từ đâu</td><td>một hệ thống ASR riêng, chạy xong rồi mới đưa chữ sang</td><td>predictor đọc chữ chính model viết ra, trong cùng một model</td></tr>
+<tr><td>trộn mấy lần</td><td>1 lần cho cả câu</td><td>ở mọi ô (t, u), thành một lưới T × U</td></tr>
+<tr><td>trộn bằng gì</td><td>nối [a | b] rồi MLP</td><td>cộng h_t + g_u rồi một lớp linear</td></tr>
+<tr><td>đầu ra</td><td>1 nhãn cảm xúc</td><td>transcript, nhãn cả câu, và cảm xúc theo từng đoạn</td></tr>
+<tr><td>train</td><td>thường đóng băng ASR, chỉ train phần SER</td><td>ASR và SER train cùng lúc, chung encoder và predictor</td></tr>
+<tr><td>lỗi ASR</td><td>chép sai thì nhánh chữ nhận chữ sai, lỗi truyền theo dây chuyền</td><td>vẫn bị ảnh hưởng (bài ghi nhận ở mục 4.3), nhưng hai task được tối ưu cùng nhau</td></tr>
+</table></div>
+</section>
+</div>
+<script>
+(() => {
+  const svg = document.getElementById('lat');
+  const T = 6, U = ['∅', 'tôi', 'chán', 'lắm'];
+  const p = [
+    [.20, .25, .20, .15, .10, .10],
+    [.20, .30, .30, .25, .20, .20],
+    [.30, .45, .60, .70, .50, .40],
+    [.30, .50, .65, .90, .70, .60],
+  ];
+  const x0 = 90, y0 = 20, cw = 70, ch = 48;
+  const cx = t => x0 + t * cw + cw / 2, cy = u => y0 + (U.length - 1 - u) * ch + ch / 2;
+  let s = '';
+  let best = [0, 0];
+  p.forEach((row, u) => row.forEach((v, t) => { if (v > p[best[0]][best[1]]) best = [u, t]; }));
+  p.forEach((row, u) => row.forEach((v, t) => {
+    const x = x0 + t * cw, y = y0 + (U.length - 1 - u) * ch;
+    s += `<rect x="${x}" y="${y}" width="${cw}" height="${ch}" fill="#448361" fill-opacity="${v * 0.85}" stroke="#fff" stroke-width="2"/>`;
+    s += `<text x="${x + cw / 2}" y="${y + ch / 2 + 4}" text-anchor="middle" font-size="12" fill="${v > .5 ? '#fff' : '#37352f'}">${v.toFixed(2)}</text>`;
+  }));
+  const [bu, bt] = best;
+  s += `<rect x="${x0 + bt * cw + 3}" y="${y0 + (U.length - 1 - bu) * ch + 3}" width="${cw - 6}" height="${ch - 6}" fill="none" stroke="#37352f" stroke-width="2" stroke-dasharray="5 3"/>`;
+  const path = [[0, 0], [0, 1], [1, 1], [2, 1], [2, 2], [3, 2], [3, 3], [4, 3], [5, 3]];
+  s += `<polyline points="${path.map(([t, u]) => cx(t) + ',' + cy(u)).join(' ')}" fill="none" stroke="#9065b0" stroke-width="2" stroke-dasharray="4 3" opacity=".8"/>`;
+  U.forEach((w, u) => { s += `<text x="${x0 - 10}" y="${cy(u) + 4}" text-anchor="end" font-size="12" fill="#787774">u=${u} ${w}</text>`; });
+  for (let t = 0; t < T; t++) s += `<text x="${cx(t)}" y="${y0 + U.length * ch + 18}" text-anchor="middle" font-size="12" fill="#787774">t${t + 1}</text>`;
+  s += `<text x="${x0 + T * cw / 2}" y="${y0 + U.length * ch + 40}" text-anchor="middle" font-size="12" fill="#787774">frame →   ·   nét tím: một đường căn (alignment) của ASR   ·   ô viền đứt: ô max cho "angry"</text>`;
+  svg.innerHTML = s;
+})();
+</script>
+</body>
+</html>

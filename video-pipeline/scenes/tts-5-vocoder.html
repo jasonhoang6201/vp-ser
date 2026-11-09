@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>TTS 5: Vocoder nơ-ron</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/tts-5-vocoder.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Khung 3 khối', '3 Pha', '4 Griffin-Lim', '5 Vocoder nơ-ron', '6 Đo chất lượng'];
+
+function circle(x, y, r, fill, stroke) { const g = Clip.g; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); if (fill) { g.fillStyle = fill; g.fill(); } if (stroke) { g.strokeStyle = stroke; g.lineWidth = 2; g.stroke(); } }
+function wave(x, y, w, h, upto = 1, col = COL.acc) {
+  const xs = [], ys = [];
+  for (let k = 0; k <= 300; k++) { xs.push(x + k * w / 300); ys.push(y + h / 2 * Math.sin(k * 0.7) * (0.3 + 0.7 * Math.abs(Math.sin(k * 0.03)))); }
+  poly(xs, ys, col, 2, null, upto);
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('TTS và vocoder', 'Phần 5/6: vocoder nơ-ron, học cách tạo sóng từ Mel', 4, PARTS);
+
+function shotWavenet(G, t) {
+  const sw = S('wavenet'), sd = S('dilated'), dd = D('dilated'), ss = S('slow'), ds = D('slow');
+  heading('WaveNet (DeepMind, 2016): sinh từng mẫu');
+  const n = 32, x0 = 300, dx = 40, y0 = 640;
+  fade(G, P(t, sw + 0.3, 0.5), () => {
+    for (let k = 0; k < n; k++) circle(x0 + k * dx, y0, 9, k === n - 1 ? COL.frame : COL.accSoft, k === n - 1 ? COL.frame : COL.acc);
+    text('mẫu đã sinh', x0, y0 + 40, {size: 22, color: COL.mute});
+    text('mẫu tiếp theo', x0 + (n - 1) * dx, y0 + 40, {size: 22, weight: 700, color: COL.frame, align: 'center'});
+  });
+  fade(G, P(t, sd + 0.3, 0.5), () => {
+    // Dilated causal stack: layer l connects samples 2^l apart, so 5 layers see 32 samples.
+    const layers = 5, u = P(t, sd + 0.5, dd * 0.6);
+    for (let l = 0; l < layers; l++) {
+      if (l / layers > u) break;
+      const yl = y0 - (l + 1) * 70, step = 2 ** l;
+      for (let k = n - 1; k >= 0; k -= 2 ** (l + 1)) {
+        circle(x0 + k * dx, yl, 8, COL.card, COL.acc);
+        line(x0 + k * dx, yl + 8, x0 + k * dx, yl + 62, COL.acc + '88', 1.5);
+        if (k - step >= 0) line(x0 + k * dx, yl + 8, x0 + (k - step) * dx, yl + 62, COL.acc + '88', 1.5);
+      }
+      text(`giãn ${step}`, x0 - 20, yl, {size: 20, color: COL.acc, align: 'right'});
+    }
+    text('convolution giãn nở: 5 lớp nhìn được 32 mẫu', 700, 750, {size: 26, weight: 700, color: COL.acc, align: 'center'});
+  });
+  fade(G, P(t, ss + 0.3, 0.5), () => {
+    card(1200, 700, 560, 130, {stroke: COL.hl});
+    text('chất lượng rất cao', 1230, 740, {size: 26, weight: 700, color: COL.ok});
+    text('1 giây = hàng chục nghìn bước tuần tự: rất chậm', 1230, 790, {size: 22, weight: 700, color: COL.hl});
+  });
+}
+
+function shotGlow(G, t) {
+  const s = S('glow'), d = D('glow');
+  heading('WaveGlow (2019): normalizing flow');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    const r = Array.from({length: 300}, (_, k) => Math.sin(k * 12.9898) * 43758.5453 % 1);
+    poly(r.map((_, k) => 260 + k * 1.6), r.map(v => 420 + 50 * v), COL.mute, 1.2);
+    text('nhiễu ngẫu nhiên', 500, 520, {size: 24, color: COL.mute, align: 'center'});
+    rrect(800, 360, 320, 120, 16, COL.frameSoft, COL.frame, 3);
+    text('biến đổi khả nghịch', 960, 405, {size: 26, weight: 700, color: COL.frame, align: 'center'});
+    text('(điều kiện: Mel)', 960, 445, {size: 22, color: COL.mute, align: 'center'});
+    arrow(750, 420, 790, 420, COL.mute, 3); arrow(1130, 420, 1170, 420, COL.mute, 3);
+    wave(1190, 420, 480, 110);
+    text('sóng âm, mọi mẫu cùng lúc', 1430, 520, {size: 24, color: COL.acc, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.55, 0.5), () => text('song song: nhanh hơn WaveNet nhiều · nhưng mô hình nặng', 960, 640, {size: 28, weight: 700, align: 'center'}));
+}
+
+function shotGan(G, t) {
+  const sg = S('gan'), sn = S('gen'), dn = D('gen'), sd = S('disc'), dd = D('disc'), sp = S('period'), dp = D('period');
+  heading(t < sp ? 'HiFi-GAN (2020): trò chơi hai bên' : 'Discriminator nhìn nhiều chu kỳ');
+  if (t < sp) {
+    fade(G, P(t, sn + 0.3, 0.5), () => {
+      for (let k = 0; k < 6; k++) rrect(200 + k * 20, 340, 16, 120, 2, COL.frame + '99');
+      text('Mel', 250, 490, {size: 22, color: COL.mute, align: 'center'});
+      rrect(380, 330, 300, 140, 16, COL.accSoft, COL.acc, 3);
+      text('generator', 530, 380, {size: 30, weight: 700, color: COL.acc, align: 'center'});
+      text('phóng: 1 frame → vài trăm mẫu', 530, 425, {size: 20, color: COL.mute, align: 'center'});
+      arrow(340, 400, 375, 400, COL.mute, 3); arrow(690, 400, 740, 400, COL.mute, 3);
+      wave(750, 400, 300, 100, P(t, sn + 1, dn * 0.5));
+      text('sóng giả', 900, 490, {size: 22, color: COL.acc, align: 'center'});
+    });
+    fade(G, P(t, sd + 0.3, 0.5), () => {
+      wave(750, 600, 300, 100, 1, COL.ok);
+      text('sóng thật', 900, 690, {size: 22, color: COL.ok, align: 'center'});
+      arrow(1060, 400, 1180, 470, COL.mute, 3); arrow(1060, 600, 1180, 530, COL.mute, 3);
+      rrect(1190, 430, 300, 140, 16, COL.hlSoft, COL.hl, 3);
+      text('discriminator', 1340, 480, {size: 30, weight: 700, color: COL.hl, align: 'center'});
+      text('thật hay giả?', 1340, 525, {size: 22, color: COL.mute, align: 'center'});
+    });
+    fade(G, P(t, sd + dd * 0.5, 0.5), () => text('bắt lỗi càng giỏi → generator càng bị ép tạo chi tiết thật, kể cả pha', 960, 780, {size: 26, weight: 700, color: COL.frame, align: 'center'}));
+    return;
+  }
+  fade(G, P(t, sp + 0.3, 0.5), () => {
+    [2, 3, 5, 7, 11].forEach((p, j) => {
+      const y = 260 + j * 100, n = 44, w = 24;
+      text(`chu kỳ ${p}`, 340, y + 20, {size: 22, weight: 700, color: COL.hl, align: 'right'});
+      for (let k = 0; k < n; k++) rrect(360 + k * w, y, w - 4, 40, 3, k % p === 0 ? COL.hl : COL.soft);
+    });
+    text('lấy mẫu cách đều p mẫu: bắt các mẫu tuần hoàn của giọng', 960, 780, {size: 26, weight: 700, align: 'center'});
+  });
+}
+
+function shotDefault(G, t) {
+  const s = S('default'), d = D('default');
+  heading('HiFi-GAN thành lựa chọn mặc định');
+  const rows = [['WaveNet', 'rất cao', 'rất chậm (tuần tự)', COL.acc], ['WaveGlow', 'cao', 'nhanh, mô hình nặng', COL.i], ['HiFi-GAN', 'gần WaveNet', 'nhanh hơn thời gian thực nhiều lần, cả trên CPU', COL.ok]];
+  const cx = [360, 760, 1220];
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    ['vocoder', 'chất lượng', 'tốc độ'].forEach((h, j) => text(h, cx[j], 270, {size: 24, weight: 600, color: COL.mute}));
+    line(320, 296, 1700, 296, COL.line2, 2);
+  });
+  rows.forEach(([a, b, c, col], i) => fade(G, P(t, s + 0.8 + i * d * 0.2, 0.5), () => {
+    const y = 360 + i * 90;
+    if (i === 2) rrect(320, y - 36, 1380, 72, 10, '#e8f3ec');
+    text(a, cx[0], y, {size: 30, weight: 700, color: col});
+    text(b, cx[1], y, {size: 26});
+    text(c, cx[2], y, {size: 26, maxW: 480});
+  }));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['WaveNet: sinh từng mẫu, tốt nhưng chậm'], ['WaveGlow: song song nhưng nặng'], ['HiFi-GAN: generator + discriminator, nhanh và tốt']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text('✓', 440, 300 + j * 84, {size: 34, weight: 700, color: COL.ok});
+      text(a, 490, 300 + j * 84, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 800, 640, 'Phần 6: đo chất lượng  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 5', [
+  ['sinh từng mẫu dựa trên mẫu trước', 'tự hồi quy (autoregressive), WaveNet', 'chậm'],
+  ['tích chập nhìn cách quãng', 'dilated causal convolution', '1, 2, 4, 8…'],
+  ['biến đổi khả nghịch nhiễu → sóng', 'normalizing flow, WaveGlow', 'song song'],
+  ['một mạng tạo, một mạng bắt lỗi', 'GAN: generator, discriminator', 'HiFi-GAN'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'wavenet', to: 'slow', draw: shotWavenet},
+    {from: 'glow', to: 'glow', draw: shotGlow},
+    {from: 'gan', to: 'period', draw: shotGan},
+    {from: 'default', to: 'default', draw: shotDefault},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/tts-5-vocoder.wav');
+</script>
+</body>
+</html>

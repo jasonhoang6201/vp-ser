@@ -1,0 +1,18 @@
+{
+  "name": "whisper_whisper-large-v3-turbo_f2",
+  "dataset": "iemocap",
+  "split": "test",
+  "notes": "ASR only, no SER",
+  "asr": {
+    "wer": 0.1152073732718894,
+    "n_utts": 1020,
+    "n_ref_words": 14105,
+    "n_empty_ref_skipped": 3,
+    "wer_by_emotion": {
+      "anger": 0.07664233576642336,
+      "joy": 0.12977272727272726,
+      "neutral": 0.1330783168914838,
+      "sadness": 0.08723404255319149
+    }
+  }
+}

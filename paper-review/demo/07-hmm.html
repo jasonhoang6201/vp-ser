@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HMM</title>
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="pn"></nav>
+<h1>HMM: nối các frame lại theo thời gian</h1>
+<p class="sub">HMM (Hidden Markov Model, mô hình Markov ẩn). Trang trước, GMM chấm được <b>từng frame một</b>. Trang này ghép các frame lại thành một chuỗi có thứ tự, ví dụ từ "mai" = m → a → i.</p>
+
+<section>
+<h2><span class="n">1</span>Vấn đề: chấm từng frame riêng lẻ thì nhảy lung tung</h2>
+<p>Một người nói "mai" dài 0,4 giây, tức 40 frame. Cho mỗi frame qua 3 GMM (m, a, i) rồi chọn âm có điểm cao nhất. Kết quả thường trông như sau:</p>
+<div class="formula" style="display:block;white-space:pre;overflow-x:auto">thật:       m m m m m m m m m m a a a a a a a a a a a a a a a a a a i i i i i i i i i i i i
+từng frame: m m a m m m i m m m a a a m a a a a i a a a a a a m a a i i a i i i i m i i i i</div>
+<div class="tablewrap"><table>
+<tr><th>Vướng</th><th>Ví dụ</th></tr>
+<tr><td>nhảy qua lại vô lý</td><td>"m m a m m": miệng không thể đổi âm rồi quay lại trong 10 ms</td></tr>
+<tr><td>không biết thứ tự</td><td>"mai" phải là m rồi a rồi i. Chấm từng frame thì không dùng được điều đó</td></tr>
+<tr><td>độ dài thay đổi</td><td>nói nhanh thì "a" chiếm 8 frame, nói chậm thì 30 frame. Không thể cố định "frame 10 đến 28 là a"</td></tr>
+</table></div>
+<div class="note blue"><b>Mục tiêu của HMM:</b> mô tả một từ là <b>chuỗi các trạng thái theo thứ tự</b>, mỗi trạng thái kéo dài bao lâu cũng được, rồi tìm cách chia 40 frame cho các trạng thái sao cho <b>cả chuỗi</b> hợp lý nhất, chứ không phải từng frame.</div>
+</section>
+
+<section>
+<h2><span class="n">2</span>Cách HMM làm: 3 thành phần, 3 thuật toán</h2>
+<div class="tablewrap"><table>
+<tr><th>Thành phần</th><th>Là gì</th><th>Gỡ vướng gì</th></tr>
+<tr><td><b>trạng thái</b> (state)</td><td>các ô xếp theo thứ tự: m → a → i. Gọi là <b>ẩn</b> (hidden) vì ta chỉ nghe được âm thanh, không thấy trực tiếp lúc nào miệng đang ở trạng thái nào</td><td>thứ tự</td></tr>
+<tr><td><b>xác suất chuyển</b> (transition)</td><td>mỗi frame: <b>ở lại</b> trạng thái cũ (vòng tự lặp, self-loop) hoặc <b>sang</b> trạng thái kế. Không được quay lui</td><td>độ dài thay đổi, không nhảy qua lại</td></tr>
+<tr><td><b>xác suất phát</b> (emission)</td><td>mỗi trạng thái có một GMM chấm frame: p(frame | trạng thái). Chính là trang trước</td><td>nối với âm thanh</td></tr>
+</table></div>
+<div class="tablewrap"><table>
+<tr><th>Thuật toán</th><th>Trả lời câu hỏi</th><th>Ở mục</th></tr>
+<tr><td><b>Viterbi</b></td><td>chia frame cho trạng thái thế nào là hợp lý nhất?</td><td>4</td></tr>
+<tr><td><b>Forward</b></td><td>chuỗi frame này khớp với từ "mai" tổng cộng bao nhiêu (cộng mọi cách chia)?</td><td>5</td></tr>
+<tr><td><b>Baum-Welch</b></td><td>học xác suất chuyển và GMM từ dữ liệu thế nào?</td><td>5</td></tr>
+</table></div>
+<p>"Markov" nghĩa là: trạng thái của frame sau <b>chỉ phụ thuộc trạng thái của frame ngay trước</b>, không cần nhớ xa hơn. Nhờ giả định này mà các thuật toán trên chạy nhanh.</p>
+</section>
+
+<section>
+<h2><span class="n">3</span>Trạng thái và vòng tự lặp: độ dài đến từ đâu</h2>
+<p>Mỗi frame, mô hình ở lại trạng thái hiện tại với xác suất <b>p</b>, sang trạng thái kế với xác suất <b>1 − p</b>. Kéo p để thấy độ dài mỗi âm thay đổi. Hàng dưới là 6 lần "nói" ngẫu nhiên từ mô hình.</p>
+<div class="ctrl">
+  <span class="grp">p ở lại <input type="range" id="p3" min="0.5" max="0.97" step="0.01" value="0.9"> <b id="p3v"></b></span>
+  <button id="re3">Nói lại 6 lần</button>
+</div>
+<div class="fig"><canvas id="c3"></canvas></div>
+<div class="readout" id="r3"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Số frame trung bình ở một trạng thái = <b>1 / (1 − p)</b>. p = 0,9 thì trung bình 10 frame (100 ms).
+<br>• Cùng một mô hình mà mỗi lần ra độ dài khác nhau: đó chính là cách HMM chấp nhận người nói nhanh, nói chậm.
+<br>• Chuỗi luôn đi m → a → i, không bao giờ quay lại. Kiểu này gọi là <b>trái sang phải</b> (left-to-right). Trong hệ thật, mỗi âm vị thường có <b>3 trạng thái</b> (đầu, giữa, cuối âm), trang này dùng 1 cho dễ nhìn.</div>
+</section>
+
+<section>
+<h2><span class="n">4</span>Viterbi: tìm cách chia frame tốt nhất</h2>
+<p>Lưới dưới đây gọi là <b>trellis</b>: 3 hàng là 3 trạng thái, 40 cột là 40 frame. Độ đậm của ô là điểm GMM của frame đó cho trạng thái đó. Chấm cam là cách chọn <b>từng frame riêng</b>. Đường đen là kết quả <b>Viterbi</b>.</p>
+<div class="ctrl">
+  <span class="grp">Nhiễu <input type="range" id="nz" min="0" max="3" step="0.1" value="1.6"> <b id="nzv"></b></span>
+  <span class="grp">p ở lại <input type="range" id="p4" min="0.5" max="0.97" step="0.01" value="0.9"> <b id="p4v"></b></span>
+  <button id="re4">Dữ liệu mới</button><button id="run4">▶ Chạy Viterbi từng cột</button>
+</div>
+<div class="fig"><canvas id="c4"></canvas></div>
+<div class="readout" id="r4"></div>
+<p><b>Viterbi làm gì</b>, đi từ trái sang phải. Tại mỗi ô (trạng thái s, frame t), chỉ giữ lại <b>một</b> đường tốt nhất đi tới ô đó:</p>
+<div class="formula">điểm(t, s) = điểm GMM(t, s) + max( điểm(t−1, s) + log p,  điểm(t−1, s−1) + log(1−p) )</div>
+<p>Ô đó cũng nhớ nó đến từ đâu (mũi tên nhỏ). Tới cột cuối, đứng ở trạng thái cuối rồi <b>lần ngược</b> theo các mũi tên là ra đường đi.</p>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Chấm cam nhảy qua lại, đường Viterbi thì <b>chỉ đi xuống từng bậc</b>: m một đoạn, a một đoạn, i một đoạn. Viterbi sửa được các frame lẻ bị chấm nhầm, vì nhảy ra rồi nhảy vào thì phải "trả" log(1−p) nhiều lần và bị cấm quay lui.
+<br>• Tăng nhiễu lên 3: đến một lúc Viterbi cũng sai, nhưng sai ở <b>ranh giới</b> (lệch vài frame), còn chấm từng frame thì sai rải rác khắp nơi.
+<br>• Viterbi không thử hết mọi cách chia (số cách chia tăng rất nhanh theo số frame). Nó chỉ làm 3 × 40 ô, mỗi ô so 2 số. Đó là nhờ giả định Markov.</div>
+</section>
+
+<section>
+<h2><span class="n">5</span>Forward và Baum-Welch: hai thuật toán còn lại</h2>
+<div class="tablewrap"><table>
+<tr><th></th><th>Viterbi</th><th>Forward</th></tr>
+<tr><td>mỗi ô</td><td>lấy <b>max</b> của hai đường tới</td><td>lấy <b>tổng</b> của hai đường tới</td></tr>
+<tr><td>kết quả</td><td>điểm của đường tốt nhất, và đường đó</td><td>tổng điểm của <b>mọi</b> cách chia: p(40 frame | "mai")</td></tr>
+<tr><td>dùng để</td><td>biết frame nào là âm nào</td><td>so "mai" với "mái", "ma": từ nào cho tổng cao hơn</td></tr>
+</table></div>
+<p id="r5" class="readout"></p>
+<p><b>Baum-Welch</b> là EM của trang trước, áp vào HMM:</p>
+<ul>
+<li><b>E</b>: chạy forward từ trái sang và một lượt tương tự từ phải sang (backward), ra xác suất <b>mỗi frame thuộc mỗi trạng thái</b>. Giống "responsibility" của GMM, chỉ khác là có tính đến thứ tự.</li>
+<li><b>M</b>: học lại GMM của mỗi trạng thái từ các frame được chia cho nó, và đếm lại tỉ lệ ở lại / sang tiếp để ra p mới.</li>
+</ul>
+<p>Lặp lại vài lần. Dữ liệu huấn luyện chỉ cần <b>câu chữ</b> của mỗi đoạn ghi âm, không cần ai đánh dấu frame nào là âm nào: thuật toán tự tìm ranh giới.</p>
+</section>
+
+<section>
+<h2>Tóm tắt</h2>
+<ul>
+<li>HMM = trạng thái có thứ tự + xác suất chuyển (ở lại hoặc sang) + xác suất phát (GMM chấm frame). Gọi là GMM-HMM.</li>
+<li>Vòng tự lặp cho phép một âm kéo dài bao nhiêu frame cũng được; trung bình 1/(1−p) frame.</li>
+<li>Viterbi: tìm cách chia frame tốt nhất bằng max từng ô rồi lần ngược. Forward: như Viterbi nhưng cộng thay vì max. Baum-Welch: EM để học.</li>
+<li>Từ = nối HMM của các âm vị, câu = nối HMM của các từ. Trang sau ghép thành cả hệ thống.</li>
+</ul>
+<h3>Thuật ngữ mới</h3>
+<div class="tablewrap"><table>
+<tr><th>Nói thường</th><th>Thuật ngữ</th></tr>
+<tr><td>ô trong chuỗi m → a → i</td><td>trạng thái (state), trạng thái ẩn (hidden state)</td></tr>
+<tr><td>xác suất ở lại hoặc sang ô kế</td><td>xác suất chuyển (transition probability), vòng tự lặp (self-loop)</td></tr>
+<tr><td>điểm GMM của frame cho một trạng thái</td><td>xác suất phát (emission / observation probability)</td></tr>
+<tr><td>lưới trạng thái × frame</td><td>trellis</td></tr>
+<tr><td>tìm đường đi tốt nhất trên lưới</td><td>thuật toán Viterbi, giải mã (decoding)</td></tr>
+<tr><td>chia frame cho các âm khi đã biết câu chữ</td><td>căn chỉnh cưỡng bức (forced alignment)</td></tr>
+<tr><td>kiểu học từng ô một rồi giữ kết quả để dùng tiếp</td><td>quy hoạch động (dynamic programming)</td></tr>
+</table></div>
+</section>
+<nav class="pn"></nav>
+</div>
+<script src="assets/learn.js"></script>
+<script>
+const ST = ['m', 'a', 'i'], SC = [C.ok, C.acc, C.i], T = 40, TRUTH_LEN = [10, 18, 12];
+const TRUTH = TRUTH_LEN.flatMap((n, s) => new Array(n).fill(s));
+
+let P3 = 0.9, SEED3 = 1;
+function draw3() {
+  document.getElementById('p3v').textContent = r2(P3);
+  const R = setup('c3', 300), g = R.g, cy = 60, cx = [R.w * 0.25, R.w * 0.5, R.w * 0.75], rad = 24;
+  ST.forEach((s, k) => {
+    g.strokeStyle = C.grey; g.lineWidth = 1.5; g.beginPath(); g.arc(cx[k], cy - rad - 10, 14, 0.75 * Math.PI, 0.25 * Math.PI); g.stroke();
+    text(g, `ở lại ${r2(P3)}`, cx[k], cy - rad - 34, C.mute, 'center');
+    if (k < 2) {
+      g.strokeStyle = C.grey; g.beginPath(); g.moveTo(cx[k] + rad, cy); g.lineTo(cx[k + 1] - rad - 4, cy); g.stroke();
+      g.fillStyle = C.grey; g.beginPath(); g.moveTo(cx[k + 1] - rad, cy); g.lineTo(cx[k + 1] - rad - 8, cy - 4); g.lineTo(cx[k + 1] - rad - 8, cy + 4); g.fill();
+      text(g, `sang ${r2(1 - P3)}`, (cx[k] + cx[k + 1]) / 2, cy + 14, C.mute, 'center');
+    }
+    dot(g, cx[k], cy, rad, '#fff', SC[k]);
+    text(g, s, cx[k], cy, SC[k], 'center', true, false, 16);
+  });
+  const r = rng(SEED3), B = {l: 70, t: 120, w: R.w - 90}, cw = B.w / 80, rows = [];
+  for (let n = 0; n < 6; n++) {
+    const seq = [];
+    let s = 0;
+    while (s <= 2 && seq.length < 80) { seq.push(s); if (r() > P3) s++; }
+    rows.push({seq, done: s > 2});
+  }
+  rows.forEach(({seq, done}, n) => {
+    const y = B.t + n * 28;
+    seq.forEach((s, t) => box(g, B.l + t * cw, y, cw - 0.5, 20, alpha(SC[s], 0.75)));
+    text(g, `lần ${n + 1}`, B.l - 8, y + 10, C.mute, 'right');
+    if (done) text(g, `${seq.length} frame`, B.l + seq.length * cw + 6, y + 10, C.mute, 'left');
+    else text(g, 'dài hơn 80 frame…', B.l + B.w - 4, y + 10, '#fff', 'right', true);
+  });
+  for (let t = 0; t <= 80; t += 20) text(g, `${t * 10} ms`, B.l + t * cw, B.t + 6 * 28 + 6, C.mute, 'center');
+  document.getElementById('r3').innerHTML = `Trung bình mỗi âm ở lại <b>${r1(1 / (1 - P3))}</b> frame = <b>${r0(10 / (1 - P3))} ms</b>.`;
+}
+document.getElementById('p3').addEventListener('input', e => { P3 = +e.target.value; draw3(); });
+document.getElementById('re3').addEventListener('click', () => { SEED3++; draw3(); });
+
+let NZ = 1.6, P4 = 0.9, SEED4 = 4, EM4 = null, COL = T, runT;
+function makeEm() {
+  const r = rng(SEED4), z = Array.from({length: T}, () => [randn(r), randn(r), randn(r)]);
+  EM4 = z.map((zz, t) => zz.map((v, s) => (s === TRUTH[t] ? 0 : -2) + NZ * v));
+}
+function viterbi(em, p) {
+  const ls = Math.log(p), lm = Math.log(1 - p), D = [], BP = [];
+  for (let t = 0; t < T; t++) {
+    D.push([]); BP.push([]);
+    for (let s = 0; s < 3; s++) {
+      if (t === 0) { D[t][s] = s === 0 ? em[t][s] : -Infinity; BP[t][s] = -1; continue; }
+      const stay = D[t - 1][s] + ls, move = s > 0 ? D[t - 1][s - 1] + lm : -Infinity;
+      D[t][s] = em[t][s] + Math.max(stay, move); BP[t][s] = stay >= move ? s : s - 1;
+    }
+  }
+  const path = new Array(T);
+  path[T - 1] = 2;
+  for (let t = T - 1; t > 0; t--) path[t - 1] = BP[t][path[t]];
+  return {D, BP, path, best: D[T - 1][2]};
+}
+function forward(em, p) {
+  const ls = Math.log(p), lm = Math.log(1 - p);
+  let A = [em[0][0], -Infinity, -Infinity];
+  for (let t = 1; t < T; t++) A = [0, 1, 2].map(s => em[t][s] + logsumexp([A[s] + ls, s > 0 ? A[s - 1] + lm : -Infinity]));
+  return A[2];
+}
+function draw4() {
+  document.getElementById('nzv').textContent = r1(NZ);
+  document.getElementById('p4v').textContent = r2(P4);
+  const R = setup('c4', 250), g = R.g, B = {l: 40, t: 34, w: R.w - 56}, cw = B.w / T, rh = 46;
+  const V = viterbi(EM4, P4), pick = EM4.map(e => e.indexOf(Math.max(...e)));
+  TRUTH.forEach((s, t) => box(g, B.l + t * cw, 8, cw - 0.5, 12, alpha(SC[s], 0.6)));
+  text(g, 'thật', B.l - 6, 14, C.mute, 'right');
+  for (let t = 0; t < T; t++) {
+    const pr = softmax(EM4[t]);
+    for (let s = 0; s < 3; s++) {
+      const y = B.t + s * rh, c = cmap(pr[s] * 0.85);
+      box(g, B.l + t * cw, y, cw - 1, rh - 2, rgb(c));
+      if (t < COL && t > 0 && V.D[t][s] > -Infinity) {
+        const from = V.BP[t][s];
+        g.strokeStyle = alpha(C.ink, 0.35); g.lineWidth = 1; g.beginPath();
+        g.moveTo(B.l + (t - 0.5) * cw, B.t + from * rh + rh / 2); g.lineTo(B.l + t * cw + 2, B.t + s * rh + rh / 2); g.stroke();
+      }
+    }
+  }
+  ST.forEach((s, k) => text(g, s, B.l - 10, B.t + k * rh + rh / 2, SC[k], 'right', true, false, 14));
+  pick.forEach((s, t) => dot(g, B.l + (t + 0.5) * cw, B.t + s * rh + rh / 2 - 8, 3.5, C.frame));
+  if (COL >= T) poly(g, V.path.map((_, t) => B.l + (t + 0.5) * cw), V.path.map(s => B.t + s * rh + rh / 2 + 6), C.ink, 2.5);
+  else vline(g, B.l + COL * cw, B.t - 4, B.t + 3 * rh, C.hl);
+  for (let t = 0; t <= T; t += 10) text(g, `${t * 10} ms`, B.l + t * cw, B.t + 3 * rh + 12, C.mute, 'center');
+  const acc = a => a.filter((s, t) => s === TRUTH[t]).length;
+  const jumps = pick.slice(1).filter((s, t) => s !== pick[t]).length;
+  document.getElementById('r4').innerHTML = COL < T ? `Đang điền cột ${COL}/${T}. Mũi tên mờ: mỗi ô nhớ đường tốt nhất đi tới nó.` :
+    `Chấm từng frame: đúng <b>${acc(pick)}/${T}</b> frame, đổi âm <b>${jumps}</b> lần. Viterbi: đúng <b>${acc(V.path)}/${T}</b> frame, đổi âm <b>2</b> lần.`;
+  document.getElementById('r5').innerHTML = `Trên dữ liệu ở mục 4: điểm của đường Viterbi tốt nhất = <b>${r1(V.best)}</b>, forward (cộng mọi đường) = <b>${r1(forward(EM4, P4))}</b>. ` +
+    '<span class="muted">Forward luôn lớn hơn hoặc bằng, vì nó cộng thêm các đường khác. Thường hai số gần nhau, vì một đường chiếm phần lớn.</span>';
+}
+const stop4 = () => { clearInterval(runT); runT = null; };
+document.getElementById('nz').addEventListener('input', e => { stop4(); NZ = +e.target.value; COL = T; makeEm(); draw4(); });
+document.getElementById('p4').addEventListener('input', e => { stop4(); P4 = +e.target.value; COL = T; draw4(); });
+document.getElementById('re4').addEventListener('click', () => { stop4(); SEED4++; COL = T; makeEm(); draw4(); });
+document.getElementById('run4').addEventListener('click', () => {
+  stop4(); COL = 1; draw4();
+  runT = setInterval(() => { COL++; draw4(); if (COL >= T) stop4(); }, 90);
+});
+
+makeEm();
+function drawAll() { draw3(); draw4(); }
+drawAll();
+onResize(drawAll);
+</script>
+</body>
+</html>

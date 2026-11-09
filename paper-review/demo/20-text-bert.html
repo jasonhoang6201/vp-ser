@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SER từ chữ: BERT, RoBERTa</title>
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="pn"></nav>
+<h1>SER từ chữ: BERT, RoBERTa, và chuyện chữ do ASR chép sai</h1>
+<p class="sub">Trang 18 cho thấy giọng nói phân biệt giận với vui kém. <b>Từ ngữ</b> thì phân biệt tốt. Trang này: làm sao một mô hình "hiểu" câu chữ để đoán cảm xúc, và điều gì xảy ra khi chữ đến từ ASR có lỗi.</p>
+
+<section>
+<h2><span class="n">1</span>Vấn đề: đếm từ cảm xúc là chưa đủ</h2>
+<div class="tablewrap"><table>
+<tr><th>Cách đơn giản</th><th>Vướng</th></tr>
+<tr><td>có từ "happy", "love" thì đoán vui; có "hate" thì đoán giận</td><td>"I'm <b>not</b> happy" ngược nghĩa; "oh great, just great" là mỉa mai</td></tr>
+<tr><td>học một bộ phân loại từ đầu trên câu của IEMOCAP</td><td>vài nghìn câu là quá ít để học ngôn ngữ</td></tr>
+<tr><td>chữ trong thực tế do ASR chép</td><td>có lỗi; lỗi rơi vào đúng từ mang cảm xúc thì hỏng</td></tr>
+</table></div>
+<div class="note blue"><b>Mục tiêu:</b> một mô hình đã <b>học sẵn ngôn ngữ</b> từ rất nhiều văn bản (hiểu phủ định, ngữ cảnh), rồi chỉ cần ít dữ liệu cảm xúc để dạy thêm. Và hiểu lỗi ASR hại tới đâu.</div>
+</section>
+
+<section>
+<h2><span class="n">2</span>Cách làm: 4 mảnh</h2>
+<div class="pipe"><span class="done">câu chữ</span><i>→</i><span class="new">tokenizer</span><i>→</i><span class="new">Transformer encoder đã học sẵn</span><i>→</i><span class="new">vector của token đầu</span><i>→</i><span class="done">bộ phân loại</span></div>
+<div class="tablewrap"><table>
+<tr><th>Mảnh</th><th>Là gì</th><th>Gỡ vướng gì</th></tr>
+<tr><td><b>tokenizer</b></td><td>cắt câu thành mảnh từ (subword). Từ hay gặp giữ nguyên, từ hiếm bị cắt nhỏ. Ví dụ minh họa: "unbelievable" → "un" + "believ" + "able"</td><td>từ mới, từ hiếm vẫn biểu diễn được</td></tr>
+<tr><td><b>Transformer encoder</b></td><td>self-attention như trang 11, nhưng chạy trên các token chữ: mỗi từ nhìn mọi từ khác</td><td>"not" sửa nghĩa "happy" ở phía sau</td></tr>
+<tr><td><b>tiền huấn luyện che từ</b> (masked language modeling)</td><td>che ngẫu nhiên khoảng 15% token, bắt mô hình đoán lại, trên hàng chục GB văn bản. Cùng ý tưởng với HuBERT ở trang 12, chỉ là trên chữ</td><td>học ngôn ngữ mà không cần nhãn</td></tr>
+<tr><td><b>token đầu câu</b> + fine-tune</td><td>một token đặc biệt ở đầu ([CLS] của BERT, &lt;s&gt; của RoBERTa); vector ở vị trí đó làm vector câu, nối bộ phân loại, fine-tune cả mạng</td><td>ít dữ liệu cảm xúc vẫn đủ</td></tr>
+</table></div>
+<p><b>BERT</b> (Devlin và cộng sự, 2019) mở đầu kiểu mô hình này. <b>RoBERTa</b> (Liu và cộng sự, 2019) giữ kiến trúc BERT nhưng huấn luyện kỹ hơn: nhiều dữ liệu hơn (khoảng 160 GB văn bản), lâu hơn, che ngẫu nhiên lại ở mỗi lượt, bỏ một bài toán phụ của BERT. Bản base khoảng 125 triệu tham số, bản large khoảng 355 triệu. RoBERTa là lựa chọn hay gặp nhất cho nhánh chữ trong SER tiếng Anh.</p>
+</section>
+
+<section>
+<h2><span class="n">3</span>Lỗi ASR: cùng WER, tác hại khác nhau</h2>
+<p>Bên dưới là một bộ đoán cảm xúc "đồ chơi" chỉ dựa trên vài từ khóa (không phải RoBERTa), đủ để thấy ý chính. Câu đúng là câu người nói thật; câu ASR là câu máy chép.</p>
+<div class="ctrl">
+  <span class="grp">Ví dụ: <button data-ex="0" class="on">lỗi ở từ thường</button><button data-ex="1">lỗi ở từ cảm xúc</button><button data-ex="2">phủ định bị mất</button></span>
+</div>
+<div class="ctrl">
+  <span class="grp">Câu đúng <input type="text" id="ref"></span>
+  <span class="grp">Câu ASR <input type="text" id="hyp"></span>
+</div>
+<div class="fig"><canvas id="c3"></canvas></div>
+<div class="readout" id="r3"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Hai ví dụ đầu cùng WER 20% (1 từ sai trên 5). Ví dụ 1 không đổi kết quả; ví dụ 2 đổi từ giận sang trung tính. <b>WER coi mọi từ như nhau, SER thì không.</b>
+<br>• Ví dụ 3: ASR bỏ mất "not", một từ ngắn, nói lướt, rất hay bị mất. Nghĩa đảo ngược hoàn toàn.
+<br>• Mô hình thật như RoBERTa thì mềm dẻo hơn bộ từ khóa này nhiều, nhưng hiện tượng là giống nhau. Cách giảm hại: <b>fine-tune nhánh chữ trên chính transcript ASR</b> (để nó quen với lỗi), hoặc ghép thêm âm thanh (trang 21).</div>
+</section>
+
+<section>
+<h2>Tóm tắt</h2>
+<ul>
+<li>Tokenizer cắt mảnh từ → Transformer encoder học sẵn bằng che từ (MLM) → vector token đầu câu → bộ phân loại, fine-tune.</li>
+<li>BERT mở đầu, RoBERTa là bản huấn luyện kỹ hơn, dùng nhiều nhất cho nhánh chữ.</li>
+<li>Chữ từ ASR có lỗi. Tác hại không tỉ lệ với WER: lỗi ở từ cảm xúc và từ phủ định hại nhiều nhất.</li>
+</ul>
+<h3>Thuật ngữ mới</h3>
+<div class="tablewrap"><table>
+<tr><th>Nói thường</th><th>Thuật ngữ</th></tr>
+<tr><td>mảnh từ</td><td>subword token, BPE</td></tr>
+<tr><td>che từ rồi đoán lại</td><td>masked language modeling (MLM)</td></tr>
+<tr><td>token đặc biệt đầu câu dùng làm vector câu</td><td>[CLS] (BERT), &lt;s&gt; (RoBERTa)</td></tr>
+<tr><td>câu chữ người nói thật / do máy chép</td><td>ground-truth transcript / ASR transcript (hypothesis)</td></tr>
+<tr><td>mỉa mai</td><td>sarcasm</td></tr>
+</table></div>
+<div class="note exp"><b>Gắn với thực nghiệm:</b> MELD, WER của Whisper turbo khoảng 32%: probe chữ trên transcript ASR UA 38.0, trên chữ đúng 46.5 (mean 5 seed), tức mất khoảng 8 điểm. IEMOCAP, WER khoảng 10%: gần như không mất (notebook 21: <span class="mono">asr</span> 71.6 so với <span class="mono">gt</span> 70.5, mean 3 seed, bản HF), và fine-tune RoBERTa hơn probe khoảng 4,5 UA. Khớp với kết luận của Li, Bell, Lai (SLT 2024): WER khoảng 10% gần như vô hại.</div>
+</section>
+<nav class="pn"></nav>
+</div>
+<script src="assets/learn.js"></script>
+<script>
+const EXS = [['I love this so much', 'I love these so much'], ['I hate this so much', 'I ate this so much'], ['I am not happy with you', 'I am happy with you']];
+const CLS = ['neutral', 'joy', 'anger', 'sadness'], CC = [C.grey, C.frame, C.hl, C.acc];
+const LEX = {love: [0, 2.2, 0, 0], happy: [0, 2.2, 0, 0], great: [0, 1.6, 0, 0], glad: [0, 1.8, 0, 0], hate: [0, 0, 2.4, 0], stupid: [0, 0, 1.8, 0], angry: [0, 0, 2.2, 0], damn: [0, 0, 1.6, 0], sad: [0, 0, 0, 2.2], sorry: [0, 0, 0, 1.2], miss: [0, 0, 0, 1.4], cry: [0, 0, 0, 2]};
+function score(s) {
+  const w = s.toLowerCase().replace(/[^a-z' ]/g, ' ').split(/\s+/).filter(Boolean), z = [1.0, 0, 0, 0];
+  let neg = false;
+  w.forEach(t => {
+    if (t === 'not' || t === "don't" || t === 'never') { neg = true; return; }
+    const v = LEX[t];
+    if (!v) return;
+    // A preceding negation flips positive words to anger/sadness, a crude stand-in for what context gives a real model.
+    if (neg) { z[2] += v[1] * 0.6; z[3] += v[1] * 0.6; z[1] -= v[1] * 0.5; neg = false; }
+    else v.forEach((x, k) => z[k] += x);
+  });
+  return softmax(z);
+}
+function wer(ref, hyp) {
+  const a = ref.toLowerCase().split(/\s+/).filter(Boolean), b = hyp.toLowerCase().split(/\s+/).filter(Boolean);
+  const D = Array.from({length: a.length + 1}, (_, i) => Array.from({length: b.length + 1}, (_, j) => i === 0 ? j : j === 0 ? i : 0));
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) D[i][j] = Math.min(D[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1), D[i - 1][j] + 1, D[i][j - 1] + 1);
+  return a.length ? D[a.length][b.length] / a.length : 0;
+}
+function draw3() {
+  const ref = document.getElementById('ref').value, hyp = document.getElementById('hyp').value, P = [score(ref), score(hyp)];
+  const R = setup('c3', 170), g = R.g, B = {l: 100, t: 20, w: R.w - 130}, bh = 22;
+  ['câu đúng', 'câu ASR'].forEach((lab, j) => {
+    const y = B.t + j * 60;
+    text(g, lab, B.l - 10, y + bh / 2, C.ink, 'right', true);
+    let x = B.l;
+    P[j].forEach((p, k) => { box(g, x, y, p * B.w, bh, alpha(CC[k], 0.85)); if (p > 0.08) text(g, `${CLS[k]} ${r0(100 * p)}%`, x + 4, y + bh / 2, '#fff', 'left', true); x += p * B.w; });
+  });
+  const win = p => CLS[p.indexOf(Math.max(...p))];
+  const a = win(P[0]), b = win(P[1]);
+  document.getElementById('r3').innerHTML = `WER = <b>${r0(100 * wer(ref, hyp))}%</b>. Đoán từ câu đúng: <b>${a}</b>; từ câu ASR: <b>${b}</b> ` + (a === b ? '(không đổi)' : '<b style="color:#d44c47">(đổi nhãn)</b>');
+}
+function setEx(i) { document.getElementById('ref').value = EXS[i][0]; document.getElementById('hyp').value = EXS[i][1]; toggle('ex', String(i)); draw3(); }
+['ref', 'hyp'].forEach(id => document.getElementById(id).addEventListener('input', draw3));
+document.addEventListener('click', e => { const b = e.target.closest('button[data-ex]'); if (b) setEx(+b.dataset.ex); });
+setEx(0);
+onResize(draw3);
+</script>
+</body>
+</html>

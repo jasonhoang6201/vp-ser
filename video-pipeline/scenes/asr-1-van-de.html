@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>ASR cổ điển 1: Vấn đề</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/asr-1-van-de.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn thành phần', '3 Từ điển, triphone', '4 Mô hình ngôn ngữ', '5 WER'];
+const ST = [COL.ok, COL.acc, COL.i];
+
+function flow(items, x, y, o = {}) {
+  let cx = x;
+  items.forEach((s, j) => {
+    const w = chip(Clip.g, cx, y, s, j === (o.hot ?? -1) ? HOT : (o.style || {}));
+    if (j < items.length - 1) arrow(cx + w + 8, y + 26, cx + w + 48, y + 26, COL.mute, 2.5, 10);
+    cx += w + 56;
+  });
+  return cx;
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Hệ ASR cổ điển', 'Phần 1/5: nhận ra âm rồi, sao chưa ra câu?', 0, PARTS);
+
+function shotRecap(G, t) {
+  const s = S('recap'), d = D('recap');
+  heading('Hai trang trước');
+  fade(G, P(t, s + 0.3, 0.6), () => flow(['âm thanh', 'MFCC', 'GMM chấm frame', 'HMM chia frame'], 330, 320));
+  fade(G, P(t, s + d * 0.6, 0.6), () => {
+    ['m', 'a', 'i'].forEach((c, k) => {
+      rrect(700 + k * 180, 470, 140, 100, 14, ST[k] + '22', ST[k], 3);
+      text(c, 770 + k * 180, 520, {size: 48, weight: 700, color: ST[k], align: 'center'});
+    });
+    text('đã nhận ra được âm', 960, 640, {size: 30, weight: 700, color: COL.ok, align: 'center'});
+  });
+}
+
+function painCard(j, title, col) {
+  const x = [180, 980][j % 2], y = [220, 545][j >> 1];
+  card(x, y, 760, 290, {stroke: col});
+  text(title, x + 30, y + 44, {size: 28, weight: 700, color: col});
+  return {x, y};
+}
+
+function shotPains(G, t) {
+  const sa = S('asr'), sm = S('many'), ss = S('same'), sc = S('context'), so = S('coart'), sq = S('measure');
+  heading('ASR: từ âm đến câu chữ, còn bốn vấn đề');
+  fade(G, P(t, sa + 0.3, 0.5) * (1 - P(t, sm, 0.4)), () => {
+    text('Automatic Speech Recognition', 960, 420, {size: 48, weight: 700, color: COL.acc, align: 'center'});
+    text('nhận dạng tiếng nói tự động: âm thanh → câu chữ', 960, 500, {size: 30, color: COL.mute, align: 'center'});
+  });
+  fade(G, P(t, sm + 0.3, 0.5), () => {
+    const {x, y} = painCard(0, '1. âm thì ít, từ thì nhiều', COL.hl);
+    for (let k = 0; k < 40; k++) rrect(x + 30 + (k % 20) * 17, y + 90 + Math.floor(k / 20) * 17, 13, 13, 2, COL.acc);
+    text('~40 âm vị', x + 30, y + 150, {size: 22, weight: 700, color: COL.acc});
+    const u = P(t, sm + 1, 2);
+    for (let k = 0; k < Math.floor(600 * u); k++) rrect(x + 410 + (k % 40) * 8, y + 80 + Math.floor(k / 40) * 8, 6, 6, 1, COL.line2);
+    text('hàng chục nghìn từ', x + 410, y + 220, {size: 22, weight: 700, color: COL.mute});
+    text('không học nổi một HMM cho mỗi từ', x + 30, y + 255, {size: 22, color: COL.ink});
+  });
+  fade(G, P(t, ss + 0.3, 0.5), () => {
+    const {x, y} = painCard(1, '2. nghe giống nhau, nghĩa khác nhau', COL.hl);
+    text('"recognize speech"', x + 30, y + 100, {size: 25, weight: 700});
+    text('≈  "wreck a nice beach"', x + 330, y + 100, {size: 25, weight: 700, color: COL.mute});
+    const win = t >= sc + 0.5;
+    text('"trời mưa"', x + 30, y + 160, {size: 25, weight: 700, color: win ? COL.ok : COL.ink});
+    text('≈  "trời mua"', x + 330, y + 160, {size: 25, weight: 700, color: COL.mute});
+    fade(G, P(t, sc + 0.5, 0.5), () => {
+      text('✓', x + 200, y + 160, {size: 28, weight: 700, color: COL.ok});
+      text('chỉ nghe thì không đủ: cần biết câu nào hay gặp', x + 30, y + 240, {size: 22, color: COL.ok, weight: 700});
+    });
+  });
+  fade(G, P(t, so + 0.3, 0.5), () => {
+    const {x, y} = painCard(2, '3. một âm đổi theo âm bên cạnh', COL.hl);
+    const env = (sh) => Array.from({length: 41}, (_, k) => { const u = k / 40; return 0.6 * Math.exp(-(((u - 0.25) / 0.09) ** 2)) + 0.45 * Math.exp(-(((u - sh) / 0.08) ** 2)); });
+    [[0.62, '"a" trong "mai"', COL.acc], [0.45, '"a" trong "ban"', COL.frame]].forEach(([sh, l, c], j) => {
+      const xs = env(sh).map((_, k) => x + 30 + j * 360 + k * 7.5), ys = env(sh).map(v => y + 220 - v * 120);
+      poly(xs, ys, c, 3);
+      line(x + 30 + j * 360, y + 222, x + 330 + j * 360, y + 222, COL.line2, 1.5);
+      text(l, x + 30 + j * 360, y + 255, {size: 22, weight: 700, color: c});
+    });
+  });
+  fade(G, P(t, sq + 0.3, 0.5), () => {
+    const {x, y} = painCard(3, '4. cần một con số để so hai hệ', COL.hl);
+    text('hệ A: "sai một chút"', x + 30, y + 110, {size: 25});
+    text('hệ B: "sai khá nhiều"', x + 30, y + 160, {size: 25});
+    text('?', x + 420, y + 135, {size: 64, weight: 700, color: COL.hl, align: 'center'});
+    text('cải tiến có thật không?', x + 30, y + 240, {size: 22, color: COL.mute});
+  });
+}
+
+function shotGoal(G, t) {
+  const s = S('goal'), d = D('goal');
+  heading('Mục tiêu');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    chip(G, 200, 420, 'chuỗi MFCC', {size: 28, weight: 700});
+    card(560, 260, 520, 130, {stroke: COL.acc});
+    text('nghe có giống không?', 590, 310, {size: 28, weight: 700, color: COL.acc});
+    text('âm học (acoustic)', 590, 355, {size: 24, color: COL.mute});
+    card(560, 470, 520, 130, {stroke: COL.frame});
+    text('câu có hợp lý không?', 590, 520, {size: 28, weight: 700, color: COL.frame});
+    text('ngôn ngữ (language)', 590, 565, {size: 24, color: COL.mute});
+    arrow(400, 446, 550, 330, COL.mute, 2.5); arrow(400, 446, 550, 535, COL.mute, 2.5);
+    arrow(1090, 330, 1250, 430, COL.mute, 2.5); arrow(1090, 535, 1250, 460, COL.mute, 2.5);
+    chip(G, 1260, 420, 'câu chữ hợp lý nhất', {...HOT, size: 28});
+  });
+  fade(G, P(t, s + d * 0.75, 0.5), () => {
+    card(560, 670, 800, 100, {stroke: COL.ok});
+    text('rồi đo kết quả bằng một con số chuẩn', 960, 720, {size: 28, weight: 700, color: COL.ok, align: 'center'});
+  });
+}
+
+function shotMap(G, t) {
+  const s = S('map'), d = D('map');
+  heading('Bốn vấn đề, bốn thành phần');
+  const cx = [260, 900, 1520];
+  fade(G, P(t, s + 0.2, 0.5), () => {
+    ['Vấn đề', 'Thành phần giải quyết', 'Ở phần'].forEach((h, j) => text(h, cx[j], 260, {size: 24, weight: 600, color: COL.mute}));
+    line(240, 290, 1680, 290, COL.line2, 2);
+  });
+  [['âm ít, từ nhiều', 'từ điển phát âm (lexicon)', '3'],
+   ['nghe giống, nghĩa khác', 'mô hình ngôn ngữ (LM)', '4'],
+   ['âm đổi theo âm bên cạnh', 'triphone', '3'],
+   ['cần một con số', 'WER (Word Error Rate)', '5']].forEach((r, i) =>
+    fade(G, P(t, s + 0.6 + i * d * 0.2, 0.5), () => {
+      const y = 350 + i * 90;
+      text(r[0], cx[0], y, {size: 28});
+      arrow(cx[1] - 120, y, cx[1] - 30, y, COL.line2, 2);
+      text(r[1], cx[1], y, {size: 28, weight: 700, color: COL.acc});
+      text(r[2], cx[2], y, {size: 28, weight: 700, color: COL.frame});
+      line(240, y + 45, 1680, y + 45, '#ecebe8', 1.5);
+    }));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['ghép âm thành từ', COL.ink], ['chọn câu hợp lý', COL.ink], ['xử lý âm đổi theo ngữ cảnh', COL.ink], ['đo bằng một con số', COL.ink]].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.4, 0.6), () => {
+      text('→', 640, 290 + j * 84, {size: 34, weight: 700, color: COL.acc});
+      text(a, 700, 290 + j * 84, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 700, 680, 'Phần 2: bốn thành phần và một công thức  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 1', [
+  ['nhận dạng tiếng nói tự động', 'ASR (Automatic Speech Recognition)', 'âm thanh → câu chữ'],
+  ['đơn vị âm nhỏ nhất', 'âm vị (phoneme)', 'tiếng Việt có vài chục'],
+  ['âm đổi theo âm bên cạnh', 'đồng cấu âm (coarticulation)', 'miệng chuẩn bị cho âm sau'],
+  ['phần nghe giống', 'âm học (acoustic)', 'MFCC, GMM-HMM'],
+  ['phần câu hợp lý', 'ngôn ngữ (language)', 'câu nào hay gặp'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'recap', to: 'recap', draw: shotRecap},
+    {from: 'asr', to: 'measure', draw: shotPains},
+    {from: 'goal', to: 'goal', draw: shotGoal},
+    {from: 'map', to: 'map', draw: shotMap},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/asr-1-van-de.wav');
+</script>
+</body>
+</html>

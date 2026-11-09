@@ -1,0 +1,33 @@
+{
+  "clip": "eval-3-chon-epoch",
+  "title": "Đánh giá cho đúng · Phần 3: Chọn epoch trên test",
+  "segments": [
+    {"id": "intro",
+     "sub": "Đánh giá cho đúng, phần 3: chọn epoch trên test làm số đẹp lên bao nhiêu.",
+     "say": "Đánh giá cho đúng, phần ba: chọn ê pốc trên tập thử làm con số đẹp lên bao nhiêu."},
+    {"id": "setup",
+     "sub": "Giả sử khả năng thật là UA 30. Mỗi epoch, điểm đo trên test dao động ngẫu nhiên quanh 30 (độ lệch chuẩn 1,2), vì test có hạn và quá trình học có nhiễu.",
+     "say": "Giả sử khả năng thật của mô hình là u a ba mươi. Mỗi ê pốc, điểm đo trên tập thử dao động ngẫu nhiên quanh ba mươi, với độ lệch chuẩn một phẩy hai, vì tập thử có hạn và quá trình học có nhiễu."},
+    {"id": "one",
+     "sub": "Một lần chạy 10 epoch: điểm nhảy từ 28,0 đến 31,6. Max trên test: 31,6.",
+     "say": "Một lần chạy mười ê pốc: điểm nhảy từ hai mươi tám đến ba mươi mốt phẩy sáu. Lấy cao nhất trên tập thử thì được ba mươi mốt phẩy sáu."},
+    {"id": "avg",
+     "sub": "Trung bình qua 2 000 lần mô phỏng: epoch cuối 30,0; chọn theo dev 30,0; max trên test 31,8: thổi phồng +1,8 điểm.",
+     "say": "Trung bình qua hai nghìn lần mô phỏng: ê pốc cuối được ba mươi, chọn theo tập kiểm cũng ba mươi, còn lấy cao nhất trên tập thử được ba mươi mốt phẩy tám. Thổi phồng thêm một phẩy tám điểm."},
+    {"id": "more",
+     "sub": "Càng nhiều epoch (càng nhiều lần \"thử vận may\") càng cao: 30 epoch → 32,4. Dao động lớn hơn (2,5) → 33,8.",
+     "say": "Càng nhiều ê pốc, tức càng nhiều lần thử vận may, thì càng cao: ba mươi ê pốc cho ba mươi hai phẩy bốn. Dao động lớn hơn, độ lệch hai phẩy năm, cho ba mươi ba phẩy tám."},
+    {"id": "dev",
+     "sub": "Chọn trên dev thì không bị thổi phồng, vì dev và test dao động độc lập.",
+     "say": "Chọn trên tập kiểm thì không bị thổi phồng, vì tập kiểm và tập thử dao động độc lập với nhau."},
+    {"id": "real",
+     "sub": "Thực tế các epoch còn khác nhau thật (tốt dần rồi học thuộc), nên chọn epoch là cần. Chỉ là phải chọn bằng dev.",
+     "say": "Trong thực tế, các ê pốc còn khác nhau thật sự, mô hình tốt dần rồi học thuộc, nên chọn ê pốc là cần thiết. Chỉ là phải chọn bằng tập kiểm."},
+    {"id": "result",
+     "sub": "Tóm lại: max trên test luôn cao hơn sự thật, nhiều lần thử càng cao; chọn bằng dev thì không. Phần 4: chênh bao nhiêu thì đáng tin.",
+     "say": "Tóm lại: lấy cao nhất trên tập thử luôn cao hơn sự thật, thử càng nhiều càng cao. Chọn bằng tập kiểm thì không. Phần bốn: chênh bao nhiêu thì đáng tin."},
+    {"id": "terms",
+     "sub": "Thuật ngữ của phần này.",
+     "say": "Các thuật ngữ của phần này."}
+  ]
+}

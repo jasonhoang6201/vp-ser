@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cộng dần từng vạch</title>
+<style>
+:root{
+  --page:#fbfbfa;--bg:#ffffff;--soft:#f7f7f5;--line:#dcdbd7;--line2:#c4c2bc;
+  --ink:#37352f;--mute:#787774;--acc:#337ea9;--acc-soft:#e7f3f8;
+  --frame:#d9730d;--hl:#d44c47;--ok:#448361;
+  --lift:0 0 0 1px rgba(15,15,15,.10),0 2px 4px rgba(15,15,15,.04),0 8px 20px rgba(15,15,15,.05);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);font:15px/1.65 Inter,"Be Vietnam Pro",system-ui,sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:28px 16px 80px}
+h1{font-size:24px;line-height:1.3;margin:0 0 6px}
+h2{font-size:18px;margin:0 0 8px;display:flex;gap:10px;align-items:baseline}
+h2 .n{display:inline-flex;justify-content:center;align-items:center;min-width:26px;height:26px;border-radius:50%;background:var(--ink);color:#fff;font-size:13px}
+h3{font-size:14px;margin:14px 0 2px}
+p{margin:0 0 10px}
+.sub{color:var(--mute);margin:0 0 20px}
+section{background:var(--bg);box-shadow:var(--lift);border-radius:8px;padding:20px;margin:0 0 22px}
+.fig{margin:8px 0 4px}
+canvas{display:block}
+.note{border-left:3px solid var(--hl);background:#fdf3f2;padding:10px 14px;border-radius:0 6px 6px 0;margin:12px 0 0}
+.note.blue{border-color:var(--acc);background:var(--acc-soft)}
+.note b{color:var(--hl)}
+.note.blue b{color:var(--acc)}
+button{font:inherit;font-size:14px;padding:5px 12px;border:1px solid var(--line2);background:var(--bg);border-radius:6px;cursor:pointer;color:var(--ink)}
+button:hover{background:var(--soft)}
+button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.ctrl{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin:10px 0 0;font-size:14px}
+.ctrl input[type=range]{width:min(320px,100%)}
+.readout{margin-top:8px;min-height:24px}
+.strip{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.strip .cap{font-size:13px;color:var(--mute);margin:2px 0 0}
+.muted{color:var(--mute)}
+@media (max-width:640px){.strip{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Cộng dần từng vạch: vì sao rung 300 lần mỗi giây lại có cả 600, 900 Hz</h1>
+<p class="sub">Dây thanh đóng mở 300 lần mỗi giây. Mỗi lần mở, hơi từ phổi được <b>đẩy ra thành một luồng ngắn</b>, rồi dây thanh <b>đóng sập lại</b> và cắt luồng hơi đó. Trang này lấy đúng hình dạng của một luồng hơi như vậy, rồi thử vẽ lại nó chỉ bằng các sóng sin tròn, cộng thêm từng sóng một. Âm thanh và hình vẽ đều được tổng hợp ngay trong trang.</p>
+
+<section id="s1">
+<h2><span class="n">1</span>Thứ cần vẽ lại: luồng hơi của dây thanh</h2>
+<p>Hình dưới là luồng hơi đi qua dây thanh trong <b>10 ms</b>. Với 300 lần mỗi giây, mỗi luồng hơi mất 1/300 s ≈ 3.3 ms, nên 10 ms chứa đúng <b>3 luồng hơi</b>.</p>
+<div class="fig"><canvas id="c1"></canvas></div>
+<div class="ctrl"><button id="playTarget">▶ Nghe luồng hơi thật (300 luồng mỗi giây)</button></div>
+<div class="note"><b>Khoanh vùng:</b> mỗi khung chấm là <b>một luồng hơi</b>: hơi tăng lên từ từ, rồi <b>rơi xuống rất nhanh</b> (mũi tên đỏ) khi dây thanh đóng sập, sau đó im một lúc. Chỗ rơi nhanh đó là một <b>góc nhọn</b>. Hãy nhớ nó, vì phần sau sẽ cố vẽ lại góc này.</div>
+</section>
+
+<section id="s2">
+<h2><span class="n">2</span>Cộng dần từng sóng sin</h2>
+<p>Kéo thanh trượt hoặc bấm <b>+1 vạch</b>. Mỗi lần như vậy, trang cộng thêm <b>một sóng sin</b>, lần lượt là 300, 600, 900, ... Hz, mỗi sóng với độ to và vị trí xuất phát mà FFT tính ra từ luồng hơi ở mục 1.</p>
+<div class="ctrl">
+  <button id="minus">−1 vạch</button>
+  <input type="range" id="nh" min="1" max="20" step="1" value="1">
+  <button id="plus">+1 vạch</button>
+  <b id="nhv"></b>
+</div>
+<h3>a. Cái lược: các vạch đang được cộng</h3>
+<div class="fig"><canvas id="c2a"></canvas></div>
+<h3>b. Mảnh ghép vừa thêm vào</h3>
+<div class="fig"><canvas id="c2b"></canvas></div>
+<h3>c. Tổng các sóng đã cộng, so với luồng hơi thật</h3>
+<div class="fig"><canvas id="c2c"></canvas></div>
+<div class="readout" id="r2"></div>
+<div class="ctrl">
+  <button id="playSum">▶ Nghe tổng hiện tại</button>
+  <button id="playPiece">▶ Nghe riêng mảnh vừa thêm</button>
+  <button id="playTarget2">▶ Nghe luồng hơi thật</button>
+</div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Ở hình <b>c</b>, đường đỏ là tổng hiện tại, còn đường xám chấm là luồng hơi thật. Khi chỉ có 1 vạch (300 Hz), đường đỏ là một <b>đồi tròn</b>. Cộng càng nhiều vạch, đường đỏ càng <b>bám sát</b> đường xám, và chỗ góc nhọn (khung cam) càng giống.
+<br>• Hãy đếm số đỉnh của đường đỏ trong 10 ms: <b>lúc nào cũng là 3</b>. Nhịp vẫn là 300 luồng mỗi giây. Thêm 600 hay 900 Hz <b>không làm dây thanh rung nhanh hơn</b>, mà chỉ làm <b>mỗi luồng hơi nhọn hơn</b>.
+<br>• Ở hình <b>b</b>, mảnh ghép vừa thêm đi đúng <b>số vòng tròn</b> trong mỗi khung luồng hơi (vạch thứ 2 đi 2 vòng, vạch thứ 3 đi 3 vòng...).</div>
+</section>
+
+<section id="s3">
+<h2><span class="n">3</span>Nhìn cả quá trình một lượt</h2>
+<p>Sáu hình dưới là hình c ở mục 2, chụp ở các số vạch khác nhau.</p>
+<div class="strip" id="strip"></div>
+<div class="note blue"><b>Khi nghe:</b> 1 vạch nghe <b>trơn và "điện tử"</b> như tiếng huýt sáo. Càng nhiều vạch thì càng nghe <b>"rè" và giống tiếng người</b> hơn. Nhưng <b>cao độ không đổi</b>: tai bạn vẫn nghe ra cùng một nốt 300 Hz ở mọi bước. Bạn thử bấm nghe ở mục 2 với 1 vạch, rồi với 20 vạch.</div>
+</section>
+
+<section id="s4">
+<h2><span class="n">4</span>Thử cộng một sóng "lẻ": 450 Hz</h2>
+<p>450 Hz không phải bội số của 300. Trong một luồng hơi (3.3 ms), sóng 450 Hz chỉ đi được <b>1.5 vòng</b>. Hình dưới chồng <b>luồng hơi thứ nhất</b> và <b>luồng hơi thứ hai</b> lên nhau để so sánh.</p>
+<div class="ctrl"><button id="odd0" class="on">Chỉ dùng các bội số của 300</button><button id="odd1">Thêm một sóng 450 Hz</button></div>
+<div class="fig"><canvas id="c4"></canvas></div>
+<div class="note"><b>Khoanh vùng:</b> khi chỉ dùng bội số của 300, hai luồng hơi <b>trùng khít</b> lên nhau: luồng nào cũng giống luồng nào. Khi thêm 450 Hz, chỗ được khoanh đỏ cho thấy hai luồng hơi <b>lệch nhau</b>, nghĩa là âm thanh không còn lặp lại đều nữa. Nhưng dây thanh <b>có</b> lặp lại đều, nên một giọng có f0 = 300 không thể chứa sóng 450 Hz.</div>
+</section>
+
+<section>
+<h2>Tóm tắt</h2>
+<ul>
+<li>Dây thanh chỉ rung <b>300 lần mỗi giây</b>. Không có bộ phận nào rung 600 lần mỗi giây.</li>
+<li>Mỗi lần rung tạo ra một luồng hơi <b>có góc nhọn</b>. Một sóng sin 300 Hz thì quá tròn, không vẽ được góc nhọn.</li>
+<li>600, 900, 1200... Hz là <b>mảnh ghép</b> để mài nhọn hình dạng đó. FFT tìm ra các mảnh ghép này, và chúng hiện lên thành các vạch của cái lược.</li>
+<li>Mảnh ghép <b>bắt buộc</b> phải là bội số của 300, vì chỉ những sóng đó mới đi đủ vòng tròn trong mỗi luồng hơi, nhờ vậy luồng nào cũng giống luồng nào (mục 4).</li>
+</ul>
+</section>
+</div>
+
+<script>
+const SR = 16000, F0 = 300, NMAX = 20, SHOW_MS = 10;
+const C = {ink:'#37352f', mute:'#787774', line:'#dcdbd7', grey:'#9b9a97', frame:'#d9730d', hl:'#d44c47', acc:'#337ea9', ok:'#448361'};
+
+// Rosenberg glottal pulse: slow opening (40% of period), abrupt closing (16%), then closed.
+const OPEN = 0.4, CLOSE = 0.16;
+function pulse(u) {
+  u -= Math.floor(u);
+  if (u < OPEN) return 0.5 * (1 - Math.cos(Math.PI * u / OPEN));
+  if (u < OPEN + CLOSE) return Math.cos(Math.PI / 2 * (u - OPEN) / CLOSE);
+  return 0;
+}
+
+const M = 4096, DC = (() => { let s = 0; for (let n = 0; n < M; n++) s += pulse(n / M); return s / M; })();
+const HARM = [];
+for (let k = 1; k <= NMAX; k++) {
+  let re = 0, im = 0;
+  for (let n = 0; n < M; n++) {
+    const v = pulse(n / M), a = 2 * Math.PI * k * n / M;
+    re += v * Math.cos(a); im -= v * Math.sin(a);
+  }
+  HARM.push({k, f: k * F0, amp: 2 * Math.hypot(re, im) / M, ph: Math.atan2(im, re)});
+}
+const AMAX = HARM[0].amp;
+const harmAt = (h, u) => h.amp * Math.cos(2 * Math.PI * h.k * u + h.ph);
+const partial = (u, n, extra) => {
+  let v = DC;
+  for (let j = 0; j < n; j++) v += harmAt(HARM[j], u);
+  if (extra) v += extra(u);
+  return v;
+};
+
+function render(fn, dur) {
+  const n = Math.floor(dur * SR), s = new Float32Array(n);
+  let mean = 0;
+  for (let t = 0; t < n; t++) { s[t] = fn(t / SR * F0); mean += s[t]; }
+  mean /= n;
+  let mx = 1e-9;
+  for (let t = 0; t < n; t++) { s[t] -= mean; mx = Math.max(mx, Math.abs(s[t])); }
+  for (let t = 0; t < n; t++) s[t] *= 0.45 / mx * Math.min(1, t / 300, (n - t) / 300);
+  return s;
+}
+let actx;
+function play(sig) {
+  actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+  const b = actx.createBuffer(1, sig.length, SR);
+  b.copyToChannel(sig, 0);
+  const src = actx.createBufferSource();
+  src.buffer = b; src.connect(actx.destination); src.start();
+}
+
+function setup(id, h) {
+  const c = document.getElementById(id), w = c.parentElement.clientWidth, d = window.devicePixelRatio || 1;
+  c.width = w * d; c.height = h * d; c.style.width = w + 'px'; c.style.height = h + 'px';
+  const g = c.getContext('2d');
+  g.setTransform(d, 0, 0, d, 0, 0);
+  g.textBaseline = 'middle';
+  return {g, w, h};
+}
+function text(g, s, x, y, color = C.mute, align = 'left', bold = false, bg = false) {
+  g.font = (bold ? '600 ' : '') + '12px Inter, system-ui, sans-serif';
+  g.textAlign = align;
+  if (bg) {
+    const w = g.measureText(s).width, x0 = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
+    g.fillStyle = 'rgba(255,255,255,.92)'; g.fillRect(x0 - 3, y - 9, w + 6, 18);
+  }
+  g.fillStyle = color; g.fillText(s, x, y);
+}
+function dashRect(g, x0, y0, w, h, color, lw = 1.5) {
+  g.save(); g.strokeStyle = color; g.lineWidth = lw; g.setLineDash([5, 4]); g.strokeRect(x0, y0, w, h); g.restore();
+}
+function arrow(g, x0, y0, x1, y1, color) {
+  g.save(); g.strokeStyle = color; g.fillStyle = color; g.lineWidth = 1.8;
+  g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+  const a = Math.atan2(y1 - y0, x1 - x0);
+  g.beginPath(); g.moveTo(x1, y1);
+  g.lineTo(x1 - 8 * Math.cos(a - 0.4), y1 - 8 * Math.sin(a - 0.4));
+  g.lineTo(x1 - 8 * Math.cos(a + 0.4), y1 - 8 * Math.sin(a + 0.4));
+  g.closePath(); g.fill(); g.restore();
+}
+
+const CYC = SHOW_MS / 1000 * F0;
+function timeAxis(g, B) {
+  g.strokeStyle = C.line; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(B.l, B.t + B.h); g.lineTo(B.l + B.w, B.t + B.h); g.stroke();
+  for (let ms = 0; ms <= SHOW_MS; ms += 1) {
+    const x = B.l + ms / SHOW_MS * B.w;
+    g.beginPath(); g.moveTo(x, B.t + B.h); g.lineTo(x, B.t + B.h + 4); g.stroke();
+    if (ms % 2 === 0 || B.w > 600) text(g, ms + ' ms', x, B.t + B.h + 14, C.mute, 'center');
+  }
+}
+function curve(g, B, fn, lo, hi, color, lw, dash) {
+  g.save(); g.strokeStyle = color; g.lineWidth = lw; if (dash) g.setLineDash(dash);
+  g.beginPath();
+  for (let p = 0; p <= B.w; p++) {
+    const u = p / B.w * CYC, y = B.t + B.h - (fn(u) - lo) / (hi - lo) * B.h;
+    p ? g.lineTo(B.l + p, y) : g.moveTo(B.l + p, y);
+  }
+  g.stroke(); g.restore();
+}
+function cycleBoxes(g, B, color, label) {
+  for (let c = 0; c < 3; c++) {
+    const x0 = B.l + c / CYC * B.w, w = B.w / CYC;
+    dashRect(g, x0 + 1, B.t, w - 2, B.h, color);
+    if (label) text(g, 'luồng hơi ' + (c + 1), x0 + w / 2, B.t - 9, color, 'center', true);
+  }
+}
+const LO = -0.15, HI = 1.15;
+
+function draw1() {
+  const R = setup('c1', 210), g = R.g, B = {l: 16, t: 26, w: R.w - 32, h: R.h - 56};
+  cycleBoxes(g, B, C.grey, true);
+  curve(g, B, pulse, LO, HI, C.ink, 2.5);
+  for (let c = 0; c < 3; c++) {
+    const u = c + OPEN + CLOSE * 0.5, x = B.l + u / CYC * B.w, y = B.t + B.h - (pulse(u) - LO) / (HI - LO) * B.h;
+    arrow(g, x + 34, y - 26, x + 5, y - 3, C.hl);
+  }
+  text(g, 'rơi nhanh = góc nhọn', B.l + (OPEN + CLOSE) / CYC * B.w + 36, B.t + 20, C.hl, 'left', true, true);
+  timeAxis(g, B);
+}
+
+let NH = 1;
+function draw2() {
+  document.getElementById('nh').value = NH;
+  document.getElementById('nhv').textContent = NH + ' vạch';
+  {
+    const R = setup('c2a', 170), g = R.g, B = {l: 16, t: 22, w: R.w - 48, h: R.h - 52};
+    const X = f => B.l + f / ((NMAX + 1) * F0) * B.w;
+    // Decibel heights, because the 20th line is ~50 dB below the first and would be invisible on a linear scale.
+    const H = a => Math.max(0.03, 1 + 20 * Math.log10(a / AMAX) / 55) * B.h;
+    HARM.forEach((h, j) => {
+      const on = j < NH, last = j === NH - 1, x = X(h.f), y = B.t + B.h - H(h.amp);
+      g.strokeStyle = on ? (last ? C.hl : C.ink) : '#e3e2de'; g.lineWidth = last ? 5 : 3.5;
+      g.beginPath(); g.moveTo(x, B.t + B.h); g.lineTo(x, y); g.stroke();
+      if (last) text(g, 'vừa thêm: ' + h.f + ' Hz', x, y - 10, C.hl, x > B.l + B.w * 0.8 ? 'right' : 'center', true, true);
+    });
+    g.strokeStyle = C.line; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(B.l, B.t + B.h); g.lineTo(B.l + B.w, B.t + B.h); g.stroke();
+    for (let f = 0; f <= NMAX * F0; f += 1500) text(g, String(f), X(f), B.t + B.h + 14, C.mute, 'center');
+    text(g, 'Hz', B.l + B.w + 8, B.t + B.h + 14);
+  }
+  const h = HARM[NH - 1];
+  {
+    const R = setup('c2b', 120), g = R.g, B = {l: 16, t: 22, w: R.w - 32, h: R.h - 50};
+    cycleBoxes(g, B, C.grey, false);
+    const zoom = AMAX / h.amp;
+    curve(g, B, u => harmAt(h, u) / h.amp, -1.2, 1.2, C.hl, 2);
+    text(g, `sóng ${h.f} Hz = ${h.k}×300, đi ${h.k} vòng trong mỗi luồng hơi` + (zoom > 1.5 ? ` (phóng to ×${zoom.toFixed(zoom < 10 ? 1 : 0)} cho dễ nhìn)` : ''), B.l + 4, B.t - 10, C.hl, 'left', true);
+    timeAxis(g, B);
+  }
+  {
+    const R = setup('c2c', 230), g = R.g, B = {l: 16, t: 26, w: R.w - 32, h: R.h - 56};
+    cycleBoxes(g, B, C.grey, true);
+    for (let c = 0; c < 3; c++) {
+      const x0 = B.l + (c + OPEN - 0.04) / CYC * B.w, x1 = B.l + (c + OPEN + CLOSE + 0.1) / CYC * B.w;
+      dashRect(g, x0, B.t + 6, x1 - x0, B.h - 12, C.frame, 2);
+    }
+    curve(g, B, pulse, LO, HI, C.grey, 2, [4, 4]);
+    curve(g, B, u => partial(u, NH), LO, HI, C.hl, 2.5);
+    timeAxis(g, B);
+  }
+  const list = HARM.slice(0, NH).map(x => x.f);
+  const shown = list.length <= 6 ? list.join(' + ') : list.slice(0, 3).join(' + ') + ' + ... + ' + list[list.length - 1];
+  document.getElementById('r2').innerHTML = `Đang cộng <b>${NH}</b> sóng: ${shown} Hz. Số luồng hơi trong 10 ms: <b>3</b> (không đổi).`;
+}
+
+const STEPS = [1, 2, 3, 5, 10, 20];
+function drawStrip() {
+  const el = document.getElementById('strip');
+  if (!el.childElementCount) {
+    el.innerHTML = STEPS.map((n, i) => `<div><canvas id="st${i}"></canvas><div class="cap">${n} vạch: ${n === 1 ? '300' : '300 → ' + n * F0} Hz <button data-st="${n}" style="font-size:12px;padding:1px 8px;margin-left:4px">▶</button></div></div>`).join('');
+  }
+  STEPS.forEach((n, i) => {
+    const R = setup('st' + i, 110), g = R.g, B = {l: 4, t: 6, w: R.w - 8, h: R.h - 12};
+    g.fillStyle = '#fbfbfa'; g.fillRect(0, 0, R.w, R.h);
+    curve(g, B, pulse, LO, HI, C.grey, 1.5, [3, 3]);
+    curve(g, B, u => partial(u, n), LO, HI, C.hl, 2);
+  });
+}
+
+let ODD = false;
+const oddWave = u => 0.35 * Math.cos(2 * Math.PI * 1.5 * u + 0.6);
+function draw4() {
+  document.getElementById('odd0').classList.toggle('on', !ODD);
+  document.getElementById('odd1').classList.toggle('on', ODD);
+  const R = setup('c4', 250), g = R.g, B = {l: 50, t: 30, w: R.w - 70, h: R.h - 76};
+  const fn = u => partial(u, NMAX, ODD ? oddWave : null), lo = -0.55, hi = 1.45;
+  const Y = v => B.t + B.h - (v - lo) / (hi - lo) * B.h, X = u => B.l + u * B.w;
+  g.strokeStyle = C.line; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(B.l, B.t + B.h); g.lineTo(B.l + B.w, B.t + B.h); g.stroke();
+  for (let q = 0; q <= 4; q++) text(g, (q / 4 * 1000 / F0).toFixed(1) + ' ms', X(q / 4), B.t + B.h + 14, C.mute, 'center');
+  text(g, 'thời gian bên trong một luồng hơi (3.3 ms)', B.l + B.w / 2, B.t + B.h + 30, C.mute, 'center');
+  let maxD = 0, uD = 0;
+  for (let p = 0; p <= 400; p++) {
+    const u = p / 400, d = Math.abs(fn(u) - fn(u + 1));
+    if (d > maxD) { maxD = d; uD = u; }
+  }
+  for (const [c, color, lw, dash, name] of [[0, C.ink, 2.5, null, 'luồng hơi thứ nhất'], [1, C.acc, 2.5, [7, 5], 'luồng hơi thứ hai']]) {
+    g.save(); g.strokeStyle = color; g.lineWidth = lw; if (dash) g.setLineDash(dash);
+    g.beginPath();
+    for (let p = 0; p <= B.w; p++) {
+      const u = p / B.w, y = Y(fn(u + c));
+      p ? g.lineTo(B.l + p, y) : g.moveTo(B.l + p, y);
+    }
+    g.stroke(); g.restore();
+  }
+  g.save(); g.lineWidth = 2.5; g.strokeStyle = C.ink; g.beginPath(); g.moveTo(B.l + 4, B.t - 12); g.lineTo(B.l + 30, B.t - 12); g.stroke();
+  g.strokeStyle = C.acc; g.setLineDash([7, 5]); g.beginPath(); g.moveTo(B.l + 170, B.t - 12); g.lineTo(B.l + 196, B.t - 12); g.stroke(); g.restore();
+  text(g, 'luồng hơi thứ nhất', B.l + 36, B.t - 12, C.ink);
+  text(g, 'luồng hơi thứ hai (chồng lên)', B.l + 202, B.t - 12, C.acc);
+  if (ODD) {
+    const x = X(uD), y0 = Y(fn(uD)), y1 = Y(fn(uD + 1));
+    g.save(); g.strokeStyle = C.hl; g.lineWidth = 2.5;
+    g.beginPath(); g.ellipse(x, (y0 + y1) / 2, 26, Math.abs(y1 - y0) / 2 + 16, 0, 0, 2 * Math.PI); g.stroke(); g.restore();
+    text(g, 'hai luồng hơi lệch nhau', x + 32, (y0 + y1) / 2, C.hl, x > B.l + B.w * 0.6 ? 'right' : 'left', true, true);
+  } else {
+    text(g, 'hai đường trùng khít, chỉ thấy như một đường', B.l + B.w / 2, B.t + 14, C.ok, 'center', true, true);
+  }
+}
+
+function drawAll() { draw1(); draw2(); drawStrip(); draw4(); }
+const setN = n => { NH = Math.max(1, Math.min(NMAX, n)); draw2(); };
+document.getElementById('nh').addEventListener('input', e => setN(+e.target.value));
+document.getElementById('plus').addEventListener('click', () => setN(NH + 1));
+document.getElementById('minus').addEventListener('click', () => setN(NH - 1));
+const playTarget = () => play(render(pulse, 1));
+document.getElementById('playTarget').addEventListener('click', playTarget);
+document.getElementById('playTarget2').addEventListener('click', playTarget);
+document.getElementById('playSum').addEventListener('click', () => play(render(u => partial(u, NH), 1)));
+document.getElementById('playPiece').addEventListener('click', () => play(render(u => harmAt(HARM[NH - 1], u), 1)));
+document.getElementById('strip').addEventListener('click', e => {
+  const n = e.target.dataset && e.target.dataset.st;
+  if (n) play(render(u => partial(u, +n), 1));
+});
+document.getElementById('odd0').addEventListener('click', () => { ODD = false; draw4(); });
+document.getElementById('odd1').addEventListener('click', () => { ODD = true; draw4(); });
+drawAll();
+let rt;
+window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(drawAll, 120); });
+</script>
+</body>
+</html>

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>SER · 1: Vấn đề</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/ser-1-van-de.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn thành phần', '3 Nhãn và dấu hiệu', '4 Dữ liệu', '5 Thước đo'];
+const PAINS = [
+  ['p1', 'cảm xúc là gì, có bao nhiêu loại?', 'không có danh sách chuẩn duy nhất; mỗi bộ dữ liệu một kiểu nhãn'],
+  ['p2', 'nhãn mang tính chủ quan', 'cùng một câu, ba người nghe có thể gán ba nhãn khác nhau'],
+  ['p3', 'dữ liệu lệch', 'hội thoại thật phần lớn trung tính; sợ, ghê tởm rất hiếm'],
+  ['p4', 'đo đúng sai', 'luôn đoán "trung tính" đã đúng gần một nửa trên một số bộ'],
+];
+// [label, colour, f0 shape over the utterance u in 0..1 (0 low, 1 high)]
+const WAYS = [
+  ['ngạc nhiên vui', COL.ok, u => 0.35 + 0.55 * u ** 1.5],
+  ['nghi ngờ', COL.i, u => 0.45 - 0.1 * u + 0.25 * Math.max(0, u - 0.7) / 0.3],
+  ['bực bội', COL.hl, u => 0.7 - 0.5 * u],
+];
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('SER: đoán cảm xúc từ giọng nói', 'Phần 1/5: cùng một câu, nhiều cảm xúc', 0, PARTS);
+
+function shotPlace(G, t) {
+  const sp = S('place'), ss = S('same'), ds = D('same');
+  heading(t < ss ? 'Nói gì, và nói với cảm xúc gì' : 'Cùng chữ "Thật à?", ba cách nói');
+  if (t < ss) {
+    fade(G, P(t, sp + 0.3, 0.5), () => {
+      card(260, 300, 620, 220, {stroke: COL.acc});
+      text('ASR (trang 05–12)', 570, 360, {size: 30, weight: 700, color: COL.acc, align: 'center'});
+      text('"người ta nói gì?"', 570, 440, {size: 30, align: 'center'});
+    });
+    fade(G, P(t, sp + D('place') * 0.45, 0.5), () => {
+      card(1040, 300, 620, 220, {stroke: COL.frame, lw: 3});
+      text('SER (trang 18–24)', 1350, 360, {size: 30, weight: 700, color: COL.frame, align: 'center'});
+      text('"nói với cảm xúc gì?"', 1350, 440, {size: 30, align: 'center'});
+    });
+    return;
+  }
+  fade(G, P(t, ss + 0.3, 0.5), () => {
+    chip(G, 220, 410, '"Thật à?"', {size: 34, weight: 700});
+    WAYS.forEach(([l, c, f], j) => fade(G, P(t, ss + 0.8 + j * ds * 0.2, 0.5), () => {
+      const B = {x: 560 + j * 440, y: 300, w: 360, h: 220}, xs = Array.from({length: 61}, (_, k) => k / 60);
+      rrect(B.x - 10, B.y - 10, B.w + 20, B.h + 20, 12, COL.card, c, 2);
+      poly(xs.map(u => B.x + u * B.w), xs.map(u => B.y + B.h - f(u) * B.h), c, 5);
+      text(l, B.x + B.w / 2, B.y + B.h + 50, {size: 28, weight: 700, color: c, align: 'center'});
+    }));
+    fade(G, P(t, ss + ds * 0.75, 0.5), () => text('đường cao độ (minh họa): chữ giống hệt, chỉ cách nói khác', 960, 680, {size: 26, color: COL.mute, align: 'center'}));
+  });
+}
+
+function shotPain(G, t) {
+  heading('Bốn vấn đề');
+  PAINS.forEach(([id, a, b], j) => fade(G, P(t, S(id) + 0.2, 0.5), () => {
+    const y = 210 + j * 150, on = t >= S(id) && t < E(id) + 0.3;
+    card(240, y, 1440, 130, {stroke: on ? COL.hl : COL.line, lw: on ? 3 : 2});
+    text(a, 280, y + 48, {size: 30, weight: 700, color: COL.hl});
+    text(b, 280, y + 98, {size: 24, color: COL.mute, maxW: 1360});
+  }));
+}
+
+function shotGoal(G, t) {
+  const s = S('goal'), d = D('goal');
+  heading('Mục tiêu của trang');
+  ['nhãn được gán thế nào', 'cảm xúc lộ ra ở đâu trong giọng', 'các bộ dữ liệu chuẩn', 'vì sao báo UA, không chỉ độ chính xác'].forEach((l, j) =>
+    fade(G, P(t, s + 0.3 + j * d * 0.18, 0.5), () => {
+      text('phần ' + [3, 3, 4, 5][j], 480, 300 + j * 90, {size: 28, weight: 700, color: COL.frame});
+      text(l, 620, 300 + j * 90, {size: 32});
+    }));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['✗', 'cùng chữ, khác cảm xúc', COL.hl], ['✗', 'nhãn không chuẩn, chủ quan, lệch', COL.hl], ['✗', 'độ chính xác dễ đánh lừa', COL.hl]].forEach(([m, a, c], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text(m, 580, 300 + j * 90, {size: 34, weight: 700, color: c});
+      text(a, 630, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 790, 640, 'Phần 2: bốn thành phần cần biết  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 1', [
+  ['đoán cảm xúc từ giọng nói', 'SER (Speech Emotion Recognition)', ''],
+  ['dữ liệu lớp nhiều lớp ít', 'mất cân bằng lớp (class imbalance)', 'trung tính chiếm đa số'],
+  ['người nghe gán nhãn', 'annotator', 'thường ≥ 3 người, lấy đa số'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'place', to: 'same', draw: shotPlace},
+    {from: 'p1', to: 'p4', draw: shotPain},
+    {from: 'goal', to: 'goal', draw: shotGoal},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/ser-1-van-de.wav');
+</script>
+</body>
+</html>

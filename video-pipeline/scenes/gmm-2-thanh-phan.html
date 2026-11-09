@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>GMM 2: Ba thành phần</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../build/gmm-2-thanh-phan.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, axes, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Ba thành phần', '3 Một quả đồi Gauss', '4 Trộn đồi và EM', '5 Chấm điểm frame'];
+const npdf = GMM.npdf;
+
+// c1 slices of the "a" and "i" mixtures, from the cluster specs of the 2-D data.
+const MIX_A = [{mu: -1.3, sd: 0.45, w: 0.40}, {mu: 0.1, sd: 0.7, w: 0.29}, {mu: 1.1, sd: 0.35, w: 0.31}];
+const MIX_I = [{mu: 1.9, sd: 0.4, w: 0.56}, {mu: 2.4, sd: 0.3, w: 0.44}];
+const mix1 = (x, m) => m.reduce((s, c) => s + c.w * npdf(x, c.mu, c.sd), 0);
+const HILL_COL = [COL.acc, COL.frame, COL.ok];
+const TRACE = GMM.emTrace(GMM.A_PTS, 3, 3, 12);
+
+// Plot f over [lo, hi] on box B; upto reveals the curve left to right.
+function curve(B, lo, hi, top, f, color, lw = 3, dash, upto = 1) {
+  const xs = [], ys = [];
+  for (let j = 0; j <= 240; j++) { const v = lo + (hi - lo) * j / 240; xs.push(B.x + j / 240 * B.w); ys.push(B.y + B.h - f(v) / top * B.h); }
+  poly(xs, ys, color, lw, dash, upto);
+}
+const xOf = (B, lo, hi, v) => B.x + (v - lo) / (hi - lo) * B.w;
+
+function steps(G, t, k) {
+  ['1 đồi Gauss', '2 trộn (mixture)', '3 EM'].forEach((s, j) => {
+    const x = 330 + j * 430;
+    rrect(x, 190, 400, 64, 12, j === k ? COL.frameSoft : COL.card, j === k ? COL.frame : COL.line, 2);
+    text(s, x + 200, 222, {size: 26, weight: j === k ? 700 : 500, color: j === k ? COL.frame : COL.mute, align: 'center'});
+  });
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('GMM: ba thành phần', 'Phần 2/5: đồi Gauss, trộn, EM', 1, PARTS);
+
+function shotRecap(G, t) {
+  const s = S('recap'), d = D('recap');
+  heading('GMM = Gaussian Mixture Model');
+  text('mô hình trộn Gauss', 960, 200, {size: 28, color: COL.mute, align: 'center'});
+  [['1', 'đồi Gauss', 'tả một cụm'], ['2', 'trộn', 'tả nhiều cụm'], ['3', 'EM', 'học từ dữ liệu']].forEach(([n, a, b], j) =>
+    fade(G, P(t, s + d * 0.45 + j * 0.6, 0.6), () => {
+      const x = 260 + j * 480;
+      card(x, 330, 420, 300);
+      text(n, x + 210, 400, {size: 54, weight: 700, color: COL.frame, align: 'center'});
+      text(a, x + 210, 490, {size: 34, weight: 700, align: 'center'});
+      text(b, x + 210, 560, {size: 26, color: COL.mute, align: 'center'});
+    }));
+}
+
+function shotC1(G, t) {
+  const s = S('c1'), d = D('c1');
+  steps(G, t, 0);
+  const B = {x: 140, y: 340, w: 720, h: 400}, lo = -2.6, hi = 2.6, top = npdf(0, 0, 0.6) * 1.15;
+  line(B.x, B.y + B.h, B.x + B.w, B.y + B.h, COL.line2, 2);
+  curve(B, lo, hi, top, x => npdf(x, 0, 0.6), COL.frame, 4, null, P(t, s + 0.3, 2));
+  fade(G, P(t, s + d * 0.2, 0.5), () => {
+    const xm = xOf(B, lo, hi, 0);
+    line(xm, B.y + 20, xm, B.y + B.h, COL.frame, 2, [6, 6]);
+    text('μ (mean): tâm', xm, B.y + B.h + 34, {size: 24, weight: 700, color: COL.frame, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.35, 0.5), () => {
+    const y = B.y + B.h - npdf(0.6, 0, 0.6) / top * B.h, xa = xOf(B, lo, hi, -0.6), xb = xOf(B, lo, hi, 0.6);
+    arrow(xOf(B, lo, hi, 0), y, xb, y, COL.acc, 2.5); arrow(xOf(B, lo, hi, 0), y, xa, y, COL.acc, 2.5);
+    text('σ: độ rộng', xb + 14, y, {size: 24, weight: 700, color: COL.acc});
+  });
+  const PL = GMM.plane({x: 1000, y: 330, w: 660, h: 500});
+  fade(G, P(t, s + d * 0.55, 0.6), () => {
+    PL.frame();
+    PL.dots(GMM.A_PTS.slice(0, 120), COL.acc + '88', 4);
+    const g0 = {mu: [-1.3, 0.9], cov: [0.2, 0.063, 0.078]};
+    PL.ell(g0, 1, COL.frame, 3); PL.ell(g0, 2, COL.frame + '88', 2);
+    PL.dot(g0.mu, '#fff', 6, COL.frame);
+    text('nhiều chiều: Σ (covariance)', 1330, 300, {size: 24, weight: 700, color: COL.frame, align: 'center'});
+    text('đồi dẹt, nghiêng vẫn tả được', PL.X(-1.3), PL.Y(-0.2), {size: 22, color: COL.mute, align: 'center'});
+  });
+}
+
+function shotC2(G, t) {
+  const s = S('c2'), d = D('c2');
+  steps(G, t, 1);
+  const B = {x: 260, y: 330, w: 1400, h: 400}, lo = -2.6, hi = 2.2, top = mix1(-1.3, MIX_A) * 1.25;
+  line(B.x, B.y + B.h, B.x + B.w, B.y + B.h, COL.line2, 2);
+  MIX_A.forEach((c, k) => fade(G, P(t, s + 0.4 + k * 0.8, 0.6), () => {
+    curve(B, lo, hi, top, x => c.w * npdf(x, c.mu, c.sd), HILL_COL[k], 3, [8, 6]);
+    text(`đồi ${k + 1}: w${'₁₂₃'[k]} = ${c.w.toFixed(2).replace('.', ',')}`, B.x + 10, B.y + 10 + k * 36, {size: 24, weight: 700, color: HILL_COL[k]});
+  }));
+  fade(G, P(t, s + d * 0.5, 0.6), () => {
+    curve(B, lo, hi, top, x => mix1(x, MIX_A), COL.ink, 4, null, P(t, s + d * 0.5, 1.5));
+    text('tổng: địa hình nhiều đỉnh', B.x + B.w - 10, B.y + 30, {size: 26, weight: 700, align: 'right'});
+  });
+  fade(G, P(t, s + d * 0.7, 0.5), () => chip(G, 760, 790, 'w₁ + w₂ + w₃ = 1', HOT));
+}
+
+function shotC3(G, t) {
+  const s = S('c3'), d = D('c3');
+  steps(G, t, 2);
+  fade(G, P(t, s + 0.3, 0.6), () => {
+    card(160, 330, 640, 150, {stroke: COL.acc, lw: 3});
+    text('E: chia điểm cho các đồi', 190, 380, {size: 28, weight: 700, color: COL.acc});
+    text('đồi nào cao hơn tại điểm thì nhận nhiều hơn', 190, 432, {size: 22, color: COL.mute});
+    card(160, 620, 640, 150, {stroke: COL.frame, lw: 3});
+    text('M: dời đồi theo điểm được chia', 190, 670, {size: 28, weight: 700, color: COL.frame});
+    text('tâm, độ rộng, trọng số tính lại', 190, 722, {size: 22, color: COL.mute});
+    arrow(560, 490, 560, 610, COL.mute, 3); arrow(400, 610, 400, 490, COL.mute, 3);
+    text('lặp', 480, 550, {size: 24, weight: 700, color: COL.mute, align: 'center'});
+  });
+  const PL = GMM.plane({x: 960, y: 300, w: 726, h: 550});
+  const i = Math.min(TRACE.length - 1, Math.floor(clamp((t - s - 1) / (d * 0.8)) * 10));
+  fade(G, P(t, s + 0.6, 0.6), () => {
+    PL.frame();
+    const R = GMM.resp(GMM.A_PTS, TRACE[i]);
+    PL.dots(GMM.A_PTS, null, 3.5, 1, j => HILL_COL[R[j].indexOf(Math.max(...R[j]))] + 'aa');
+    TRACE[i].forEach((gm, k) => { PL.ell(gm, 1, HILL_COL[k], 3); PL.ell(gm, 2, HILL_COL[k] + '77', 1.5); });
+    text(`bước ${i}`, PL.B.x + 20, PL.B.y + 30, {size: 24, weight: 700});
+  });
+}
+
+function shotFormula(G, t) {
+  const s = S('formula'), sl = S('like'), dl = D('like');
+  heading('Ghép lại: địa hình "a"');
+  fade(G, P(t, s + 0.3, 0.6), () => {
+    G.font = `500 34px ${Clip.FONT}`;
+    const parts = [['p(x | a) = ', COL.ink], ['w₁·N(x; μ₁, Σ₁)', HILL_COL[0]], [' + ', COL.ink], ['w₂·N(x; μ₂, Σ₂)', HILL_COL[1]], [' + ', COL.ink], ['w₃·N(x; μ₃, Σ₃)', HILL_COL[2]]];
+    let x = 960 - parts.reduce((a, p) => a + G.measureText(p[0]).width, 0) / 2;
+    parts.forEach(([p, c]) => { text(p, x, 250, {size: 34, weight: 500, color: c}); G.font = `500 34px ${Clip.FONT}`; x += G.measureText(p).width; });
+  });
+  const B = {x: 260, y: 340, w: 1400, h: 400}, lo = -2.6, hi = 2.2, top = mix1(-1.3, MIX_A) * 1.25;
+  fade(G, P(t, s + D('formula') * 0.5, 0.6), () => {
+    line(B.x, B.y + B.h, B.x + B.w, B.y + B.h, COL.line2, 2);
+    curve(B, lo, hi, top, x => mix1(x, MIX_A), COL.acc, 4);
+    text('c1', B.x + B.w, B.y + B.h + 30, {size: 20, color: COL.mute, align: 'right'});
+  });
+  fade(G, P(t, sl + 0.2, 0.5), () => {
+    const u = clamp((t - sl - 0.5) / (dl * 0.75)), v = lerp(-2.4, 2.0, 0.5 - 0.5 * Math.cos(u * 2 * Math.PI)) ;
+    const xx = xOf(B, lo, hi, v), h = mix1(v, MIX_A), yy = B.y + B.h - h / top * B.h;
+    line(xx, B.y + B.h, xx, yy, COL.frame, 3);
+    G.beginPath(); G.arc(xx, yy, 8, 0, 2 * Math.PI); G.fillStyle = COL.frame; G.fill();
+    text(`p(x | a) = ${h.toFixed(2).replace('.', ',')}`, xx, yy - 30, {size: 24, weight: 700, color: COL.frame, align: 'center'});
+    text('likelihood (độ hợp lý) = độ cao tại x', 960, 810, {size: 28, weight: 700, color: COL.ink, align: 'center'});
+  });
+}
+
+function shotOnePer(G, t) {
+  const s = S('oneper'), d = D('oneper');
+  heading('Mỗi âm một GMM');
+  const B = {x: 260, y: 280, w: 1400, h: 420}, lo = -2.6, hi = 3.4, top = mix1(2.15, MIX_I) * 1.15;
+  line(B.x, B.y + B.h, B.x + B.w, B.y + B.h, COL.line2, 2);
+  fade(G, P(t, s + 0.2, 0.6), () => { curve(B, lo, hi, top, x => mix1(x, MIX_A), COL.acc, 4); text('GMM "a"', xOf(B, lo, hi, -1.3), B.y + 120, {size: 26, weight: 700, color: COL.acc, align: 'center'}); });
+  fade(G, P(t, s + 1.2, 0.6), () => { curve(B, lo, hi, top, x => mix1(x, MIX_I), COL.i, 4); text('GMM "i"', xOf(B, lo, hi, 2.6), B.y + 30, {size: 26, weight: 700, color: COL.i, align: 'center'}); });
+  fade(G, P(t, s + d * 0.45, 0.5), () => {
+    const v = 0.9, xx = xOf(B, lo, hi, v), ya = B.y + B.h - mix1(v, MIX_A) / top * B.h, yi = B.y + B.h - mix1(v, MIX_I) / top * B.h;
+    line(xx, B.y + 10, xx, B.y + B.h, COL.frame, 2, [6, 6]);
+    G.beginPath(); G.arc(xx, ya, 8, 0, 2 * Math.PI); G.fillStyle = COL.acc; G.fill();
+    G.beginPath(); G.arc(xx, yi, 8, 0, 2 * Math.PI); G.fillStyle = COL.i; G.fill();
+    text('frame mới', xx, B.y + B.h + 30, {size: 22, weight: 700, color: COL.frame, align: 'center'});
+    card(300, 290, 460, 110, {stroke: COL.acc, lw: 3});
+    text('"a" cao hơn → gán "a"', 530, 345, {size: 28, weight: 700, color: COL.acc, align: 'center'});
+  });
+}
+
+// Sum of n uniforms, 6000 draws, as density on [0, 1] after dividing by n.
+const CLT = [1, 2, 4, 12].map(n => {
+  const r = GMM.rng(70 + n), nb = 30, h = new Array(nb).fill(0);
+  for (let i = 0; i < 6000; i++) { let v = 0; for (let k = 0; k < n; k++) v += r(); h[Math.min(nb - 1, Math.floor(v / n * nb))]++; }
+  return {n, h: h.map(c => c / 6000 * nb), sd: Math.sqrt(1 / 12 / n)};
+});
+
+function shotWhyG(G, t) {
+  const s = S('whyg'), d = D('whyg');
+  heading('Vì sao chọn Gauss?');
+  CLT.forEach((c, j) => fade(G, P(t, s + 0.4 + j * d * 0.12, 0.5), () => {
+    const B = {x: 170 + j * 410, y: 260, w: 360, h: 260}, top = Math.max(...c.h, npdf(0.5, 0.5, c.sd)) * 1.05;
+    rrect(B.x - 10, B.y - 10, B.w + 20, B.h + 60, 10, COL.card, COL.line);
+    c.h.forEach((v, k) => rrect(B.x + k * B.w / 30 + 1, B.y + B.h - v / top * B.h, B.w / 30 - 2, v / top * B.h, 1, '#e3e2de'));
+    if (j > 0) curve(B, 0, 1, top, x => npdf(x, 0.5, c.sd), COL.frame, 2.5);
+    text(`cộng ${c.n} yếu tố`, B.x + B.w / 2, B.y + B.h + 28, {size: 22, weight: 600, align: 'center'});
+  }));
+  [['nhiều yếu tố nhỏ cộng lại → hình chuông', 'định lý giới hạn trung tâm'], ['chỉ cần μ và σ (hoặc Σ)', 'ít tham số'], ['học bằng công thức đóng', 'trung bình, độ lệch chuẩn']].forEach(([a, b], j) =>
+    fade(G, P(t, s + d * (0.55 + j * 0.13), 0.5), () => {
+      text('✓', 300, 640 + j * 62, {size: 30, weight: 700, color: COL.ok});
+      text(a, 350, 640 + j * 62, {size: 27});
+      text(b, 1100, 640 + j * 62, {size: 23, color: COL.mute});
+    }));
+}
+
+// A lopsided target shape and its 1-D EM fits with K = 1, 2, 3, 6.
+const TARGET = [{mu: -1.2, sd: 0.35, w: 0.3}, {mu: -0.3, sd: 0.5, w: 0.25}, {mu: 0.8, sd: 0.25, w: 0.2}, {mu: 1.5, sd: 0.6, w: 0.25}];
+const FITS = (() => {
+  const r = GMM.rng(5), xs = [];
+  for (let i = 0; i < 3000; i++) { let u = r(), k = 0; while (k < 3 && u > TARGET[k].w) { u -= TARGET[k].w; k++; } xs.push(TARGET[k].mu + TARGET[k].sd * GMM.randn(r)); }
+  return [1, 2, 3, 6].map(K => {
+    let m = Array.from({length: K}, (_, k) => ({mu: -2 + 4 * (k + 0.5) / K, sd: 0.8, w: 1 / K}));
+    for (let it = 0; it < 200; it++) {
+      const R = xs.map(x => { const v = m.map(c => c.w * npdf(x, c.mu, c.sd)), s = v.reduce((a, b) => a + b) || 1e-300; return v.map(a => a / s); });
+      m = m.map((c, k) => {
+        const N = R.reduce((a, r) => a + r[k], 0) + 1e-9, mu = R.reduce((a, r, i) => a + r[k] * xs[i], 0) / N;
+        return {mu, sd: Math.sqrt(R.reduce((a, r, i) => a + r[k] * (xs[i] - mu) ** 2, 0) / N + 1e-4), w: N / xs.length};
+      });
+    }
+    return {K, m};
+  });
+})();
+
+function shotWhyMix(G, t) {
+  const s = S('whymix'), d = D('whymix');
+  heading('Vì sao phải trộn?');
+  const B = {x: 260, y: 270, w: 1400, h: 430}, lo = -2.8, hi = 3.4, top = mix1(-1.2, TARGET) * 1.3;
+  line(B.x, B.y + B.h, B.x + B.w, B.y + B.h, COL.line2, 2);
+  curve(B, lo, hi, top, x => mix1(x, TARGET), COL.line2, 8);
+  text('hình dạng thật (xám)', B.x + 10, B.y + 20, {size: 22, color: COL.mute});
+  const k = Math.min(3, Math.floor(clamp((t - s - 0.5) / (d * 0.85)) * 4));
+  const f = FITS[k];
+  f.m.forEach(c => curve(B, lo, hi, top, x => c.w * npdf(x, c.mu, c.sd), COL.frame + '77', 2, [6, 6]));
+  curve(B, lo, hi, top, x => mix1(x, f.m), COL.frame, 4);
+  chip(G, 860, 760, `K = ${f.K} đồi`, HOT);
+}
+
+function shotHist(G, t) {
+  const s = S('hist'), d = D('hist');
+  heading('Lịch sử');
+  [['1809', 'Gauss', 'phân phối chuẩn (hình chuông)', COL.acc], ['1894', 'Pearson', 'tách một bộ số đo thành hai đồi Gauss', COL.frame],
+   ['1977', 'Dempster, Laird, Rubin', 'tổng quát hóa thuật toán EM', COL.ok], ['1980s', 'nhận dạng tiếng nói', 'GMM trong HMM mật độ liên tục', COL.i]].forEach(([y, who, what, c], j) =>
+    fade(G, P(t, s + 0.3 + j * d * 0.2, 0.6), () => {
+      const x = 130 + j * 425;
+      card(x, 320, 395, 330, {stroke: c, lw: 2});
+      text(y, x + 30, 380, {size: 40, weight: 700, color: c});
+      text(who, x + 30, 450, {size: 26, weight: 700, maxW: 340});
+      text(what, x + 30, 540, {size: 23, color: COL.mute, maxW: 340});
+    }));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['đồi Gauss', 'tả một cụm: μ, Σ'], ['trộn K đồi', 'tả cả đám mây: thêm trọng số w'], ['EM', 'học μ, Σ, w từ dữ liệu']].forEach(([a, b], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.4, 0.6), () => {
+      text('✓', 480, 330 + j * 90, {size: 34, weight: 700, color: COL.ok});
+      text(a, 530, 330 + j * 90, {size: 32, weight: 700, color: COL.acc});
+      text(b, 800, 330 + j * 90, {size: 30, color: COL.ink});
+    }));
+  fade(G, P(t, s + D('result') * 0.75, 0.5), () => chip(G, 740, 640, 'Phần 3: nhìn kỹ một quả đồi  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 2', [
+  ['quả đồi hình chuông', 'phân phối Gauss (normal distribution)', 'N(x; μ, Σ)'],
+  ['tâm, độ rộng', 'mean μ, variance σ², covariance Σ', 'Σ: độ rộng và độ nghiêng nhiều chiều'],
+  ['trộn, trọng số', 'mixture, mixture weight w', 'tổng trọng số bằng 1'],
+  ['thuật toán đoán rồi sửa', 'EM (Expectation-Maximization)', 'lặp E: chia điểm, M: dời đồi'],
+  ['độ cao địa hình tại x', 'likelihood p(x | âm)', 'độ hợp lý'],
+  ['cộng nhiều yếu tố nhỏ', 'định lý giới hạn trung tâm (CLT)', 'vì sao hay gặp hình chuông'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 9,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'recap', to: 'recap', draw: shotRecap},
+    {from: 'c1', to: 'c1', draw: shotC1},
+    {from: 'c2', to: 'c2', draw: shotC2},
+    {from: 'c3', to: 'c3', draw: shotC3},
+    {from: 'formula', to: 'like', draw: shotFormula},
+    {from: 'oneper', to: 'oneper', draw: shotOnePer},
+    {from: 'whyg', to: 'whyg', draw: shotWhyG},
+    {from: 'whymix', to: 'whymix', draw: shotWhyMix},
+    {from: 'hist', to: 'hist', draw: shotHist},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/gmm-2-thanh-phan.wav');
+</script>
+</body>
+</html>

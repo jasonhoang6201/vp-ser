@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>XTTS · 1: Vấn đề</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/xtts-1-van-de.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn khối', '3 Lượng tử hóa', '4 Nhiệt độ', '5 Nhân bản giọng'];
+const PAINS = [
+  ['p1', 'mỗi giọng một mô hình', 'VITS, Tacotron 2: vài giờ thu âm sạch của một người'],
+  ['p2', 'giọng người lạ', 'chỉ có 6 giây của người chưa từng thấy, muốn đọc câu bất kỳ'],
+  ['p3', 'nhiều ngôn ngữ', 'giọng người Việt đọc câu tiếng Anh, trong cùng một mô hình'],
+  ['p4', 'dữ liệu lớn mà nhiễu', 'hàng chục nghìn giờ, nhiều nguồn, chất lượng không đều'],
+];
+const TCOL = [COL.acc, COL.frame, COL.ok, COL.i, COL.hl];
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('XTTS', 'Phần 1/5: muốn giọng mới thì phải có nhiều giờ thu âm', 0, PARTS);
+
+function shotPain(G, t) {
+  heading('Bốn vấn đề');
+  PAINS.forEach(([id, a, b], j) => fade(G, P(t, S(id) + 0.2, 0.5), () => {
+    const y = 210 + j * 150, on = t >= S(id) && t < E(id) + 0.3;
+    card(240, y, 1440, 130, {stroke: on ? COL.hl : COL.line, lw: on ? 3 : 2});
+    text(a, 280, y + 48, {size: 30, weight: 700, color: COL.hl});
+    text(b, 280, y + 98, {size: 24, color: COL.mute, maxW: 1360});
+  }));
+}
+
+// A row of token squares: `n` given tokens (grey frame), then `m` written ones appearing over time.
+function tokens(x, y, given, written, shown, cGiven) {
+  given.forEach((k, j) => rrect(x + j * 54, y, 46, 46, 8, cGiven ? cGiven : TCOL[k % 5] + '55', COL.line2, 1.5));
+  written.slice(0, shown).forEach((k, j) => rrect(x + (given.length + j) * 54, y, 46, 46, 8, TCOL[k % 5]));
+  return x + (given.length + shown) * 54;
+}
+
+function shotGpt(G, t) {
+  const sg = S('gpt'), dg = D('gpt'), si = S('idea'), di = D('idea'), sgo = S('goal'), dgo = D('goal');
+  heading(t < si ? 'GPT: viết tiếp theo đoạn mở đầu' : t < sgo ? 'Âm thanh thành token: viết tiếp giọng nói' : 'Mục tiêu: zero-shot');
+  if (t < si) {
+    fade(G, P(t, sg + 0.3, 0.5), () => {
+      text('mở đầu', 300, 330, {size: 24, color: COL.mute});
+      ['Hôm', 'nay', 'trời'].forEach((w, j) => chip(G, 300 + j * 140, 360, w, {size: 26, weight: 700}));
+      const n = Math.floor(P(t, sg + dg * 0.4, dg * 0.4) * 3);
+      ['đẹp', 'quá', '.'].slice(0, n).forEach((w, j) => chip(G, 720 + j * 140, 360, w, {size: 26, weight: 700, color: COL.acc, stroke: COL.acc}));
+      text('GPT viết tiếp →', 720, 330, {size: 24, color: COL.acc});
+    });
+    return;
+  }
+  if (t < sgo) {
+    fade(G, P(t, si + 0.3, 0.5), () => {
+      text('mở đầu: giọng người A + chữ', 300, 310, {size: 24, color: COL.mute});
+      const given = [0, 2, 4, 1, 3, 0], written = [2, 2, 1, 4, 0, 3, 1, 2, 4], n = Math.floor(P(t, si + di * 0.35, di * 0.5) * written.length);
+      const x2 = tokens(300, 340, given, written, n);
+      text('token âm thanh, vẫn giọng người A', 300 + given.length * 54, 430, {size: 24, weight: 700, color: COL.ok});
+      arrow(x2 + 10, 363, x2 + 70, 363, COL.mute, 3);
+    });
+    return;
+  }
+  fade(G, P(t, sgo + 0.3, 0.5), () => {
+    const labels = ['một mô hình mọi giọng', 'nhiều ngôn ngữ', 'vài giây mẫu', 'không huấn luyện lại'], xs = UI.chipXs(G, labels, {size: 28, weight: 700}, 30);
+    labels.forEach((l, j) => fade(G, P(t, sgo + 0.5 + j * dgo * 0.15, 0.4), () => chip(G, xs[j], 340, l, {size: 28, weight: 700, color: COL.ok, stroke: COL.ok})));
+    fade(G, P(t, sgo + dgo * 0.7, 0.5), () => text('zero-shot voice cloning', 960, 500, {size: 36, weight: 700, color: COL.frame, align: 'center'}));
+  });
+}
+
+function shotWho(G, t) {
+  const s = S('who'), d = D('who');
+  heading('XTTS và họ hàng');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    chip(G, 300, 300, 'Tortoise (kiến trúc nền)', {size: 26, weight: 700});
+    arrow(660, 326, 740, 326, COL.mute, 3);
+    chip(G, 760, 300, 'XTTS (Coqui; Casanova và cộng sự, Interspeech 2024)', {size: 26, weight: 700, color: COL.frame, stroke: COL.frame});
+  });
+  fade(G, P(t, s + d * 0.5, 0.5), () => {
+    chip(G, 760, 420, 'VALL-E (Microsoft, 2023)', {size: 26, weight: 700, color: COL.acc, stroke: COL.acc});
+    text('cùng hướng: TTS = mô hình ngôn ngữ trên token âm thanh', 960, 560, {size: 30, weight: 700, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['✗', 'mỗi giọng một mô hình, không nói được giọng lạ', COL.hl], ['✓', 'âm thanh → token, GPT viết tiếp', COL.ok], ['✓', 'đoạn mở đầu chứa giọng: nhân bản không cần học lại', COL.ok]].forEach(([m, a, c], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text(m, 380, 300 + j * 90, {size: 34, weight: 700, color: c});
+      text(a, 430, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 820, 640, 'Phần 2: bốn khối  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 1', [
+  ['nói giọng mới không cần học lại', 'zero-shot voice cloning', ''],
+  ['đoạn giọng mẫu đưa vào đầu', 'reference audio, prompt', 'khoảng 6 giây'],
+  ['đơn vị rời rạc GPT đọc và viết', 'token', 'ở đây: mã âm thanh'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'p1', to: 'p4', draw: shotPain},
+    {from: 'gpt', to: 'goal', draw: shotGpt},
+    {from: 'who', to: 'who', draw: shotWho},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/xtts-1-van-de.wav');
+</script>
+</body>
+</html>

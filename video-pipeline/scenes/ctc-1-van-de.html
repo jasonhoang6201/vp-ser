@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>CTC 1: Vấn đề</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/ctc-1-van-de.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn thành phần', '3 Trống, rút gọn', '4 Loss cộng mọi cách căn', '5 Giải mã'];
+
+function wave(x, y, w, h, seed = 1) {
+  const xs = [], ys = [];
+  for (let k = 0; k <= 160; k++) {
+    const u = k / 160, env = Math.sin(Math.PI * u) ** 0.6;
+    xs.push(x + u * w); ys.push(y + h / 2 * env * Math.sin(k * 1.7 + seed) * (0.5 + 0.5 * Math.sin(k * 0.21 + seed)));
+  }
+  poly(xs, ys, COL.mute, 2);
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('CTC', 'Phần 1/5: hệ lai có quá nhiều thành phần rời', 0, PARTS);
+
+function shotPieces(G, t) {
+  const sr = S('recap'), s1 = S('p1'), s2 = S('p2'), s3 = S('p3');
+  heading('Dựng một hệ DNN-HMM cần những gì?');
+  const items = [['GMM-HMM', s1], ['forced alignment', s1], ['từ điển phát âm', s2], ['senone, cây quyết định', s3], ['prior', s3], ['trọng số LM', s3], ['DNN', sr], ['decoder', sr]];
+  fade(G, P(t, sr + 0.3, 0.5), () => {
+    items.forEach(([l, s0], j) => {
+      const x = 220 + (j % 4) * 380, y = 250 + Math.floor(j / 4) * 90, on = t >= s0 && s0 !== sr;
+      rrect(x, y, 340, 66, 12, on ? COL.hlSoft : COL.card, on ? COL.hl : COL.line2, on ? 3 : 1.5);
+      text(l, x + 170, y + 33, {size: 26, weight: on ? 700 : 400, color: on ? COL.hl : COL.ink, align: 'center'});
+    });
+  });
+  [[s1, '1. hai hệ thống: lỗi của hệ cũ truyền sang hệ mới'], [s2, '2. chuyên gia soạn từ điển: tốn công, thiếu từ mới, tên riêng'], [s3, '3. nhiều bước chỉnh tay, không bước nào tối ưu thẳng WER']].forEach(([s0, l], j) =>
+    fade(G, P(t, s0 + 0.4, 0.5), () => text(l, 220, 520 + j * 70, {size: 28, weight: 700, color: COL.hl})));
+}
+
+function shotData(G, t) {
+  const sd = S('data'), sl = S('len'), dl = D('len'), sa = S('align'), da = D('align');
+  heading('Dữ liệu tự nhiên: cặp (âm thanh, câu chữ)');
+  fade(G, P(t, sd + 0.3, 0.5), () => {
+    wave(260, 300, 900, 120, 3);
+    text('"mai"', 1360, 300, {size: 44, weight: 700, color: COL.ok, align: 'center'});
+    text('↔', 1220, 300, {size: 40, color: COL.mute, align: 'center'});
+  });
+  fade(G, P(t, sl + 0.3, 0.5), () => {
+    const n = Math.ceil(100 * P(t, sl + 0.4, dl * 0.4));
+    for (let k = 0; k < n; k++) rrect(260 + k * 9, 420, 7, 40, 1, COL.acc + '99');
+    text('1 giây = 100 frame', 260, 490, {size: 26, weight: 700, color: COL.acc});
+    fade(G, P(t, sl + dl * 0.55, 0.5), () => {
+      'hôm nay trời'.split('').forEach((c, k) => { rrect(1240 + k * 34, 420, 30, 40, 4, COL.ok + '22', COL.ok, 1.5); text(c, 1255 + k * 34, 440, {size: 22, weight: 700, color: COL.ok, align: 'center'}); });
+      text('chỉ ~10–15 chữ cái', 1240, 490, {size: 26, weight: 700, color: COL.ok});
+    });
+  });
+  fade(G, P(t, sa + 0.3, 0.5), () => {
+    const g = Clip.g;
+    [[300, 'm'], [640, 'a'], [940, 'i']].forEach(([x, c], k) => {
+      g.save(); g.setLineDash([6, 6]);
+      line(x, 560, x + (k - 1) * 80 + 60, 700, COL.hl, 2.5);
+      g.restore();
+      text('?', x + (k - 1) * 40 + 30, 620, {size: 34, weight: 700, color: COL.hl, align: 'center'});
+      rrect(x + (k - 1) * 80 + 30, 700, 60, 60, 8, COL.ok + '22', COL.ok, 2);
+      text(c, x + (k - 1) * 80 + 60, 730, {size: 30, weight: 700, color: COL.ok, align: 'center'});
+    });
+    text('không ai đánh dấu "chữ m nằm ở frame 6 đến 12"', 1440, 700, {size: 26, weight: 700, color: COL.hl, align: 'center', maxW: 520});
+  });
+}
+
+function shotGoal(G, t) {
+  const sg = S('goal'), dg = D('goal'), se = S('e2e'), de = D('e2e');
+  heading(t < se ? 'Mục tiêu của CTC' : 'End-to-end: một mạng, frame vào, chữ ra');
+  [['mạng đoán một ký hiệu cho mỗi frame'], ['quy tắc rút gọn chuỗi frame thành câu chữ'], ['loss không cần biết ranh giới']].forEach(([a], j) =>
+    fade(G, P(t, sg + 0.5 + j * dg * 0.25, 0.5), () => {
+      text(`${j + 1}`, 400, 270 + j * 76, {size: 34, weight: 700, color: COL.frame, align: 'center'});
+      text(a, 450, 270 + j * 76, {size: 32});
+    }));
+  fade(G, P(t, se + 0.3, 0.5), () => {
+    for (let k = 0; k < 24; k++) rrect(260 + k * 14, 560, 10, 120, 2, COL.acc + '88');
+    arrow(620, 620, 720, 620, COL.mute, 3);
+    rrect(740, 560, 440, 120, 16, COL.frameSoft, COL.frame, 3);
+    text('một mạng nơ-ron', 960, 620, {size: 32, weight: 700, color: COL.frame, align: 'center'});
+    arrow(1200, 620, 1300, 620, COL.mute, 3);
+    text('"mai"', 1380, 620, {size: 40, weight: 700, color: COL.ok, align: 'center'});
+  });
+  fade(G, P(t, se + de * 0.45, 0.5), () => text('CTC: Connectionist Temporal Classification · Graves và cộng sự, 2006', 960, 760, {size: 26, color: COL.mute, align: 'center'}));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['hệ lai: GMM-HMM, từ điển, nhiều bước chỉnh tay', COL.hl, '✗'], ['học thẳng từ (âm thanh, câu chữ) thì gặp vấn đề:', COL.ink, '→'], ['độ dài lệch nhau: 100 frame và ~12 chữ', COL.ink, '·'], ['không biết chữ nào ứng frame nào', COL.ink, '·']].forEach(([a, c, m], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.4, 0.6), () => {
+      text(m, 400 + (m === '·' ? 40 : 0), 290 + j * 80, {size: 32, weight: 700, color: c});
+      text(a, 450 + (m === '·' ? 40 : 0), 290 + j * 80, {size: 30});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 780, 660, 'Phần 2: bốn thành phần của CTC  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 1', [
+  ['một mạng từ đầu đến cuối', 'end-to-end', 'frame vào, chữ ra'],
+  ['phân loại theo thời gian', 'CTC (Connectionist Temporal Classification)', 'Graves và cộng sự, 2006'],
+  ['cặp âm thanh và câu chữ', 'dữ liệu có phiên âm (transcribed)', 'không có ranh giới'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'recap', to: 'p3', draw: shotPieces},
+    {from: 'data', to: 'align', draw: shotData},
+    {from: 'goal', to: 'e2e', draw: shotGoal},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/ctc-1-van-de.wav');
+</script>
+</body>
+</html>

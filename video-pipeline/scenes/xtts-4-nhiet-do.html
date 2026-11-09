@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>XTTS · 4: Nhiệt độ</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../lib/xtts.js"></script>
+<script src="../build/xtts-4-nhiet-do.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn khối', '3 Lượng tử hóa', '4 Nhiệt độ', '5 Nhân bản giọng'];
+const TCOL = [COL.acc, COL.frame, COL.ok, COL.i, COL.hl, '#b8860b', '#4b8b9b', COL.mute];
+const GEN = {};
+const gen = T => GEN[T] || (GEN[T] = XTTS.generate(T, 1));
+
+// Probabilities of the next code after code 0; `keep` greys out codes outside the top-k.
+function bars(x, y, w, h, p, label, keep = 8) {
+  const order = p.map((v, k) => [v, k]).sort((a, b) => b[0] - a[0]).slice(0, keep).map(r => r[1]);
+  const bw = w / 8;
+  line(x, y + h, x + w, y + h, COL.line2, 2);
+  p.forEach((v, k) => {
+    const on = order.includes(k), bh = v * h;
+    rrect(x + k * bw + 6, y + h - bh, bw - 12, Math.max(2, bh), 4, on ? TCOL[k] : COL.soft);
+    text(String(k), x + (k + 0.5) * bw, y + h + 20, {size: 18, color: COL.mute, align: 'center'});
+    if (v >= 0.1) text(v.toFixed(2).replace('.', ','), x + (k + 0.5) * bw, y + h - bh - 16, {size: 18, weight: 700, color: on ? TCOL[k] : COL.mute, align: 'center'});
+  });
+  text(label, x + w / 2, y - 26, {size: 24, weight: 700, align: 'center'});
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('XTTS', 'Phần 4/5: GPT viết tiếp token âm thanh, nhiệt độ', 3, PARTS);
+
+function shotProb(G, t) {
+  const ss = S('step'), st = S('temp'), dt = D('temp');
+  heading(t < st ? 'Mỗi bước: phân phối trên 8 mã, rồi bốc mẫu' : 'Nhiệt độ: chia điểm trước softmax');
+  const L = XTTS.LOGITS[0];
+  fade(G, P(t, ss + 0.3, 0.5), () => {
+    const x = t < st ? 660 : 720;
+    bars(x, 300, 480, 300, XTTS.softmax(L, 1), 'sau mã 0, nhiệt độ 1');
+    if (t < st) {
+      rrect(300, 420, 46, 46, 8, TCOL[0]);
+      text('mã 0', 323, 490, {size: 20, color: COL.mute, align: 'center'});
+      arrow(360, 443, 640, 443, COL.mute, 3);
+    }
+  });
+  if (t >= st) {
+    fade(G, P(t, st + dt * 0.25, 0.5), () => bars(140, 300, 480, 300, XTTS.softmax(L, 0.2), 'nhiệt độ 0,2: gần như luôn mã 1'));
+    fade(G, P(t, st + dt * 0.55, 0.5), () => bars(1300, 300, 480, 300, XTTS.softmax(L, 5), 'nhiệt độ 5: gần đều'));
+  }
+}
+
+function shotGen(G, t) {
+  const sl = S('low'), sh = S('high'), sm = S('mid');
+  const T = t >= sm ? 0.8 : t >= sh ? 3 : 0.1, s0 = t >= sm ? sm : t >= sh ? sh : sl, g = gen(T);
+  heading(`Nhiệt độ ${String(T).replace('.', ',')}: 5 lần sinh 60 token`);
+  const B = {x: 260, y: 240, w: 1400}, cw = B.w / 60;
+  g.seqs.forEach((seq, n) => {
+    const shown = Math.floor(60 * P(t, s0 + 0.3 + n * 0.2, 1.6)), y = B.y + n * 76;
+    seq.slice(0, shown).forEach((k, j) => rrect(B.x + j * cw, y, cw - 2, 56, 3, TCOL[k]));
+    text(`lần ${n + 1}`, B.x - 18, y + 28, {size: 22, color: COL.mute, align: 'right'});
+  });
+  const msg = T < 0.5 ? ['vòng lặp: kéo dài một âm, lặp một tiếng', COL.hl] : T > 2 ? ['gần như ngẫu nhiên: chuỗi âm vô nghĩa, sai chữ', COL.hl] : ['có cấu trúc mà vẫn đa dạng', COL.ok];
+  fade(G, P(t, s0 + 2.2, 0.5), () => {
+    text(`số kiểu cặp "mã này → mã kia" trung bình: ${Math.round(g.distinct)}`, 960, 650, {size: 28, weight: 700, align: 'center'});
+    text(msg[0], 960, 710, {size: 30, weight: 700, color: msg[1], align: 'center'});
+  });
+}
+
+function shotTopk(G, t) {
+  const sk = S('topk'), sw = S('weak');
+  heading(t < sw ? 'Top-k, top-p: cắt đuôi lung tung' : 'Vẫn là tự hồi quy');
+  if (t < sw) {
+    fade(G, P(t, sk + 0.3, 0.5), () => bars(420, 300, 560, 300, XTTS.softmax(XTTS.LOGITS[0], 1.5), 'nhiệt độ 1,5, chỉ giữ top-3', 3));
+    fade(G, P(t, sk + 1.5, 0.5), () => text('chỉ bốc trong vài mã xác suất cao nhất', 1100, 450, {size: 26, weight: 700, color: COL.ok}));
+    return;
+  }
+  fade(G, P(t, sw + 0.3, 0.5), () => {
+    card(300, 280, 1320, 300, {stroke: COL.hl});
+    text('giống Tacotron (trang 14): sinh từng bước, dựa vào bước trước', 340, 340, {size: 28, weight: 700});
+    ['✗ bỏ chữ', '✗ lặp chữ', '✗ nói thêm âm lạ ở cuối'].forEach((l, j) => text(l, 340 + j * 400, 420, {size: 28, weight: 700, color: COL.hl}));
+    text('nhất là câu rất ngắn hoặc rất dài', 340, 500, {size: 26, color: COL.mute});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['✗', 'nhiệt độ thấp: lặp', COL.hl], ['✗', 'nhiệt độ cao: loạn', COL.hl], ['✓', 'vừa phải: đa dạng mà có cấu trúc', COL.ok]].forEach(([m, a, c], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text(m, 560, 300 + j * 90, {size: 34, weight: 700, color: c});
+      text(a, 610, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 720, 640, 'Phần 5: nhân bản giọng từ vài giây  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 4', [
+  ['độ "liều" khi bốc mẫu', 'nhiệt độ (temperature)', 'chia điểm trước softmax'],
+  ['chỉ bốc trong k mã cao nhất', 'top-k sampling', ''],
+  ['bốc trong nhóm mã cộng dồn đủ p', 'top-p (nucleus) sampling', ''],
+  ['sinh từng bước dựa bước trước', 'tự hồi quy (autoregressive)', 'có thể lặp, bỏ, bịa'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'step', to: 'temp', draw: shotProb},
+    {from: 'low', to: 'mid', draw: shotGen},
+    {from: 'topk', to: 'weak', draw: shotTopk},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/xtts-4-nhiet-do.wav');
+</script>
+</body>
+</html>

@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spectrogram từng bước</title>
+<style>
+:root{
+  --page:#fbfbfa;--bg:#ffffff;--soft:#f7f7f5;--tag:#f1f1ef;--line:#dcdbd7;--line2:#c4c2bc;
+  --ink:#37352f;--mute:#787774;--acc:#337ea9;--acc-soft:#e7f3f8;
+  --a:#448361;--s:#cb912f;--i:#9065b0;--frame:#d9730d;--hl:#d44c47;
+  --lift:0 0 0 1px rgba(15,15,15,.10),0 2px 4px rgba(15,15,15,.04),0 8px 20px rgba(15,15,15,.05);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);font:15px/1.65 Inter,"Be Vietnam Pro",system-ui,sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:28px 16px 80px}
+h1{font-size:24px;line-height:1.3;margin:0 0 6px}
+h2{font-size:18px;margin:0 0 8px;display:flex;gap:10px;align-items:baseline}
+h2 .n{display:inline-flex;justify-content:center;align-items:center;min-width:26px;height:26px;border-radius:50%;background:var(--ink);color:#fff;font-size:13px}
+p{margin:0 0 10px}
+.sub{color:var(--mute);margin:0 0 20px}
+section{background:var(--bg);box-shadow:var(--lift);border-radius:8px;padding:20px;margin:0 0 22px}
+.fig{margin:12px 0 4px}
+canvas{display:block}
+.note{border-left:3px solid var(--hl);background:#fdf3f2;padding:10px 14px;border-radius:0 6px 6px 0;margin:12px 0 0}
+.note.blue{border-color:var(--acc);background:var(--acc-soft)}
+.note b{color:var(--hl)}
+.note.blue b{color:var(--acc)}
+.ctrl{display:flex;flex-wrap:wrap;gap:10px 22px;align-items:center;margin:10px 0 0;font-size:14px}
+.ctrl label{display:flex;gap:8px;align-items:center}
+.ctrl input[type=range]{width:180px}
+.ctrl input.wide{width:min(520px,100%)}
+button{font:inherit;font-size:14px;padding:5px 12px;border:1px solid var(--line2);background:var(--bg);border-radius:6px;cursor:pointer}
+button:hover{background:var(--soft)}
+.chip{display:inline-block;padding:0 7px;border-radius:4px;font-size:13px;color:#fff}
+.mono{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:13px}
+.muted{color:var(--mute)}
+table{border-collapse:collapse;width:100%;font-size:14px;margin:8px 0}
+th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+th{background:var(--soft)}
+ol.marks{margin:8px 0 0;padding-left:0;list-style:none}
+ol.marks li{margin:0 0 6px;display:flex;gap:8px}
+ol.marks .num{flex:none;display:inline-flex;justify-content:center;align-items:center;width:22px;height:22px;border-radius:50%;background:var(--hl);color:#fff;font-size:12px;margin-top:2px}
+.pipe{width:100%;height:auto;margin:6px 0 0}
+.pipe a{cursor:pointer}
+.readout{min-height:22px;margin-top:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Spectrogram từng bước</h1>
+<p class="sub">Từ dãy số thô của micro đến một "bức ảnh" của giọng nói. Âm thanh mẫu dài 1 giây, được tổng hợp ngay trong trang (không phải giọng thật), gồm ba đoạn:
+<span class="chip" style="background:var(--a)">"a" giọng đều</span>
+<span class="chip" style="background:var(--s)">"s" tiếng xì</span>
+<span class="chip" style="background:var(--i)">"i" giọng cao dần</span>.
+Mọi hình đều được tính thật từ âm thanh này.</p>
+
+<svg class="pipe" viewBox="0 0 940 92" role="img" aria-label="Quy trình">
+  <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#787774"/></marker></defs>
+  <g font-size="13" text-anchor="middle" fill="#37352f">
+    <a href="#s1"><rect x="2" y="16" width="150" height="56" rx="8" fill="#f7f7f5" stroke="#c4c2bc"/><text x="77" y="40">① Waveform</text><text x="77" y="59" fill="#787774" font-size="12">dãy số theo thời gian</text></a>
+    <a href="#s3"><rect x="196" y="16" width="150" height="56" rx="8" fill="#f7f7f5" stroke="#c4c2bc"/><text x="271" y="40">②–④ FFT</text><text x="271" y="59" fill="#787774" font-size="12">tách ra các tần số</text></a>
+    <a href="#s5"><rect x="390" y="16" width="150" height="56" rx="8" fill="#fbeee3" stroke="#d9730d"/><text x="465" y="40">⑤ Cắt frame</text><text x="465" y="59" fill="#787774" font-size="12">25 ms, bước 10 ms</text></a>
+    <a href="#s6"><rect x="584" y="16" width="150" height="56" rx="8" fill="#fbeee3" stroke="#d9730d"/><text x="659" y="40">⑥ FFT từng frame</text><text x="659" y="59" fill="#787774" font-size="12">mỗi frame → 1 cột</text></a>
+    <a href="#s7"><rect x="778" y="16" width="160" height="56" rx="8" fill="#e7f3f8" stroke="#337ea9"/><text x="858" y="40">⑦–⑧ Spectrogram</text><text x="858" y="59" fill="#787774" font-size="12">xếp các cột cạnh nhau</text></a>
+  </g>
+  <g stroke="#787774" stroke-width="1.5" marker-end="url(#ar)"><line x1="154" y1="44" x2="192" y2="44"/><line x1="348" y1="44" x2="386" y2="44"/><line x1="542" y1="44" x2="580" y2="44"/><line x1="736" y1="44" x2="774" y2="44"/></g>
+</svg>
+
+<section id="s1">
+<h2><span class="n">1</span>Âm thanh trong máy là một dãy số</h2>
+<p>Micro đo áp suất không khí <b>16.000 lần mỗi giây</b> (16 kHz). Mỗi lần đo cho ra một số, gọi là một <b>sample</b>. Vẽ các số đó theo thời gian ta được <b>waveform</b>.</p>
+<div class="fig"><canvas id="c1a"></canvas></div>
+<div class="fig"><canvas id="c1b"></canvas></div>
+<div class="ctrl"><button data-play="x">▶ Nghe âm thanh mẫu</button></div>
+<div class="note"><b>Khoanh vùng:</b> khung đỏ ở hình trên là 3 ms được phóng to ở hình dưới. Mỗi chấm là <b>1 số</b>. Chỉ 3 ms đã có 48 số, cả câu 1 giây có 16.000 số. Nhìn dãy số này thì không thể biết người ta đang nói "a" hay "i". Ở hình trên chỉ thấy được chỗ nào to, chỗ nào im lặng.</div>
+</section>
+
+<section id="s2">
+<h2><span class="n">2</span>Một âm thanh là nhiều sóng sin cộng lại</h2>
+<p>Mỗi sóng sin có một <b>tần số</b> (Hz, số lần dao động mỗi giây; tần số cao thì nghe "the thé", tần số thấp thì nghe "trầm") và một <b>biên độ</b> (độ to). Âm thanh thật là tổng của nhiều sóng như vậy. Kéo thanh trượt để xem tổng thay đổi thế nào.</p>
+<div class="fig"><canvas id="c2"></canvas></div>
+<div class="ctrl" id="ctl2"></div>
+<div class="ctrl"><button data-play="sum">▶ Nghe tổng</button></div>
+<div class="note"><b>Khoanh vùng:</b> dòng cuối (màu đen) là thứ micro thực sự ghi được. Micro <b>không</b> ghi riêng từng sóng màu, nó chỉ ghi ra tổng. Câu hỏi: chỉ từ đường màu đen, làm sao biết bên trong có những sóng nào?</div>
+</section>
+
+<section id="s3">
+<h2><span class="n">3</span>FFT: tách tổng ra thành từng tần số</h2>
+<p><b>FFT</b> (Fast Fourier Transform) là phép toán trả lời câu hỏi ở bước 2. Đưa vào đường màu đen, FFT trả ra: <b>ở mỗi tần số có bao nhiêu năng lượng</b>. Kết quả này gọi là <b>phổ</b> (spectrum). Hình dưới là FFT tính thật từ đường màu đen ở bước 2.</p>
+<div class="fig"><canvas id="c3"></canvas></div>
+<div class="note"><b>Khoanh vùng:</b> mỗi đỉnh nhọn nằm đúng ở tần số của một sóng màu, và đỉnh càng cao thì sóng đó càng to. Thử kéo thanh trượt ở bước 2 rồi xem các đỉnh di chuyển. Trục ngang của phổ là <b>tần số</b>, không phải thời gian.</div>
+</section>
+
+<section id="s4">
+<h2><span class="n">4</span>Vấn đề: FFT cả câu thì mất thứ tự thời gian</h2>
+<p>Thử FFT nguyên câu 1 giây. Đường xanh là phổ của câu phát xuôi, đường cam đứt nét là phổ của câu <b>phát ngược</b>. Hai đường trùng khít nhau.</p>
+<div class="fig"><canvas id="c4"></canvas></div>
+<div class="ctrl"><button data-play="x">▶ Phát xuôi</button><button data-play="rev">▶ Phát ngược</button></div>
+<div class="note"><b>Khoanh vùng:</b> phổ cho biết câu có năng lượng ở vùng thấp (do "a", "i") và vùng cao (do "s"), nhưng <b>không cho biết cái nào đến trước</b>. Phát xuôi và phát ngược nghe khác hẳn, nhưng phổ giống hệt. Giọng nói thay đổi liên tục, nên ta cần biết <b>tần số nào xuất hiện vào lúc nào</b>. Cách giải quyết nằm ở bước 5.</div>
+</section>
+
+<section id="s5">
+<h2><span class="n">5</span>Cắt câu thành nhiều frame ngắn</h2>
+<p>Cắt âm thanh thành các khúc ngắn <b>25 ms</b> (400 sample), gọi là <b>frame</b>. Frame sau bắt đầu cách frame trước <b>10 ms</b> (160 sample), nên hai frame liền nhau chồng lên nhau 15 ms. Một giây cho ra <span id="nf"></span> frame. Trong 25 ms, giọng nói gần như không đổi, nên FFT của một frame là "ảnh chụp nhanh" tại thời điểm đó.</p>
+<div class="fig"><canvas id="c5a"></canvas></div>
+<div class="fig"><canvas id="c5b"></canvas></div>
+<div class="ctrl"><label>Chọn frame <input type="range" class="wide" id="fr5" min="0" value="20"></label><span class="mono" id="fr5t"></span></div>
+<div class="note"><b>Khoanh vùng:</b> hình trên là cả câu, khung cam là frame đang chọn. Hình dưới phóng to 80 ms quanh frame đó: <span style="color:var(--frame)"><b>khung cam</b></span> là frame hiện tại, hai khung xám đứt nét là frame trước và sau. Đường cam đứt nét là <b>cửa sổ Hann</b>: nhân frame với đường này để hai đầu frame giảm dần về 0, tránh "vết cắt" làm phổ bị nhiễu.</div>
+</section>
+
+<section id="s6">
+<h2><span class="n">6</span>FFT từng frame, rồi tô thành một cột màu</h2>
+<p>FFT frame đang chọn ra một phổ. Ở đây phổ được vẽ <b>dựng đứng</b>: trục dọc là tần số (thấp ở dưới, cao ở trên), thanh càng dài thì tần số đó càng mạnh. Sau đó bỏ độ dài thanh đi, chỉ giữ <b>màu</b>: mạnh thì đậm, yếu thì nhạt. Kết quả là một <b>cột màu</b>.</p>
+<div class="fig"><canvas id="c6"></canvas></div>
+<div class="ctrl"><label>Chọn frame <input type="range" class="wide" id="fr6" min="0" value="20"></label><span class="mono" id="fr6t"></span></div>
+<div class="note"><b>Khoanh vùng:</b> các mũi tên nối từng đỉnh của phổ sang ô đậm tương ứng trên cột màu. Thử chọn frame trong đoạn <span style="color:var(--a)">"a"</span>, đoạn <span style="color:var(--s)">"s"</span> và đoạn <span style="color:var(--i)">"i"</span>: đoạn "a" và "i" có nhiều đỉnh nhọn cách đều nhau ở dưới 4000 Hz, còn đoạn "s" có năng lượng trải đều ở trên 4000 Hz.</div>
+</section>
+
+<section id="s7">
+<h2><span class="n">7</span>Xếp các cột cạnh nhau: spectrogram</h2>
+<p>Làm bước 6 cho <b>mọi</b> frame rồi xếp các cột màu cạnh nhau theo thời gian, ta được <b>spectrogram</b>. Mỗi ô có ba thông tin: <b>vị trí ngang</b> cho biết thời gian, <b>vị trí dọc</b> cho biết tần số, <b>màu</b> cho biết độ mạnh. Rê chuột (hoặc chạm) lên hình để đọc từng ô.</p>
+<div class="fig"><canvas id="c7"></canvas></div>
+<div class="readout mono" id="ro7">Rê chuột lên hình để đọc giá trị một ô.</div>
+<div class="ctrl"><label>Chọn frame <input type="range" class="wide" id="fr7" min="0" value="20"></label><span class="mono" id="fr7t"></span></div>
+<div class="note"><b>Khoanh vùng:</b> khung cam là đúng cột màu của frame ở bước 6. Ba thanh trượt ở bước 5, 6, 7 được liên kết với nhau: kéo một cái thì cả ba hình cùng đổi. Giờ nhìn được cùng lúc <b>lúc nào</b> (trục ngang) có <b>tần số nào</b> (trục dọc). Đây là thứ FFT nguyên câu ở bước 4 không làm được.</div>
+</section>
+
+<section id="s8">
+<h2><span class="n">8</span>Đọc spectrogram</h2>
+<p>Cùng spectrogram ở bước 7, có khoanh các vùng cần nhận ra:</p>
+<div class="fig"><canvas id="c8"></canvas></div>
+<ol class="marks">
+<li><span class="num">1</span><span><b>Vạch ngang cách đều nhau = họa âm.</b> Dây thanh rung ở một tần số cơ bản f0, tạo thêm các bội số 2·f0, 3·f0, ... Mỗi bội số là một vạch.</span></li>
+<li><span class="num">2</span><span><b>Vạch thấp nhất (khoảng 200 Hz) = cao độ (pitch, f0).</b> Đây là thứ tai nghe thành "giọng cao hay trầm".</span></li>
+<li><span class="num">3</span><span><b>Các vạch đi lên = giọng cao dần</b> (f0 từ 200 lên 320 Hz). Khi phấn khích hoặc tức giận, giọng thường cao lên: đây là một tín hiệu mà <b>SER</b> dùng.</span></li>
+<li><span class="num">4</span><span><b>Dải đậm (formant) ở các vị trí khác nhau.</b> "a" đậm quanh 800 và 1250 Hz, "i" đậm quanh 300 và 2300 Hz. Vị trí formant do miệng và lưỡi tạo ra, và quyết định <b>đang nói âm gì</b>: đây là thứ <b>ASR</b> dùng.</span></li>
+<li><span class="num">5</span><span><b>Tiếng xì: năng lượng rải đều ở tần số cao, không có vạch</b>, vì "s" do hơi xì qua răng tạo ra chứ không do dây thanh rung.</span></li>
+<li><span class="num">6</span><span><b>Trắng = im lặng.</b></span></li>
+</ol>
+<div class="note blue"><b>Liên hệ đề tài:</b> cùng một bức ảnh chứa cả hai loại thông tin. Vị trí formant (4) cho biết <b>nói gì</b>, đó là phần của ASR. Đường đi của cao độ (2, 3) và độ đậm cho biết <b>nói thế nào</b>, đó là phần của SER. Vì vậy một model đọc spectrogram có thể học cả hai việc cùng lúc. Whisper và SenseVoice nhận vào đúng loại ảnh này, chỉ khác là trục dọc được co lại theo <b>thang Mel</b> (bài tiếp theo).</div>
+</section>
+
+<section>
+<h2>Tóm tắt</h2>
+<table>
+<tr><th>Dạng</th><th>Trục ngang</th><th>Trục dọc / màu</th><th>Thiếu gì</th></tr>
+<tr><td>Waveform (bước 1)</td><td>thời gian</td><td>giá trị sample</td><td>không thấy tần số</td></tr>
+<tr><td>Phổ, FFT cả câu (bước 3–4)</td><td>tần số</td><td>độ mạnh</td><td>không thấy thời gian</td></tr>
+<tr><td>Spectrogram (bước 7)</td><td>thời gian</td><td>dọc: tần số, màu: độ mạnh</td><td>có cả hai</td></tr>
+</table>
+<p class="muted">Thông số dùng trong trang: sample rate 16 kHz, frame 25 ms (400 sample), bước 10 ms (160 sample), cửa sổ Hann, FFT 1024 điểm (frame được đệm thêm số 0), màu theo thang dB và cắt ở 70 dB dưới đỉnh.</p>
+</section>
+</div>
+
+<script>
+const SR = 16000, N = SR;
+const WIN = 400, HOP = 160, NFFT = 1024, FMAX = 8000, DB_RANGE = 70;
+const C = {ink:'#37352f', mute:'#787774', line:'#dcdbd7', acc:'#337ea9', a:'#448361', s:'#cb912f', i:'#9065b0', frame:'#d9730d', hl:'#d44c47'};
+const SEG = [
+  {k:'a', t0:0.03, t1:0.38, label:'"a" giọng đều'},
+  {k:'s', t0:0.42, t1:0.55, label:'"s" tiếng xì'},
+  {k:'i', t0:0.58, t1:0.95, label:'"i" giọng cao dần'},
+];
+
+function fft(re, im) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let b = n >> 1;
+    for (; j & b; b >>= 1) j ^= b;
+    j ^= b;
+    if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang), h = len >> 1;
+    for (let i = 0; i < n; i += len) {
+      let cr = 1, ci = 0;
+      for (let k = 0; k < h; k++) {
+        const p = i + k, q = p + h;
+        const vr = re[q] * cr - im[q] * ci, vi = re[q] * ci + im[q] * cr;
+        re[q] = re[p] - vr; im[q] = im[p] - vi;
+        re[p] += vr; im[p] += vi;
+        const t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t;
+      }
+    }
+  }
+}
+
+function magSpec(sig, start, len, nfft, win) {
+  const re = new Float64Array(nfft), im = new Float64Array(nfft);
+  for (let n = 0; n < len && start + n < sig.length; n++) re[n] = sig[start + n] * (win ? win[n] : 1);
+  fft(re, im);
+  const m = new Float64Array(nfft / 2 + 1);
+  for (let k = 0; k <= nfft / 2; k++) m[k] = Math.hypot(re[k], im[k]);
+  return m;
+}
+const toDb = m => Float64Array.from(m, v => 20 * Math.log10(v + 1e-9));
+
+// Synthetic speech-like signal: harmonic "vowels" shaped by formant bumps, plus high-passed noise for "s".
+const gauss = (f, c, w) => Math.exp(-0.5 * ((f - c) / w) ** 2);
+const taper = f => f < 3500 ? 1 : Math.max(0, (4000 - f) / 500);
+const envA = f => 0.06 + gauss(f, 800, 160) + 0.8 * gauss(f, 1250, 180) + 0.25 * gauss(f, 2600, 220);
+const envI = f => 0.06 + gauss(f, 300, 110) + 0.7 * gauss(f, 2300, 220) + 0.4 * gauss(f, 3000, 220);
+const fade = (t, t0, t1) => Math.max(0, Math.min(1, (t - t0) / 0.015, (t1 - t) / 0.015));
+
+const x = new Float32Array(N);
+function addVoiced(t0, t1, f0a, f0b, env) {
+  const ph = new Float64Array(40);
+  for (let n = Math.floor(t0 * SR); n < t1 * SR; n++) {
+    const t = n / SR, f0 = f0a + (f0b - f0a) * (t - t0) / (t1 - t0);
+    let v = 0;
+    for (let k = 1; k < 40; k++) {
+      const f = k * f0;
+      ph[k] += 2 * Math.PI * f / SR;
+      if (f < 4000) v += env(f) * taper(f) * Math.sin(ph[k]) / Math.sqrt(k);
+    }
+    x[n] += fade(t, t0, t1) * v;
+  }
+}
+addVoiced(SEG[0].t0, SEG[0].t1, 200, 200, envA);
+addVoiced(SEG[2].t0, SEG[2].t1, 200, 320, envI);
+{
+  let seed = 7, p1 = 0, p2 = 0;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647 * 2 - 1;
+  for (let n = Math.floor(SEG[1].t0 * SR); n < SEG[1].t1 * SR; n++) {
+    const w = rnd(), d1 = w - p1, d2 = d1 - p2;
+    p1 = w; p2 = d1;
+    x[n] += 0.45 * fade(n / SR, SEG[1].t0, SEG[1].t1) * d2;
+  }
+}
+{
+  let mx = 0;
+  for (const v of x) mx = Math.max(mx, Math.abs(v));
+  for (let n = 0; n < N; n++) x[n] *= 0.9 / mx;
+}
+const xRev = Float32Array.from(x).reverse();
+
+const hann = Float64Array.from({length: WIN}, (_, n) => 0.5 - 0.5 * Math.cos(2 * Math.PI * n / (WIN - 1)));
+const NF = Math.floor((N - WIN) / HOP) + 1;
+const SPEC = [];
+for (let f = 0; f < NF; f++) SPEC.push(toDb(magSpec(x, f * HOP, WIN, NFFT, hann)));
+let GMAX = -Infinity;
+for (const s of SPEC) for (const v of s) GMAX = Math.max(GMAX, v);
+const norm = v => Math.max(0, Math.min(1, (v - (GMAX - DB_RANGE)) / DB_RANGE));
+const BINS = NFFT / 2 + 1, BIN_HZ = SR / NFFT;
+
+const STOPS = [[0, [251, 251, 250]], [0.35, [201, 225, 238]], [0.6, [90, 160, 200]], [0.8, [44, 95, 138]], [1, [27, 42, 73]]];
+function cmap(v) {
+  for (let j = 1; j < STOPS.length; j++) {
+    if (v <= STOPS[j][0]) {
+      const [a, ca] = STOPS[j - 1], [b, cb] = STOPS[j], u = (v - a) / (b - a);
+      return ca.map((c, k) => Math.round(c + (cb[k] - c) * u));
+    }
+  }
+  return STOPS[STOPS.length - 1][1];
+}
+const rgb = c => `rgb(${c[0]},${c[1]},${c[2]})`;
+
+const IMG = document.createElement('canvas');
+IMG.width = NF; IMG.height = BINS;
+{
+  const g = IMG.getContext('2d'), d = g.createImageData(NF, BINS);
+  for (let f = 0; f < NF; f++) for (let k = 0; k < BINS; k++) {
+    const c = cmap(norm(SPEC[f][k])), p = ((BINS - 1 - k) * NF + f) * 4;
+    d.data[p] = c[0]; d.data[p + 1] = c[1]; d.data[p + 2] = c[2]; d.data[p + 3] = 255;
+  }
+  g.putImageData(d, 0, 0);
+}
+
+function setup(id, h) {
+  const c = document.getElementById(id), w = c.parentElement.clientWidth, d = window.devicePixelRatio || 1;
+  c.width = w * d; c.height = h * d; c.style.width = w + 'px'; c.style.height = h + 'px';
+  const g = c.getContext('2d');
+  g.setTransform(d, 0, 0, d, 0, 0);
+  g.font = '12px Inter, system-ui, sans-serif';
+  g.textBaseline = 'middle';
+  return {c, g, w, h};
+}
+function text(g, s, x, y, color = C.mute, align = 'left', bold = false) {
+  g.fillStyle = color; g.textAlign = align;
+  g.font = (bold ? '600 ' : '') + '12px Inter, system-ui, sans-serif';
+  g.fillText(s, x, y);
+}
+function dashRect(g, x0, y0, w, h, color, lw = 2, dash = [6, 4]) {
+  g.save(); g.strokeStyle = color; g.lineWidth = lw; g.setLineDash(dash); g.strokeRect(x0, y0, w, h); g.restore();
+}
+function arrow(g, x0, y0, x1, y1, color) {
+  g.save(); g.strokeStyle = color; g.fillStyle = color; g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+  const a = Math.atan2(y1 - y0, x1 - x0);
+  g.beginPath(); g.moveTo(x1, y1);
+  g.lineTo(x1 - 8 * Math.cos(a - 0.4), y1 - 8 * Math.sin(a - 0.4));
+  g.lineTo(x1 - 8 * Math.cos(a + 0.4), y1 - 8 * Math.sin(a + 0.4));
+  g.closePath(); g.fill(); g.restore();
+}
+function waveEnvelope(g, sig, i0, i1, box, color = C.ink) {
+  const mid = box.t + box.h / 2, amp = box.h / 2 * 0.95, n = i1 - i0;
+  g.strokeStyle = color; g.lineWidth = 1; g.beginPath();
+  for (let p = 0; p < box.w; p++) {
+    const a = i0 + Math.floor(p * n / box.w), b = Math.max(a + 1, i0 + Math.floor((p + 1) * n / box.w));
+    let mn = 1, mx = -1;
+    for (let k = a; k < b; k++) { mn = Math.min(mn, sig[k]); mx = Math.max(mx, sig[k]); }
+    g.moveTo(box.l + p + 0.5, mid - mx * amp); g.lineTo(box.l + p + 0.5, mid - mn * amp + 0.5);
+  }
+  g.stroke();
+}
+function timeAxis(g, box, t0, t1, step, fmt) {
+  g.strokeStyle = C.line; g.beginPath(); g.moveTo(box.l, box.t + box.h); g.lineTo(box.l + box.w, box.t + box.h); g.stroke();
+  for (let t = Math.ceil(t0 / step - 1e-9) * step; t <= t1 + 1e-9; t += step) {
+    const px = box.l + (t - t0) / (t1 - t0) * box.w;
+    g.beginPath(); g.moveTo(px, box.t + box.h); g.lineTo(px, box.t + box.h + 4); g.stroke();
+    text(g, fmt(t), px, box.t + box.h + 13, C.mute, 'center');
+  }
+}
+function shadeSegs(g, box, t0, t1) {
+  for (const s of SEG) {
+    const a = box.l + (Math.max(s.t0, t0) - t0) / (t1 - t0) * box.w, b = box.l + (Math.min(s.t1, t1) - t0) / (t1 - t0) * box.w;
+    if (b <= a) continue;
+    g.fillStyle = C[s.k] + '14'; g.fillRect(a, box.t, b - a, box.h);
+    text(g, s.label, (a + b) / 2, box.t + 9, C[s.k], 'center', true);
+  }
+}
+
+let actx;
+function play(sig) {
+  actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+  const b = actx.createBuffer(1, sig.length, SR);
+  b.copyToChannel(sig, 0);
+  const src = actx.createBufferSource();
+  src.buffer = b; src.connect(actx.destination); src.start();
+}
+
+const ZOOM_T = 0.2, ZOOM_N = 48;
+function draw1() {
+  const A = setup('c1a', 170), box = {l: 28, t: 4, w: A.w - 56, h: 118};
+  shadeSegs(A.g, box, 0, 1);
+  waveEnvelope(A.g, x, 0, N, {l: box.l, t: box.t + 16, w: box.w, h: box.h - 16});
+  timeAxis(A.g, box, 0, 1, 0.1, t => t.toFixed(1) + ' s');
+  const zx = box.l + ZOOM_T * box.w;
+  dashRect(A.g, zx - 3, box.t + 16, Math.max(6, ZOOM_N / N * box.w), box.h - 16, C.hl, 2, []);
+  text(A.g, '↑ khung đỏ: 3 ms, phóng to ở hình dưới', zx, box.t + box.h + 32, C.hl, 'center', true);
+
+  const B = setup('c1b', 170), b2 = {l: 40, t: 14, w: B.w - 56, h: 128}, g = B.g;
+  const i0 = Math.floor(ZOOM_T * SR), mid = b2.t + b2.h / 2;
+  let mx = 0;
+  for (let k = 0; k < ZOOM_N; k++) mx = Math.max(mx, Math.abs(x[i0 + k]));
+  const amp = b2.h / 2 * 0.9 / mx;
+  dashRect(g, 2, 2, B.w - 4, B.h - 4, C.hl, 2, []);
+  g.strokeStyle = C.line; g.beginPath(); g.moveTo(b2.l, mid); g.lineTo(b2.l + b2.w, mid); g.stroke();
+  for (let k = 0; k < ZOOM_N; k++) {
+    const px = b2.l + (k + 0.5) / ZOOM_N * b2.w, py = mid - x[i0 + k] * amp;
+    g.strokeStyle = '#c4c2bc'; g.beginPath(); g.moveTo(px, mid); g.lineTo(px, py); g.stroke();
+    g.fillStyle = C.acc; g.beginPath(); g.arc(px, py, 3, 0, 7); g.fill();
+    if (k % 8 === 2) text(g, x[i0 + k].toFixed(2), px, py + (x[i0 + k] > 0 ? -11 : 11), C.ink, 'center');
+  }
+  text(g, '0', b2.l - 8, mid, C.mute, 'right');
+  text(g, `48 sample = 3 ms, mỗi chấm cách nhau 1/16000 giây`, b2.l, B.h - 12, C.mute);
+}
+
+const COMP = [{f: 200, a: 1, c: '#337ea9'}, {f: 500, a: 0.6, c: '#448361'}, {f: 1100, a: 0.35, c: '#cb912f'}];
+function sumSignal(len) {
+  const out = new Float32Array(len);
+  for (let n = 0; n < len; n++) {
+    let v = 0;
+    for (const p of COMP) v += p.a * Math.sin(2 * Math.PI * p.f * n / SR);
+    out[n] = v;
+  }
+  return out;
+}
+function buildCtl2() {
+  const el = document.getElementById('ctl2');
+  COMP.forEach((p, j) => {
+    el.insertAdjacentHTML('beforeend',
+      `<label><span class="chip" style="background:${p.c}">sóng ${j + 1}</span>tần số <input type="range" min="100" max="2000" step="50" value="${p.f}" data-j="${j}" data-k="f"><span class="mono" id="v2f${j}"></span></label>` +
+      `<label>độ to <input type="range" min="0" max="1" step="0.05" value="${p.a}" data-j="${j}" data-k="a" style="width:110px"><span class="mono" id="v2a${j}"></span></label><span style="flex-basis:100%;height:0"></span>`);
+  });
+  el.addEventListener('input', e => {
+    const t = e.target; if (!t.dataset.k) return;
+    COMP[+t.dataset.j][t.dataset.k] = +t.value;
+    draw2(); draw3();
+  });
+}
+function draw2() {
+  COMP.forEach((p, j) => {
+    document.getElementById('v2f' + j).textContent = p.f + ' Hz';
+    document.getElementById('v2a' + j).textContent = p.a.toFixed(2);
+  });
+  const R = setup('c2', 320), g = R.g, l = 70, w = R.w - l - 10, T = 0.01, len = Math.round(T * SR);
+  const rows = [...COMP.map((p, j) => ({h: 52, lab: `sóng ${j + 1}`, c: p.c, fn: n => p.a * Math.sin(2 * Math.PI * p.f * n / SR), sc: 1})),
+    {h: 100, lab: 'tổng', c: C.ink, fn: n => COMP.reduce((v, p) => v + p.a * Math.sin(2 * Math.PI * p.f * n / SR), 0), sc: Math.max(0.3, COMP.reduce((v, p) => v + p.a, 0))}];
+  let y = 4;
+  rows.forEach((r, j) => {
+    if (j === 3) {
+      text(g, '+ cộng lại ↓', l, y + 4, C.mute); y += 14;
+      dashRect(g, l - 4, y - 2, w + 8, r.h + 4, C.hl, 2, []);
+    }
+    const mid = y + r.h / 2, amp = r.h / 2 * 0.85 / r.sc;
+    g.strokeStyle = C.line; g.beginPath(); g.moveTo(l, mid); g.lineTo(l + w, mid); g.stroke();
+    g.strokeStyle = r.c; g.lineWidth = j === 3 ? 2 : 1.5; g.beginPath();
+    for (let p = 0; p <= w; p++) { const n = p / w * len, v = r.fn(n); p ? g.lineTo(l + p, mid - v * amp) : g.moveTo(l, mid - v * amp); }
+    g.stroke(); g.lineWidth = 1;
+    text(g, r.lab, l - 10, mid, r.c, 'right', true);
+    y += r.h + 4;
+  });
+  text(g, '0 ms', l, R.h - 10, C.mute, 'left'); text(g, '10 ms', l + w, R.h - 10, C.mute, 'right');
+}
+
+function draw3() {
+  const R = setup('c3', 240), g = R.g, box = {l: 40, t: 44, w: R.w - 84, h: 150}, F = 2500, L = 2048;
+  const sig = sumSignal(L), win = Float64Array.from({length: L}, (_, n) => 0.5 - 0.5 * Math.cos(2 * Math.PI * n / (L - 1)));
+  const m = magSpec(sig, 0, L, L, win), kmax = Math.floor(F / (SR / L));
+  let mx = 1e-9;
+  for (let k = 0; k <= kmax; k++) mx = Math.max(mx, m[k]);
+  const ref = Math.max(mx, L / 4) / 0.85;
+  g.fillStyle = '#e7f3f8'; g.strokeStyle = C.acc; g.beginPath(); g.moveTo(box.l, box.t + box.h);
+  for (let k = 0; k <= kmax; k++) g.lineTo(box.l + k / kmax * box.w, box.t + box.h - m[k] / ref * box.h);
+  g.lineTo(box.l + box.w, box.t + box.h); g.closePath(); g.fill(); g.stroke();
+  for (let f = 0; f <= F; f += 500) {
+    const px = box.l + f / F * box.w;
+    text(g, f + ' Hz', px, box.t + box.h + 13, C.mute, 'center');
+  }
+  text(g, 'tần số →', box.l + box.w, box.t + box.h + 28, C.mute, 'right');
+  text(g, 'độ mạnh ↑', 0, 10, C.mute, 'left');
+  COMP.forEach((p, j) => {
+    if (p.a < 0.02 || p.f > F) return;
+    const px = box.l + p.f / F * box.w, h = p.a * (L / 4) / ref * box.h, py = box.t + box.h - h;
+    dashRect(g, px - 12, py - 6, 24, h + 6, p.c, 2, [4, 3]);
+    text(g, `sóng ${j + 1}: ${p.f} Hz`, px, py - 14 - (j % 2) * 15, p.c, 'center', true);
+  });
+  R.c.style.marginBottom = '14px';
+}
+
+function draw4() {
+  const R = setup('c4', 220), g = R.g, box = {l: 46, t: 18, w: R.w - 80, h: 160}, L = 16384;
+  const m1 = toDb(magSpec(x, 0, N, L)), m2 = toDb(magSpec(xRev, 0, N, L)), kmax = L / 2;
+  let mx = -Infinity;
+  for (const v of m1) mx = Math.max(mx, v);
+  const lo = mx - 70, yOf = v => box.t + box.h - Math.max(0, (v - lo) / 70) * box.h;
+  const line = (m, color, dash) => {
+    g.save(); g.strokeStyle = color; g.lineWidth = 1.5; g.setLineDash(dash); g.beginPath();
+    for (let p = 0; p < box.w; p++) {
+      const a = Math.floor(p / box.w * kmax), b = Math.floor((p + 1) / box.w * kmax);
+      let v = -Infinity; for (let k = a; k <= b; k++) v = Math.max(v, m[k]);
+      p ? g.lineTo(box.l + p, yOf(v)) : g.moveTo(box.l, yOf(v));
+    }
+    g.stroke(); g.restore();
+  };
+  line(m1, C.acc, []); line(m2, C.frame, [5, 4]);
+  for (let f = 0; f <= FMAX; f += 1000) text(g, f / 1000 + ' kHz', box.l + f / FMAX * box.w, box.t + box.h + 13, C.mute, 'center');
+  text(g, 'dB', box.l - 8, box.t, C.mute, 'right');
+  const xa = box.l + 4000 / FMAX * box.w;
+  dashRect(g, box.l + 2, box.t - 14, xa - box.l - 6, box.h + 12, C.hl);
+  text(g, 'năng lượng của "a" và "i"', box.l + 8, box.t - 4, C.hl, 'left', true);
+  dashRect(g, xa + 4, box.t - 14, box.l + box.w - xa - 6, box.h + 12, C.hl);
+  text(g, 'năng lượng của "s"', xa + 10, box.t - 4, C.hl, 'left', true);
+  text(g, '"a" trước hay "s" trước? Phổ không trả lời được.', box.l + box.w / 2, R.h - 10, C.ink, 'center', true);
+  g.fillStyle = C.acc; g.fillRect(box.l + box.w - 210, box.t + 14, 18, 3); text(g, 'phát xuôi', box.l + box.w - 186, box.t + 16, C.ink);
+  g.fillStyle = C.frame; g.fillRect(box.l + box.w - 110, box.t + 14, 18, 3); text(g, 'phát ngược', box.l + box.w - 86, box.t + 16, C.ink);
+}
+
+let FR = 20;
+const frameTime = f => [f * HOP / SR, (f * HOP + WIN) / SR];
+const segOf = t => SEG.find(s => t >= s.t0 && t < s.t1);
+function frameLabel(f) {
+  const [a, b] = frameTime(f), s = segOf((a + b) / 2);
+  return `frame #${f}: ${(a * 1000).toFixed(0)}–${(b * 1000).toFixed(0)} ms` + (s ? ` (đoạn ${s.label.split(' ')[0]})` : ' (im lặng)');
+}
+function draw5() {
+  const A = setup('c5a', 110), box = {l: 28, t: 4, w: A.w - 56, h: 80};
+  shadeSegs(A.g, box, 0, 1);
+  waveEnvelope(A.g, x, 0, N, {l: box.l, t: box.t + 16, w: box.w, h: box.h - 16});
+  timeAxis(A.g, box, 0, 1, 0.1, t => t.toFixed(1) + ' s');
+  const [a, b] = frameTime(FR);
+  A.g.fillStyle = C.frame + '33'; A.g.fillRect(box.l + a * box.w, box.t, Math.max(3, (b - a) * box.w), box.h);
+  dashRect(A.g, box.l + a * box.w - 1, box.t, Math.max(4, (b - a) * box.w) + 2, box.h, C.frame, 2, []);
+
+  const B = setup('c5b', 200), g = B.g, z = {l: 10, t: 34, w: B.w - 20, h: 120};
+  const span = 0.08, c = (a + b) / 2, z0 = Math.max(0, Math.min(1 - span, c - span / 2)), z1 = z0 + span;
+  const X = t => z.l + (t - z0) / span * z.w;
+  const i0 = Math.round(z0 * SR), i1 = Math.round(z1 * SR);
+  let mx = 1e-6;
+  for (let k = i0; k < i1; k++) mx = Math.max(mx, Math.abs(x[k]));
+  const mid = z.t + z.h / 2, amp = z.h / 2 * 0.85 / mx;
+  for (const d of [-1, 1]) {
+    const f = FR + d; if (f < 0 || f >= NF) continue;
+    const [p, q] = frameTime(f), yo = d < 0 ? -6 : 6;
+    dashRect(g, X(p), z.t + yo, X(q) - X(p), z.h, '#9b9a97', 1.5, [5, 4]);
+    text(g, d < 0 ? 'frame trước' : 'frame sau', d < 0 ? X(p) + 4 : X(q) - 4, d < 0 ? z.t - 14 : z.t + z.h + 16, C.mute, d < 0 ? 'left' : 'right');
+  }
+  g.fillStyle = C.frame + '18'; g.fillRect(X(a), z.t, X(b) - X(a), z.h);
+  g.strokeStyle = C.ink; g.lineWidth = 1; g.beginPath();
+  for (let p = 0; p <= z.w; p++) { const k = Math.min(N - 1, i0 + Math.floor(p / z.w * (i1 - i0))); p ? g.lineTo(z.l + p, mid - x[k] * amp) : g.moveTo(z.l, mid - x[k] * amp); }
+  g.stroke();
+  g.save(); g.strokeStyle = C.frame; g.setLineDash([4, 3]); g.lineWidth = 1.5; g.beginPath();
+  for (let n = 0; n < WIN; n += 4) { const px = X(a + n / SR), py = z.t + z.h - hann[n] * z.h * 0.95; n ? g.lineTo(px, py) : g.moveTo(px, py); }
+  g.stroke(); g.restore();
+  dashRect(g, X(a), z.t, X(b) - X(a), z.h, C.frame, 2.5, []);
+  const ya = z.t + z.h + 30;
+  arrow(g, (X(a) + X(b)) / 2, ya, X(a), ya, C.frame); arrow(g, (X(a) + X(b)) / 2, ya, X(b), ya, C.frame);
+  text(g, '25 ms = 400 sample', (X(a) + X(b)) / 2, ya + 12, C.frame, 'center', true);
+  const [p] = frameTime(FR + 1 < NF ? FR + 1 : FR);
+  if (FR + 1 < NF) {
+    const yb = z.t - 24;
+    arrow(g, X(a), yb, X(p), yb, C.mute);
+    text(g, 'bước 10 ms', X(p) + 6, yb, C.mute, 'left', true);
+  }
+}
+
+function draw6() {
+  const R = setup('c6', 330), g = R.g, top = 16, ph = 280, bot = top + ph;
+  const colW = 40, gap = 120, specW = Math.min(420, R.w - 60 - gap - colW - 120);
+  const sl = 56, cx = sl + specW + gap;
+  const Y = f => bot - f / FMAX * ph;
+  const s = SPEC[FR];
+  for (let f = 0; f <= FMAX; f += 1000) {
+    text(g, f + ' Hz', sl - 8, Y(f), C.mute, 'right');
+    g.strokeStyle = '#efefed'; g.beginPath(); g.moveTo(sl, Y(f)); g.lineTo(sl + specW, Y(f)); g.stroke();
+  }
+  g.fillStyle = '#e7f3f8'; g.strokeStyle = C.acc; g.beginPath(); g.moveTo(sl, bot);
+  for (let k = 0; k < BINS; k++) g.lineTo(sl + norm(s[k]) * specW, Y(k * BIN_HZ));
+  g.lineTo(sl, top); g.closePath(); g.fill(); g.stroke();
+  text(g, 'phổ của frame (dựng đứng)', sl, top - 8, C.ink, 'left', true);
+  text(g, 'độ mạnh →', sl + specW, bot + 14, C.mute, 'right');
+  for (let k = 0; k < BINS; k++) {
+    const v = norm(s[k]), c = cmap(v);
+    g.fillStyle = rgb(c); g.fillRect(cx, Y((k + 0.5) * BIN_HZ), colW, Math.max(1, ph / BINS) + 0.6);
+  }
+  g.strokeStyle = C.frame; g.lineWidth = 2.5; g.strokeRect(cx, top, colW, ph); g.lineWidth = 1;
+  text(g, 'cột màu', cx + colW / 2, top - 8, C.frame, 'center', true);
+  const peaks = [];
+  for (let k = 2; k < BINS - 2; k++) if (s[k] > s[k - 1] && s[k] >= s[k + 1] && s[k] > s[k - 2] && s[k] >= s[k + 2] && norm(s[k]) > 0.72) peaks.push(k);
+  peaks.sort((a, b) => s[b] - s[a]);
+  const shown = [];
+  for (const k of peaks) {
+    const py = Y(k * BIN_HZ);
+    if (shown.length >= 4 || shown.some(q => Math.abs(q - py) < 16)) continue;
+    shown.push(py);
+    arrow(g, sl + norm(s[k]) * specW + 6, py, cx - 6, py, C.hl);
+    text(g, Math.round(k * BIN_HZ) + ' Hz', cx + colW + 8, py, C.hl, 'left', true);
+  }
+  const lx = cx + colW + 70;
+  if (lx + 16 < R.w) {
+    for (let j = 0; j < 100; j++) { g.fillStyle = rgb(cmap(j / 99)); g.fillRect(lx, bot - (j + 1) * ph / 100, 14, ph / 100 + 0.6); }
+    g.strokeStyle = C.line; g.strokeRect(lx, top, 14, ph);
+    text(g, 'mạnh', lx + 7, top - 8, C.mute, 'center'); text(g, 'yếu', lx + 7, bot + 12, C.mute, 'center');
+  }
+}
+
+function specBox(R) { return {l: 56, t: 12, w: R.w - 70, h: R.h - 40}; }
+const SPAN_T = NF * HOP / SR;
+function drawSpec(R) {
+  const g = R.g, b = specBox(R);
+  g.imageSmoothingEnabled = false;
+  g.drawImage(IMG, b.l, b.t, b.w, b.h);
+  g.strokeStyle = C.line; g.strokeRect(b.l, b.t, b.w, b.h);
+  for (let f = 0; f <= FMAX; f += 1000) text(g, f + ' Hz', b.l - 6, b.t + b.h - f / FMAX * b.h, C.mute, 'right');
+  for (let t = 0; t <= 0.9001; t += 0.1) text(g, t.toFixed(1) + ' s', b.l + t / SPAN_T * b.w, b.t + b.h + 13, C.mute, 'center');
+  return b;
+}
+function draw7() {
+  const R = setup('c7', 340), b = drawSpec(R), g = R.g, cw = b.w / NF;
+  g.fillStyle = 'rgba(217,115,13,.12)'; g.fillRect(b.l + FR * cw, b.t, cw, b.h);
+  g.strokeStyle = C.frame; g.lineWidth = 2.5; g.strokeRect(b.l + FR * cw - 1, b.t - 1, cw + 2, b.h + 2); g.lineWidth = 1;
+  const right = FR < NF * 0.8, lx = right ? b.l + (FR + 1) * cw + 6 : b.l + FR * cw - 6;
+  g.fillStyle = 'rgba(255,255,255,.9)'; g.fillRect(right ? lx - 2 : lx - 64, b.t + 1, 66, 16);
+  text(g, `frame #${FR}`, lx, b.t + 9, C.frame, right ? 'left' : 'right', true);
+}
+function bindHover7() {
+  const c = document.getElementById('c7'), ro = document.getElementById('ro7');
+  const pick = e => {
+    const r = c.getBoundingClientRect(), b = specBox({w: r.width, h: r.height});
+    const px = e.clientX - r.left, py = e.clientY - r.top;
+    if (px < b.l || px > b.l + b.w || py < b.t || py > b.t + b.h) return null;
+    const f = Math.min(NF - 1, Math.floor((px - b.l) / b.w * NF)), hz = (1 - (py - b.t) / b.h) * FMAX;
+    return {f, k: Math.min(BINS - 1, Math.round(hz / BIN_HZ)), hz};
+  };
+  c.addEventListener('mousemove', e => {
+    const p = pick(e); if (!p) { ro.textContent = 'Rê chuột lên hình để đọc giá trị một ô.'; return; }
+    const db = SPEC[p.f][p.k] - GMAX;
+    ro.textContent = `thời gian ≈ ${(frameTime(p.f)[0] * 1000 + 12.5).toFixed(0)} ms | tần số ≈ ${Math.round(p.hz)} Hz | độ mạnh = ${db.toFixed(1)} dB so với ô mạnh nhất (bấm để chọn frame này)`;
+  });
+  c.addEventListener('click', e => { const p = pick(e); if (p) setFrame(p.f); });
+}
+
+function draw8() {
+  const R = setup('c8', 380), b = drawSpec(R), g = R.g;
+  const X = t => b.l + t / SPAN_T * b.w, Y = f => b.t + b.h - f / FMAX * b.h;
+  const mark = (n, px, py) => {
+    g.fillStyle = C.hl; g.beginPath(); g.arc(px, py, 10, 0, 7); g.fill();
+    g.fillStyle = '#fff'; g.textAlign = 'center'; g.font = '600 12px Inter, system-ui, sans-serif'; g.fillText(n, px, py + 0.5);
+  };
+  const box = (t0, t1, f0, f1, n, side) => {
+    dashRect(g, X(t0), Y(f1), X(t1) - X(t0), Y(f0) - Y(f1), C.hl);
+    const mx = side === 'r' ? X(t1) + 12 : X(t0) - 12;
+    mark(n, Math.max(b.l + 10, Math.min(b.l + b.w - 10, mx)), Y(f1) + 12);
+  };
+  box(0.06, 0.36, 300, 1700, '1', 'r');
+  dashRect(g, X(0.04), Y(290), X(0.37) - X(0.04), Y(110) - Y(290), C.hl, 2, [3, 3]);
+  mark('2', X(0.02) + 2, Y(200));
+  box(0.6, 0.93, 150, 1500, '3', 'l');
+  dashRect(g, X(0.07), Y(1450), X(0.35) - X(0.07), Y(650) - Y(1450), C.frame, 2, [3, 3]);
+  dashRect(g, X(0.62), Y(2550), X(0.92) - X(0.62), Y(2050) - Y(2550), C.frame, 2, [3, 3]);
+  mark('4', X(0.62) + 12, Y(2550) - 14);
+  box(0.42, 0.55, 3800, 7900, '5', 'r');
+  dashRect(g, X(0.955), Y(7900), X(0.975) - X(0.955), Y(100) - Y(7900), C.hl, 1.5, [3, 3]);
+  mark('6', X(0.965), Y(4000));
+  text(g, 'khung cam chấm = formant (mục 4)', X(0.64), Y(6800), C.frame, 'left', true);
+}
+
+function setFrame(f) {
+  FR = Math.max(0, Math.min(NF - 1, f));
+  for (const id of ['fr5', 'fr6', 'fr7']) { document.getElementById(id).value = FR; document.getElementById(id + 't').textContent = frameLabel(FR); }
+  draw5(); draw6(); draw7();
+}
+
+function drawAll() { draw1(); draw2(); draw3(); draw4(); draw5(); draw6(); draw7(); draw8(); }
+
+document.getElementById('nf').textContent = NF;
+for (const id of ['fr5', 'fr6', 'fr7']) {
+  const el = document.getElementById(id);
+  el.max = NF - 1;
+  el.addEventListener('input', () => setFrame(+el.value));
+}
+document.addEventListener('click', e => {
+  const k = e.target.dataset && e.target.dataset.play;
+  if (k === 'x') play(x);
+  else if (k === 'rev') play(xRev);
+  else if (k === 'sum') {
+    const s = sumSignal(SR), m = s.reduce((a, v) => Math.max(a, Math.abs(v)), 1e-6);
+    for (let n = 0; n < SR; n++) s[n] *= 0.5 / m * fade(n / SR, 0, 1);
+    play(s);
+  }
+});
+buildCtl2();
+bindHover7();
+drawAll();
+setFrame(FR);
+let rt;
+window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { drawAll(); setFrame(FR); }, 120); });
+</script>
+</body>
+</html>

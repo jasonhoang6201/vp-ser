@@ -1,0 +1,84 @@
+{
+  "name": "ent",
+  "dataset": "meld",
+  "split": "test",
+  "notes": "official ENT code, frozen wav2vec2-base, 10 ep; asr/ser = LAST epoch (fair); *_max = best epoch on test (paper protocol)",
+  "asr": {
+    "wer": 0.5677,
+    "cer": 0.4207,
+    "n_utts": null
+  },
+  "ser": {
+    "wa": 0.4744,
+    "ua": 0.2657,
+    "macro_f1": NaN,
+    "weighted_f1": NaN,
+    "n_invalid_pred": 0
+  },
+  "wer_max": 56.77,
+  "wa_max": 49.96,
+  "ua_max": 27.5,
+  "epochs": [
+    {
+      "WER": 84.5,
+      "CER": 74.31,
+      "WA": 34.81,
+      "UA": 20.54
+    },
+    {
+      "WER": 76.62,
+      "CER": 67.41,
+      "WA": 42.04,
+      "UA": 20.18
+    },
+    {
+      "WER": 68.85,
+      "CER": 58.07,
+      "WA": 44.48,
+      "UA": 23.41
+    },
+    {
+      "WER": 64.24,
+      "CER": 52.02,
+      "WA": 46.66,
+      "UA": 24.16
+    },
+    {
+      "WER": 58.13,
+      "CER": 43.15,
+      "WA": 48.41,
+      "UA": 25.06
+    },
+    {
+      "WER": 62.08,
+      "CER": 44.3,
+      "WA": 49.96,
+      "UA": 26.1
+    },
+    {
+      "WER": 59.97,
+      "CER": 44.84,
+      "WA": 48.83,
+      "UA": 25.11
+    },
+    {
+      "WER": 59.93,
+      "CER": 43.37,
+      "WA": 47.32,
+      "UA": 26.27
+    },
+    {
+      "WER": 56.93,
+      "CER": 41.69,
+      "WA": 47.36,
+      "UA": 27.5
+    },
+    {
+      "WER": 56.77,
+      "CER": 42.07,
+      "WA": 47.44,
+      "UA": 26.57
+    }
+  ],
+  "wer_note": "ENT normalization (uppercase, punctuation stripped), not the Whisper normalizer"
+}

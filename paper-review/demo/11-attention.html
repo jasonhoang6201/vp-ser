@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Attention, Transformer, Conformer</title>
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="pn"></nav>
+<h1>Attention, Transformer, Conformer: viết từng chữ, mỗi lần nhìn đúng chỗ</h1>
+<p class="sub">Trang trước, CTC quyết định từng frame riêng rẽ. Trang này đi qua ba ý nối tiếp nhau: <b>encoder-decoder có attention</b> (khoảng 2015), <b>Transformer</b> (2017), và <b>Conformer</b> (2020), kiến trúc encoder phổ biến nhất trong nhận dạng hiện nay.</p>
+
+<section>
+<h2><span class="n">1</span>Vấn đề: CTC không nhìn những chữ đã viết</h2>
+<div class="tablewrap"><table>
+<tr><th>Vướng</th><th>Ví dụ</th></tr>
+<tr><td>mỗi frame đoán độc lập</td><td>nghe "ngh" mơ hồ thì frame này ra "n", frame sau ra "ng", không có gì bắt chúng thống nhất</td></tr>
+<tr><td>không dùng được ngữ cảnh chữ</td><td>đã viết "trời" thì chữ sau rất có thể là "mưa", nhưng CTC không biết đã viết gì</td></tr>
+<tr><td>phải ghép mô hình ngôn ngữ ngoài</td><td>lại thêm một mảnh rời, thêm trọng số để chỉnh</td></tr>
+<tr><td>mạng đọc frame theo thứ tự (RNN) thì chậm, khó nhớ xa</td><td>frame 300 khó "nhớ" thông tin ở frame 10, và phải tính lần lượt từng frame</td></tr>
+</table></div>
+<div class="note blue"><b>Mục tiêu:</b> một mô hình <b>viết từng chữ</b>, mỗi chữ dựa trên <b>các chữ đã viết</b> và <b>đúng đoạn âm thanh cần thiết</b>; và một cách để mọi frame trao đổi thông tin với nhau <b>cùng lúc</b>.</div>
+</section>
+
+<section>
+<h2><span class="n">2</span>Cách làm: 4 thành phần</h2>
+<div class="pipe"><span class="done">log-Mel</span><i>→</i><span class="new">encoder</span><i>→</i><span class="done">T vector</span><i>→</i><span class="new">attention</span><i>→</i><span class="new">decoder</span><i>→</i><span class="done">chữ tiếp theo</span><i>↺</i></div>
+<div class="tablewrap"><table>
+<tr><th>Thành phần</th><th>Là gì</th><th>Gỡ vướng gì</th><th>Ở mục</th></tr>
+<tr><td><b>encoder</b></td><td>đọc toàn bộ âm thanh, đổi mỗi frame thành một vector đã "hiểu" ngữ cảnh xung quanh</td><td>chuẩn bị thông tin cho decoder</td><td>5</td></tr>
+<tr><td><b>decoder tự hồi quy</b> (autoregressive)</td><td>viết từng chữ; chữ vừa viết được đưa ngược lại làm đầu vào cho bước sau</td><td>dùng được các chữ đã viết, không cần LM ngoài</td><td>4</td></tr>
+<tr><td><b>attention</b></td><td>mỗi bước, decoder chấm điểm mọi frame của encoder, softmax ra trọng số, lấy trung bình có trọng số</td><td>tự tìm đúng đoạn âm thanh cho từng chữ, không cần căn trước</td><td>3, 4</td></tr>
+<tr><td><b>self-attention</b> (Transformer), thêm <b>convolution</b> (Conformer)</td><td>dùng chính attention để các frame nhìn nhau, thay cho đọc tuần tự</td><td>chậm, khó nhớ xa</td><td>5</td></tr>
+</table></div>
+</section>
+
+<section>
+<h2><span class="n">3</span>Attention tính thế nào: query, key, value</h2>
+<p>Encoder cho ra mỗi frame một <b>key</b> (để được tìm) và một <b>value</b> (nội dung mang theo). Decoder có một <b>query</b>: "tôi đang cần gì". Trang này vẽ vector 2 chiều để thấy được (thật ra vài trăm chiều).</p>
+<div class="formula">điểm_j = query · key_j / √d &nbsp;&nbsp; trọng số = softmax(điểm) &nbsp;&nbsp; đầu ra = Σ trọng số_j × value_j</div>
+<div class="ctrl">
+  <span class="grp">Hướng của query <input type="range" id="qa" min="0" max="360" step="1" value="40"> <b id="qav"></b></span>
+  <span class="grp">Độ dài query <input type="range" id="ql" min="0.2" max="4" step="0.1" value="1.5"> <b id="qlv"></b></span>
+</div>
+<div class="fig"><canvas id="c3"></canvas></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Điểm là <b>tích vô hướng</b> (dot product): key cùng hướng với query thì điểm cao, ngược hướng thì điểm âm. Xoay query để thấy trọng số dồn về các key cùng hướng.
+<br>• Query dài ra thì các điểm chênh nhau nhiều hơn, softmax trở nên "gắt": gần như chỉ chọn 1 frame. Query ngắn thì trọng số rải đều. Mạng tự học độ dài này.
+<br>• Chia cho √d (d là số chiều) để điểm không quá lớn khi vector có nhiều chiều, tránh softmax gắt ngay từ đầu.
+<br>• Mọi bước đều là phép nhân và cộng có đạo hàm, nên học được bằng gradient descent cùng toàn bộ mạng.</div>
+</section>
+
+<section>
+<h2><span class="n">4</span>Decoder viết từng chữ: ma trận attention</h2>
+<p>Mỗi hàng là một bước của decoder (một chữ), mỗi cột là một frame. Ô đậm là nơi decoder đang nhìn khi viết chữ đó. Bấm <b>Viết tiếp</b>.</p>
+<div class="ctrl"><button id="next4">▶ Viết tiếp</button><button id="reset4">Viết lại từ đầu</button></div>
+<div class="fig"><canvas id="c4"></canvas></div>
+<div class="readout" id="r4"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Ma trận gần như một <b>đường chéo</b>: chữ đầu nhìn đầu câu, chữ cuối nhìn cuối câu. Không ai dạy điều đó: mô hình tự học ra, vì đó là cách dễ nhất để đoán đúng.
+<br>• Mỗi bước có hai đầu vào: <b>chữ vừa viết</b> và <b>đoạn âm thanh vừa nhìn</b>. Khi huấn luyện, chữ vừa viết lấy từ câu đúng chứ không phải chữ mô hình đoán (gọi là <b>teacher forcing</b>), để học nhanh và ổn định.
+<br>• Ký hiệu &lt;eos&gt; (end of sentence) báo đã hết câu. Mô hình tự quyết độ dài câu.
+<br>• Điểm yếu: với âm thanh dài hoặc nhiễu, attention có thể <b>nhảy cóc</b> (bỏ chữ) hoặc <b>quay lại</b> (lặp chữ). Cách chữa phổ biến: huấn luyện chung với CTC (hybrid CTC/attention), vì CTC buộc căn đi từ trái sang phải.</div>
+</section>
+
+<section>
+<h2><span class="n">5</span>Transformer và Conformer: self-attention trong encoder</h2>
+<p><b>Self-attention</b>: mỗi frame tự làm query, nhìn vào <b>mọi frame khác</b> (kể cả chính nó) làm key và value. Mọi frame tính cùng lúc, nên chạy song song trên GPU, và frame 300 nhìn thẳng tới frame 10 chỉ trong một bước.</p>
+<p>Dưới đây là ma trận self-attention minh họa cho câu "a s i" (36 frame). Mỗi hàng là một frame làm query. Transformer dùng nhiều <b>đầu</b> (multi-head) song song, mỗi đầu học một kiểu nhìn khác:</p>
+<div class="ctrl"><span class="grp">Đầu: <button data-hd="0" class="on">1: nhìn hàng xóm</button><button data-hd="1">2: nhìn frame cùng âm</button><button data-hd="2">3: nhìn đoạn có tiếng</button></span></div>
+<div class="fig"><canvas id="c5"></canvas></div>
+<div class="tablewrap"><table>
+<tr><th></th><th>Transformer (Vaswani và cộng sự, 2017)</th><th>Conformer (Gulati và cộng sự, 2020)</th></tr>
+<tr><td>mỗi khối gồm</td><td>self-attention nhiều đầu + mạng feed-forward</td><td>feed-forward nửa + self-attention + <b>convolution</b> + feed-forward nửa</td></tr>
+<tr><td>giỏi</td><td>quan hệ <b>xa</b>: ngữ cảnh cả câu</td><td>cả xa lẫn <b>gần</b>: convolution bắt các mẫu cục bộ như chuyển tiếp giữa hai âm</td></tr>
+<tr><td>biết thứ tự frame nhờ</td><td>mã hóa vị trí (positional encoding) cộng vào đầu vào</td><td>mã hóa vị trí tương đối</td></tr>
+</table></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Self-attention không tự biết thứ tự: đảo các frame thì kết quả chỉ đảo theo. Nên phải cộng thêm thông tin vị trí.
+<br>• Chi phí tăng theo <b>bình phương</b> số frame (mọi cặp frame). Vì vậy encoder thường giảm số frame trước, ví dụ gộp 4 frame thành 1 (40 ms mỗi vector) bằng convolution.
+<br>• Đầu 1 giống việc của convolution (nhìn gần). Conformer thêm convolution thật để việc này rẻ và chắc chắn hơn, để các đầu attention dành cho quan hệ xa.
+<br>• Ma trận trên là <b>minh họa</b> các kiểu nhìn thường gặp, không phải lấy từ một mô hình đã huấn luyện.</div>
+</section>
+
+<section>
+<h2>Tóm tắt</h2>
+<ul>
+<li>Attention: query chấm điểm các key bằng tích vô hướng, softmax ra trọng số, lấy trung bình có trọng số các value.</li>
+<li>Encoder-decoder có attention (ví dụ LAS, Listen Attend and Spell, 2016): decoder viết từng chữ, nhìn chữ đã viết và đoạn âm thanh cần thiết. Huấn luyện bằng teacher forcing, giải mã bằng beam search.</li>
+<li>Transformer: self-attention nhiều đầu, chạy song song, nhìn xa. Conformer: thêm convolution để nhìn gần.</li>
+<li>Hệ thực tế thường kết hợp: encoder Conformer + CTC + decoder attention. Một biến thể khác là <b>RNN-T</b> (Transducer), dùng cho nhận dạng trực tuyến (vừa nói vừa ra chữ).</li>
+</ul>
+<h3>Thuật ngữ mới</h3>
+<div class="tablewrap"><table>
+<tr><th>Nói thường</th><th>Thuật ngữ</th></tr>
+<tr><td>phần đọc âm thanh / phần viết chữ</td><td>encoder / decoder</td></tr>
+<tr><td>viết chữ sau dựa trên chữ trước</td><td>tự hồi quy (autoregressive)</td></tr>
+<tr><td>tôi cần gì / để được tìm / nội dung</td><td>query / key / value (Q, K, V)</td></tr>
+<tr><td>nhân từng chiều rồi cộng</td><td>tích vô hướng (dot product)</td></tr>
+<tr><td>các frame nhìn lẫn nhau</td><td>self-attention</td></tr>
+<tr><td>nhiều kiểu nhìn song song</td><td>multi-head attention</td></tr>
+<tr><td>đưa câu đúng vào khi huấn luyện</td><td>teacher forcing</td></tr>
+<tr><td>thông tin vị trí cộng vào</td><td>positional encoding</td></tr>
+</table></div>
+</section>
+<nav class="pn"></nav>
+</div>
+<script src="assets/learn.js"></script>
+<script>
+const KEYS = (() => { const r = rng(8); return Array.from({length: 10}, (_, j) => { const a = j * 0.63 + 0.3 * randn(r), l = 0.6 + 0.6 * r(); return [l * Math.cos(a), l * Math.sin(a)]; }); })();
+let QA = 40, QL = 1.5;
+function draw3() {
+  document.getElementById('qav').textContent = QA + '°';
+  document.getElementById('qlv').textContent = r1(QL);
+  const R = setup('c3', 300), g = R.g, S = 280, cx = 20 + S / 2, cy = 150, sc = S / 2 / 1.6;
+  const q = [QL * Math.cos(QA * Math.PI / 180), QL * Math.sin(QA * Math.PI / 180)];
+  const sc_ = KEYS.map(k => (q[0] * k[0] + q[1] * k[1]) / Math.SQRT2), w = softmax(sc_);
+  g.strokeStyle = C.line; g.beginPath(); g.arc(cx, cy, sc, 0, 2 * Math.PI); g.stroke();
+  hline(g, cx - S / 2, cx + S / 2, cy, C.soft); vline(g, cx, cy - S / 2, cy + S / 2, C.soft);
+  const arrow = (v, col, lw, lab) => {
+    const lim = Math.min(1, 1.55 / Math.hypot(v[0], v[1])), x = cx + v[0] * sc * lim, y = cy - v[1] * sc * lim;
+    poly(g, [cx, x], [cy, y], col, lw);
+    if (lab) text(g, lab, x + 6, y, col, 'left', true, true);
+  };
+  KEYS.forEach((k, j) => { arrow(k, alpha(C.acc, 0.25 + 0.75 * w[j] / Math.max(...w)), 1 + 4 * w[j], 'k' + (j + 1)); });
+  arrow(q, C.frame, 3, 'query');
+  const B = {l: cx + S / 2 + 50, t: 20, w: R.w - (cx + S / 2 + 70), h: 230}, bw = B.w / KEYS.length;
+  KEYS.forEach((_, j) => {
+    const h = w[j] * B.h;
+    box(g, B.l + j * bw + 3, B.t + B.h - h, bw - 6, h, alpha(C.acc, 0.8));
+    text(g, 'k' + (j + 1), B.l + (j + 0.5) * bw, B.t + B.h + 12, C.mute, 'center');
+    text(g, r2(w[j]), B.l + (j + 0.5) * bw, B.t + B.h - h - 9, C.ink, 'center');
+    text(g, r1(sc_[j]), B.l + (j + 0.5) * bw, B.t + B.h + 28, C.mute, 'center');
+  });
+  text(g, 'trọng số sau softmax', B.l, B.t - 8, C.ink, 'left', true);
+  text(g, 'điểm:', B.l - 6, B.t + B.h + 28, C.mute, 'right');
+}
+document.getElementById('qa').addEventListener('input', e => { QA = +e.target.value; draw3(); });
+document.getElementById('ql').addEventListener('input', e => { QL = +e.target.value; draw3(); });
+
+const OUT = ['x', 'i', 'n', ' ', 'c', 'h', 'à', 'o', '<eos>'], CENT = [9, 13, 17, 22, 27, 30, 34, 39, 47], TF = 50;
+let STEP4 = 0;
+function attnRow(i) {
+  const r = rng(100 + i);
+  return softmax(Array.from({length: TF}, (_, t) => -((t - CENT[i]) ** 2) / 6 + 0.4 * randn(r)));
+}
+function draw4() {
+  const R = setup('c4', 300), g = R.g, B = {l: 60, t: 24, w: R.w - 80}, cw = B.w / TF, rh = 26;
+  for (let i = 0; i < OUT.length; i++) {
+    const row = attnRow(i), mx = Math.max(...row);
+    for (let t = 0; t < TF; t++) box(g, B.l + t * cw, B.t + i * rh, cw - 0.5, rh - 2, i < STEP4 ? rgb(cmap(row[t] / mx * 0.9)) : '#f4f4f2');
+    text(g, i < STEP4 ? (OUT[i] === ' ' ? '␣' : OUT[i]) : '?', B.l - 8, B.t + i * rh + rh / 2, i < STEP4 ? C.frame : C.grey, 'right', true, false, 13);
+  }
+  for (let t = 0; t <= TF; t += 10) text(g, `${t * 40} ms`, B.l + t * cw, B.t - 10, C.mute, 'center');
+  text(g, 'frame của encoder (mỗi frame 40 ms) →', B.l + B.w, B.t + OUT.length * rh + 10, C.mute, 'right');
+  const written = OUT.slice(0, STEP4).filter(c => c !== '<eos>').join('');
+  document.getElementById('r4').innerHTML = STEP4 === 0 ? 'Chưa viết gì. Bước đầu tiên decoder nhận ký hiệu bắt đầu &lt;sos&gt;.' :
+    `Đã viết: "<b>${written}</b>"` + (STEP4 >= OUT.length ? ' và gặp &lt;eos&gt;: dừng.' : `. Bước tiếp theo nhận "${OUT[STEP4 - 1] === ' ' ? '␣' : OUT[STEP4 - 1]}" làm đầu vào.`);
+}
+document.getElementById('next4').addEventListener('click', () => { STEP4 = Math.min(OUT.length, STEP4 + 1); draw4(); });
+document.getElementById('reset4').addEventListener('click', () => { STEP4 = 0; draw4(); });
+
+const SEG5 = [['a', 0, 14], ['s', 14, 24], ['i', 24, 36]], T5 = 36;
+const segOf = t => SEG5.findIndex(s => t >= s[1] && t < s[2]);
+let HD = 0;
+function draw5() {
+  const R = setup('c5', 330), g = R.g, S = Math.min(R.w - 100, 290), B = {l: 60, t: 24, w: S, h: S}, cw = S / T5;
+  for (let i = 0; i < T5; i++) {
+    const r = rng(500 + i * 3 + HD);
+    const sc = Array.from({length: T5}, (_, j) => HD === 0 ? -Math.abs(i - j) * 1.2 : HD === 1 ? (segOf(i) === segOf(j) ? 2 : -1) : (segOf(j) === 1 ? -2 : 1));
+    const w = softmax(sc.map(v => v + 0.3 * randn(r))), mx = Math.max(...w);
+    w.forEach((v, j) => box(g, B.l + j * cw, B.t + i * cw, cw, cw, rgb(cmap(v / mx * 0.9))));
+  }
+  SEG5.forEach(([lab, a, b]) => {
+    text(g, lab, B.l + (a + b) / 2 * cw, B.t - 10, C.ink, 'center', true);
+    text(g, lab, B.l - 10, B.t + (a + b) / 2 * cw, C.ink, 'right', true);
+  });
+  text(g, '← key (frame được nhìn)', B.l + S + 14, B.t + 8, C.mute, 'left');
+  text(g, '↓ query (frame đang nhìn)', B.l + S + 14, B.t + 26, C.mute, 'left');
+  const desc = ['Mỗi frame chủ yếu nhìn vài frame ngay cạnh: đường chéo đậm.', 'Mỗi frame nhìn các frame cùng âm: ba ô vuông đậm trên đường chéo.', 'Mọi frame nhìn các đoạn có tiếng nói hữu thanh ("a", "i"), bỏ qua "s".'][HD];
+  text(g, desc, B.l + S + 14, B.t + 56, C.ink, 'left');
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('button[data-hd]');
+  if (b) { HD = +b.dataset.hd; toggle('hd', b.dataset.hd); draw5(); }
+});
+function drawAll() { draw3(); draw4(); draw5(); }
+drawAll();
+onResize(drawAll);
+</script>
+</body>
+</html>

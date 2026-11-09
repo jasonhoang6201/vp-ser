@@ -1,0 +1,33 @@
+{
+  "clip": "fus-1-van-de",
+  "title": "Ghép âm thanh và chữ · Phần 1: Vấn đề",
+  "segments": [
+    {"id": "intro",
+     "sub": "Ghép âm thanh và chữ, phần 1: mỗi nguồn chỉ có một phần thông tin.",
+     "say": "Ghép âm thanh và chữ, phần một: mỗi nguồn chỉ có một phần thông tin."},
+    {"id": "place",
+     "sub": "Trang 19 cho một vector từ âm thanh, trang 20 cho một vector từ chữ. Trang này: ghép hai nguồn thế nào, và vì sao nhìn thêm các câu trước giúp nhiều.",
+     "say": "Trang mười chín cho một véc tơ từ âm thanh, trang hai mươi cho một véc tơ từ chữ. Trang này hỏi: ghép hai nguồn thế nào, và vì sao nhìn thêm các câu trước trong hội thoại lại giúp nhiều."},
+    {"id": "c1",
+     "sub": "\"Oh great, just great.\" (mỉa mai): âm thanh nói giận (giọng gằn, to); chữ nói vui (\"great\").",
+     "say": "Tình huống một: ô grết, jớt grết, nói kiểu mỉa mai. Âm thanh nói giận, vì giọng gằn và to. Chữ lại nói vui, vì có từ grết."},
+    {"id": "c2",
+     "sub": "ASR chép sai từ cảm xúc: âm thanh nói buồn (trầm, chậm); chữ nói trung tính (từ quan trọng bị mất).",
+     "say": "Tình huống hai: máy chép sai từ cảm xúc. Âm thanh nói buồn, vì giọng trầm và chậm. Chữ lại nói trung tính, vì từ quan trọng đã bị mất."},
+    {"id": "c3",
+     "sub": "Giận và vui đều to, nhanh: âm thanh không phân biệt được; chữ phân biệt được.",
+     "say": "Tình huống ba: giận và vui đều to, đều nhanh. Âm thanh không phân biệt được, còn chữ thì phân biệt được."},
+    {"id": "c4",
+     "sub": "\"Thật à?\": âm thanh nói ngạc nhiên; chữ không đủ thông tin, còn tùy câu trước đó.",
+     "say": "Tình huống bốn: thật à. Âm thanh nói ngạc nhiên, còn chữ thì không đủ thông tin, phải tùy vào câu trước đó."},
+    {"id": "goal",
+     "sub": "Mục tiêu: nguồn nào đáng tin hơn ở câu đó thì được nghe nhiều hơn; và dùng thêm các câu trước khi một câu đứng riêng không đủ nghĩa.",
+     "say": "Mục tiêu: kết hợp hai nguồn sao cho nguồn nào đáng tin hơn ở câu đó thì được nghe nhiều hơn. Và dùng thêm các câu trước, khi một câu đứng riêng không đủ nghĩa."},
+    {"id": "result",
+     "sub": "Tóm lại: âm thanh và chữ mỗi bên chỉ có một phần thông tin; cần ghép thông minh và cần ngữ cảnh. Phần 2: các kiểu ghép.",
+     "say": "Tóm lại: âm thanh và chữ, mỗi bên chỉ có một phần thông tin. Cần ghép một cách thông minh, và cần ngữ cảnh. Phần hai: các kiểu ghép."},
+    {"id": "terms",
+     "sub": "Thuật ngữ của phần này.",
+     "say": "Các thuật ngữ của phần này."}
+  ]
+}

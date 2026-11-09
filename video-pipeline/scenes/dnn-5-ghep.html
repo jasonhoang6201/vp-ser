@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>DNN-HMM 5: Ghép DNN vào HMM</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../lib/hmm.js"></script>
+<script src="../build/dnn-5-ghep.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Mạng trong khung HMM', '3 Một nơ-ron', '4 Nhiều lớp', '5 Ghép vào HMM'];
+const VT = HMM.viterbi(HMM.scores(5, 1.0), 0.9).path;
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('DNN-HMM', 'Phần 5/5: ghép DNN vào HMM', 4, PARTS);
+
+function shotNeed(G, t) {
+  const s = S('need'), d = D('need');
+  heading('Còn hai câu hỏi');
+  [['1', 'lấy đáp án ở đâu để dạy DNN?', 'mỗi frame thuộc senone nào'], ['2', 'DNN ra loại xác suất khác', 'loại HMM cần']].forEach(([n, a, b], j) =>
+    fade(G, P(t, s + 0.4 + j * d * 0.4, 0.5), () => {
+      const x = 260 + j * 720;
+      card(x, 300, 680, 280, {stroke: COL.frame});
+      text(n, x + 50, 380, {size: 60, weight: 700, color: COL.frame, align: 'center'});
+      text(a, x + 110, 380, {size: 30, weight: 700, maxW: 540});
+      text(b, x + 110, 500, {size: 24, color: COL.mute});
+    }));
+}
+
+function shotLabel(G, t) {
+  const sl = S('label'), sa = S('align'), da = D('align');
+  heading('Đáp án: forced alignment của GMM-HMM');
+  const w = 38, x0 = 960 - 20 * w;
+  fade(G, P(t, sl + 0.3, 0.5), () => {
+    chip(G, x0, 220, 'câu chữ: "mai"', {size: 26, weight: 700, color: COL.ok, stroke: COL.ok});
+    for (let k = 0; k < 40; k++) rrect(x0 + k * w, 300, w - 4, 44, 5, COL.soft, COL.line2, 1.5);
+    text('40 frame, chưa biết ranh giới', 960, 380, {size: 24, color: COL.mute, align: 'center'});
+  });
+  fade(G, P(t, sa + 0.3, 0.5), () => {
+    let x = 400;
+    ['GMM-HMM (trang 07)', 'Viterbi với câu đã biết', 'nhãn từng frame'].forEach((l, j) => {
+      const ww = chip(G, x, 440, l, j === 2 ? HOT : {size: 26});
+      if (j < 2) arrow(x + ww + 10, 466, x + ww + 70, 466, COL.mute, 3);
+      x += ww + 80;
+    });
+  });
+  fade(G, P(t, sa + da * 0.35, 0.5), () => {
+    HMM.row(x0, 560, VT, {w, upto: P(t, sa + da * 0.35, 1.2)});
+  });
+  fade(G, P(t, sa + da * 0.7, 0.5), () => {
+    arrow(960, 620, 960, 690, COL.acc, 3);
+    chip(G, 820, 700, 'DNN học lại từ các nhãn này', {fill: COL.accSoft, stroke: COL.acc, color: COL.acc, weight: 700, size: 26});
+  });
+}
+
+function shotKind(G, t) {
+  const sk = S('kind'), dk = D('kind'), sb = S('bayes'), db = D('bayes');
+  heading(t < sb ? 'Hai loại xác suất' : 'Đổi bằng công thức Bayes');
+  if (t < sb) {
+    fade(G, P(t, sk + 0.3, 0.5), () => {
+      card(220, 260, 700, 420, {stroke: COL.acc});
+      text('DNN cho', 260, 320, {size: 26, color: COL.mute});
+      text('P(s | x)', 260, 390, {size: 52, weight: 700, color: COL.acc});
+      text('thấy frame x → xác suất là senone s', 260, 460, {size: 26});
+      [0.05, 0.6, 0.1, 0.2, 0.05].forEach((v, k) => rrect(300 + k * 60, 640 - v * 140, 44, v * 140, 4, k === 1 ? COL.acc : COL.line2));
+    });
+    fade(G, P(t, sk + dk * 0.5, 0.5), () => {
+      card(1000, 260, 700, 420, {stroke: COL.ok});
+      text('HMM cần', 1040, 320, {size: 26, color: COL.mute});
+      text('p(x | s)', 1040, 390, {size: 52, weight: 700, color: COL.ok});
+      text('ở senone s → xác suất phát ra frame x', 1040, 460, {size: 26});
+      text('(như điểm GMM trước đây)', 1040, 510, {size: 24, color: COL.mute});
+    });
+    return;
+  }
+  fade(G, P(t, sb + 0.3, 0.5), () => text('p(x | s)  =  P(s | x) × p(x) / P(s)', 960, 320, {size: 48, weight: 700, align: 'center'}));
+  fade(G, P(t, sb + db * 0.35, 0.5), () => {
+    text('p(x): giống nhau cho mọi senone ở cùng frame → bỏ được', 960, 430, {size: 28, color: COL.mute, align: 'center'});
+  });
+  fade(G, P(t, sb + db * 0.65, 0.5), () => {
+    rrect(560, 520, 800, 120, 16, '#e8f3ec', COL.ok, 3);
+    text('p(x | s)  ∝  P(s | x) / P(s)', 960, 580, {size: 48, weight: 700, color: COL.ok, align: 'center'});
+  });
+}
+
+function shotPrior(G, t) {
+  const sp = S('prior'), dp = D('prior'), se = S('example'), de = D('example');
+  heading('Chia cho prior P(s)');
+  const pri = [['lặng', 0.30, COL.mute], ['"a"', 0.02, COL.acc], ['"m"', 0.015, COL.ok], ['"i"', 0.02, COL.i], ['khác', 0.645, COL.line2]];
+  fade(G, P(t, sp + 0.3, 0.5), () => {
+    text('P(s): tỉ lệ frame thuộc senone s trong dữ liệu huấn luyện', 960, 230, {size: 26, color: COL.mute, align: 'center'});
+    let x = 300;
+    pri.forEach(([l, v, c]) => {
+      const w = v * 1320;
+      rrect(x, 270, w - 3, 60, 4, c + (l === 'khác' ? '66' : 'cc'));
+      if (v > 0.1) text(`${l} ${Math.round(v * 100)}%`, x + w / 2, 300, {size: 24, weight: 700, color: l === 'khác' ? COL.mute : '#fff', align: 'center'});
+      x += w;
+    });
+    text('lặng chiếm nhiều → không được cộng điểm chỉ vì hay gặp', 960, 380, {size: 26, weight: 700, color: COL.frame, align: 'center'});
+  });
+  fade(G, P(t, se + 0.3, 0.5), () => {
+    const cx = [420, 760, 1060, 1400];
+    ['senone', 'P(s | x) từ DNN', 'prior P(s)', 'chia ra'].forEach((h, j) => text(h, cx[j], 470, {size: 24, weight: 600, color: COL.mute, align: 'center'}));
+    line(300, 496, 1560, 496, COL.line2, 2);
+    [['khoảng lặng', '0,30', '30%', '1,0', COL.mute], ['"a"', '0,20', '2%', '10', COL.acc]].forEach((r, i) =>
+      fade(G, P(t, se + 0.6 + i * de * 0.4, 0.5), () => {
+        const y = 550 + i * 90;
+        r.slice(0, 4).forEach((c, j) => text(c, cx[j], y, {size: j === 3 ? 40 : 30, weight: j === 0 || j === 3 ? 700 : 400, color: j === 3 ? (i ? COL.ok : COL.mute) : r[4], align: 'center'}));
+      }));
+    fade(G, P(t, se + de * 0.8, 0.5), () => text('→ frame này rất giống "a"', 1400, 740, {size: 26, weight: 700, color: COL.ok, align: 'center'}));
+  });
+}
+
+function shotScaled(G, t) {
+  const s = S('scaled'), d = D('scaled');
+  heading('Scaled likelihood vào Viterbi');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    chip(G, 260, 300, 'P(s | x) / P(s)', {size: 32, weight: 700, color: COL.ok, stroke: COL.ok});
+    arrow(560, 326, 680, 326, COL.mute, 3);
+    text('scaled likelihood', 620, 290, {size: 22, color: COL.mute, align: 'center'});
+    const tr = HMM.trellis({x: 760, y: 240, w: 900, h: 240}, HMM.scores(5, 1.0));
+    HMM.path(tr, VT, COL.ink, 4, P(t, s + 1, 1.5));
+  });
+  fade(G, P(t, s + d * 0.6, 0.5), () => {
+    text('đúng chỗ điểm GMM trước đây; Viterbi, Forward, decoder không đổi', 960, 600, {size: 28, weight: 700, color: COL.acc, align: 'center'});
+  });
+}
+
+function shotGain(G, t) {
+  const s = S('gain'), d = D('gain');
+  heading('Kết quả đầu thập niên 2010');
+  const B = {x: 560, y: 260, h: 380};
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    const u = P(t, s + 0.5, 1);
+    rrect(B.x, B.y + B.h - B.h * u, 220, B.h * u, 8, COL.line2);
+    text('GMM-HMM', B.x + 110, B.y + B.h + 36, {size: 26, weight: 700, align: 'center'});
+    text('WER 100 (mốc)', B.x + 110, B.y + B.h - B.h * u - 24, {size: 22, color: COL.mute, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.3, 0.5), () => {
+    const u = P(t, s + d * 0.3, 1), lo = 0.7, hi = 0.8;
+    rrect(B.x + 420, B.y + B.h - B.h * hi * u, 220, B.h * hi * u, 8, COL.acc + '55');
+    rrect(B.x + 420, B.y + B.h - B.h * lo * u, 220, B.h * lo * u, 8, COL.acc);
+    text('DNN-HMM', B.x + 530, B.y + B.h + 36, {size: 26, weight: 700, color: COL.acc, align: 'center'});
+    text('70–80', B.x + 530, B.y + B.h - B.h * hi * u - 24, {size: 22, color: COL.acc, weight: 700, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.55, 0.5), () => {
+    text('giảm 20–30% tương đối', 1460, 380, {size: 32, weight: 700, color: COL.ok, align: 'center'});
+    text('Hinton, Microsoft, Google, IBM', 1460, 440, {size: 22, color: COL.mute, align: 'center'});
+    text('→ hệ lai thành chuẩn', 1460, 500, {size: 26, weight: 700, color: COL.acc, align: 'center'});
+  });
+}
+
+function shotLimit(G, t) {
+  const s = S('limit'), d = D('limit');
+  heading('Nhưng hệ lai vẫn còn');
+  [['cần GMM-HMM để tạo nhãn'], ['cần từ điển phát âm'], ['nhiều bước rời nhau, mỗi bước tối ưu riêng']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.4 + j * d * 0.18, 0.5), () => {
+      text('✗', 500, 300 + j * 90, {size: 34, weight: 700, color: COL.hl});
+      text(a, 550, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + d * 0.75, 0.5), () => chip(G, 700, 620, 'Trang sau: CTC, bỏ hết những thứ này  →', {...HOT, size: 28}));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['nhãn: forced alignment của GMM-HMM'], ['DNN ra P(s | x); chia prior → scaled likelihood'], ['đưa vào Viterbi như điểm GMM'], ['giảm WER 20–30%, nhưng còn nhiều bước rời']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text('✓', 400, 290 + j * 84, {size: 34, weight: 700, color: COL.ok});
+      text(a, 450, 290 + j * 84, {size: 32});
+    }));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 5', [
+  ['chia frame khi biết câu chữ', 'forced alignment', 'tạo nhãn cho DNN'],
+  ['xác suất senone khi thấy frame', 'posterior P(s | x)', 'đầu ra softmax của DNN'],
+  ['tỉ lệ senone trong dữ liệu', 'prior P(s)', 'đếm trên nhãn huấn luyện'],
+  ['P(s | x) / P(s)', 'scaled likelihood', 'thay điểm GMM trong HMM'],
+  ['mạng chấm + HMM lo thời gian', 'hệ lai (hybrid DNN-HMM)', 'chuẩn từ khoảng 2012'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'need', to: 'need', draw: shotNeed},
+    {from: 'label', to: 'align', draw: shotLabel},
+    {from: 'kind', to: 'bayes', draw: shotKind},
+    {from: 'prior', to: 'example', draw: shotPrior},
+    {from: 'scaled', to: 'scaled', draw: shotScaled},
+    {from: 'gain', to: 'gain', draw: shotGain},
+    {from: 'limit', to: 'limit', draw: shotLimit},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/dnn-5-ghep.wav');
+</script>
+</body>
+</html>

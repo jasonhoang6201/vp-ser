@@ -1,0 +1,64 @@
+{
+  "name": "cascade_text_gt_probe_f3",
+  "dataset": "iemocap",
+  "split": "test",
+  "notes": "single; predictions = 1-seed ensemble; uses GROUND-TRUTH text (upper bound)",
+  "ser": {
+    "wa": 0.6602953953084274,
+    "ua": 0.6606997723929077,
+    "macro_f1": 0.6629532035525054,
+    "weighted_f1": 0.6605192612846693,
+    "recall_by_emotion": {
+      "neutral": 0.609375,
+      "joy": 0.7097902097902098,
+      "anger": 0.6416666666666667,
+      "sadness": 0.6819672131147541
+    },
+    "n": 1151,
+    "n_invalid_pred": 0,
+    "labels": [
+      "neutral",
+      "joy",
+      "anger",
+      "sadness"
+    ],
+    "confusion": [
+      [
+        195,
+        34,
+        32,
+        59
+      ],
+      [
+        41,
+        203,
+        7,
+        35
+      ],
+      [
+        44,
+        23,
+        154,
+        19
+      ],
+      [
+        45,
+        33,
+        19,
+        208
+      ]
+    ]
+  },
+  "seeds": [
+    {
+      "seed": 0,
+      "dev_ua": 0.7079616388605153,
+      "test_ua": 0.6606997723929077,
+      "test_wf1": 0.6605192612846693
+    }
+  ],
+  "ua_mean": 0.6606997723929077,
+  "ua_std": NaN,
+  "wf1_mean": 0.6605192612846693,
+  "wf1_std": NaN
+}

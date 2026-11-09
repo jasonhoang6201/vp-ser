@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>TTS 3: Pha</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../lib/dsp.js"></script>
+<script src="../lib/tts.js"></script>
+<script src="../build/tts-3-pha.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Khung 3 khối', '3 Pha', '4 Griffin-Lim', '5 Vocoder nơ-ron', '6 Đo chất lượng'];
+const N0 = Math.round(0.4 * TTS.SR), NN = 480;
+const ratio = v => (TTS.rms(TTS.SIG) / TTS.rms(v)).toFixed(1).replace('.', ',');
+
+function scope(B, sig, col, label, u = 1) {
+  const X = j => B.x + j / NN * B.w, Y = v => B.y + B.h / 2 - v * B.h * 0.9;
+  line(B.x, B.y + B.h / 2, B.x + B.w, B.y + B.h / 2, COL.line, 1.5);
+  const idx = Array.from({length: NN}, (_, j) => j);
+  poly(idx.map(X), idx.map(j => Y(TTS.SIG[N0 + j])), COL.line2, 2);
+  if (sig) poly(idx.map(X), idx.map(j => Y(sig[N0 + j])), col, 2.5, null, u);
+  text(label, B.x, B.y - 18, {size: 24, weight: 700, color: col});
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('TTS và vocoder', 'Phần 3/6: pha, thứ mà spectrogram vứt đi', 2, PARTS);
+
+function shotTwo(G, t) {
+  const s2 = S('two'), sp = S('phase'), dp = D('phase');
+  heading('FFT: độ lớn và pha');
+  fade(G, P(t, s2 + 0.3, 0.5), () => {
+    chip(G, 300, 280, 'một frame', {size: 28, weight: 700});
+    arrow(480, 306, 560, 306, COL.mute, 3);
+    chip(G, 580, 280, 'FFT', {size: 28, weight: 700});
+    arrow(680, 306, 760, 270, COL.mute, 3); arrow(680, 306, 760, 345, COL.mute, 3);
+    chip(G, 780, 240, 'độ lớn (magnitude): vẽ trong spectrogram', {size: 26, weight: 700, color: COL.acc, stroke: COL.acc});
+    chip(G, 780, 320, 'pha (phase): bắt đầu ở đâu trong chu kỳ', {size: 26, weight: 700, color: COL.frame, stroke: COL.frame});
+  });
+  fade(G, P(t, sp + 0.3, 0.5), () => {
+    const B = {x: 300, y: 480, w: 1320, h: 220}, xs = Array.from({length: 241}, (_, k) => B.x + k * B.w / 240);
+    line(B.x, B.y + B.h / 2, B.x + B.w, B.y + B.h / 2, COL.line, 1.5);
+    poly(xs, xs.map((_, k) => B.y + B.h / 2 - 90 * Math.cos(k / 240 * 6 * Math.PI)), COL.acc, 3);
+    fade(G, P(t, sp + dp * 0.3, 0.5), () => poly(xs, xs.map((_, k) => B.y + B.h / 2 - 90 * Math.sin(k / 240 * 6 * Math.PI)), COL.frame, 3, [10, 6]));
+    fade(G, P(t, sp + dp * 0.55, 0.5), () => text('cùng tần số, cùng độ lớn, khác pha: spectrogram thấy giống hệt', 960, B.y + B.h + 50, {size: 26, weight: 700, align: 'center'}));
+  });
+}
+
+function shotRebuild(G, t) {
+  const sk = S('kept'), st = S('true'), sz = S('zero'), sr = S('rand');
+  heading('Dựng lại âm "a" chỉ từ độ lớn');
+  const B = {x: 260, y: 300, w: 1400, h: 340};
+  let sig = null, col = COL.ok, label = 'xám: sóng gốc · 30 ms ở giữa âm', s0 = sk, note = null;
+  if (t >= sr) { sig = TTS.VERS.rand; col = COL.i; label = 'độ lớn + pha ngẫu nhiên'; s0 = sr; note = 'cộng lẫn trừ lung tung: nghe như vọng trong ống'; }
+  else if (t >= sz) { sig = TTS.VERS.zero; col = COL.hl; label = 'độ lớn + pha = 0'; s0 = sz; note = `méo hẳn, nhỏ đi ${ratio(TTS.VERS.zero)} lần: nghe rè, đục`; }
+  else if (t >= st) { sig = TTS.VERS.true; col = COL.ok; label = 'độ lớn + pha thật'; s0 = st; note = 'trùng khít với sóng gốc'; }
+  fade(G, P(t, sk + 0.3, 0.5), () => scope(B, sig, col, label, P(t, s0 + 0.3, 1.2)));
+  if (note) fade(G, P(t, s0 + 1.2, 0.5), () => text(note, 960, 720, {size: 30, weight: 700, color: col, align: 'center'}));
+}
+
+function shotOla(G, t) {
+  const so = S('ola'), d = D('ola'), sc = S('concl');
+  heading(t < sc ? 'Vì sao pha quan trọng: các frame chồng nhau' : 'Kết luận');
+  if (t < sc) {
+    fade(G, P(t, so + 0.3, 0.5), () => {
+      for (let f = 0; f < 6; f++) {
+        const x = 360 + f * 200, y = 300 + (f % 3) * 70;
+        const xs = Array.from({length: 101}, (_, k) => x + k * 5), w = k => 0.5 - 0.5 * Math.cos(2 * Math.PI * k / 100);
+        poly(xs, xs.map((_, k) => y - 26 * w(k)), COL.acc, 2);
+        rrect(x, y + 6, 500, 6, 3, COL.acc + '55');
+      }
+      text('frame 25 ms, cách nhau 10 ms: mỗi mẫu nằm trong 2–3 frame', 960, 560, {size: 28, weight: 700, align: 'center'});
+    });
+    fade(G, P(t, so + d * 0.55, 0.5), () => text('ghép lại (overlap-add) chỉ đúng khi pha các frame khớp nhau', 960, 630, {size: 28, weight: 700, color: COL.frame, align: 'center'}));
+    return;
+  }
+  fade(G, P(t, sc + 0.3, 0.5), () => {
+    text('độ lớn đúng + pha sai = nghe rất tệ', 960, 360, {size: 40, weight: 700, color: COL.hl, align: 'center'});
+    text('vocoder phải tạo pha hợp lý, để các frame chồng nhau khớp nhau', 960, 460, {size: 30, weight: 700, color: COL.frame, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['FFT = độ lớn + pha; spectrogram, Mel bỏ pha', COL.ink, '·'], ['pha thật: giống hệt', COL.ok, '✓'], [`pha = 0: nhỏ đi ${ratio(TTS.VERS.zero)} lần, rè`, COL.hl, '✗'], ['pha ngẫu nhiên: nghe vọng', COL.hl, '✗']].forEach(([a, c, m], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.5, 0.6), () => {
+      text(m, 440, 290 + j * 84, {size: 34, weight: 700, color: c});
+      text(a, 490, 290 + j * 84, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 780, 680, 'Phần 4: đoán pha bằng Griffin-Lim  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 3', [
+  ['độ lớn mỗi bin', 'magnitude', 'cái spectrogram giữ'],
+  ['điểm bắt đầu trong chu kỳ', 'pha (phase)', 'cái spectrogram bỏ'],
+  ['dựng sóng từ frame chồng nhau', 'ISTFT, overlap-add', 'cần pha khớp'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'two', to: 'phase', draw: shotTwo},
+    {from: 'kept', to: 'rand', draw: shotRebuild},
+    {from: 'ola', to: 'concl', draw: shotOla},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/tts-3-pha.wav');
+</script>
+</body>
+</html>

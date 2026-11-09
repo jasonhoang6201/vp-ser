@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SER cơ bản</title>
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="pn"></nav>
+<h1>SER: đoán cảm xúc từ giọng nói</h1>
+<p class="sub">SER (Speech Emotion Recognition). Các trang ASR trả lời "người ta nói <b>gì</b>". Trang này trả lời "người ta nói <b>với cảm xúc gì</b>": nhãn là gì, nghe thấy ở đâu, dữ liệu nào, đo bằng gì.</p>
+
+<section>
+<h2><span class="n">1</span>Vấn đề: cùng một câu, nhiều cảm xúc</h2>
+<p>Câu "Thật à?" có thể là ngạc nhiên vui, nghi ngờ, hay bực bội. Chữ giống hệt nhau, chỉ <b>cách nói</b> khác. Muốn máy phân biệt thì vướng:</p>
+<div class="tablewrap"><table>
+<tr><th>Vướng</th><th>Vì sao khó</th></tr>
+<tr><td>cảm xúc là gì, có bao nhiêu loại?</td><td>không có danh sách chuẩn duy nhất; mỗi bộ dữ liệu chọn một kiểu nhãn</td></tr>
+<tr><td>nhãn mang tính chủ quan</td><td>cùng một câu, ba người nghe có thể gán ba nhãn khác nhau</td></tr>
+<tr><td>dữ liệu lệch</td><td>hội thoại thật phần lớn là trung tính; sợ hãi, ghê tởm rất hiếm</td></tr>
+<tr><td>đo đúng sai</td><td>đoán "trung tính" cho mọi câu đã được gần một nửa số câu đúng trên một số bộ dữ liệu</td></tr>
+</table></div>
+<div class="note blue"><b>Mục tiêu của trang:</b> biết cảm xúc được gán nhãn thế nào, lộ ra ở đâu trong giọng nói, các bộ dữ liệu chuẩn, và vì sao người ta báo <b>UA</b> chứ không chỉ độ chính xác.</div>
+</section>
+
+<section>
+<h2><span class="n">2</span>Bốn mảnh cần biết</h2>
+<div class="tablewrap"><table>
+<tr><th>Mảnh</th><th>Ý chính</th><th>Ở mục</th></tr>
+<tr><td><b>kiểu nhãn</b></td><td>theo lớp (giận, vui, buồn, trung tính…) hoặc theo chiều (valence: dễ chịu hay khó chịu; arousal: kích động hay bình thản)</td><td>3</td></tr>
+<tr><td><b>dấu hiệu trong giọng</b></td><td>chủ yếu là ngữ điệu: f0, năng lượng, tốc độ, chất giọng; cộng thêm chính các từ được nói</td><td>3</td></tr>
+<tr><td><b>bộ dữ liệu</b></td><td>IEMOCAP, MELD là hai bộ hay dùng nhất cho tiếng Anh</td><td>4</td></tr>
+<tr><td><b>thước đo</b></td><td>WA, UA, macro-F1, weighted-F1</td><td>5</td></tr>
+</table></div>
+</section>
+
+<section>
+<h2><span class="n">3</span>Nhãn theo lớp, nhãn theo chiều, và dấu hiệu trong giọng</h2>
+<div class="fig">
+<svg viewBox="0 0 640 330" style="max-width:640px">
+<line x1="60" y1="165" x2="600" y2="165" stroke="#c4c2bc"/><line x1="330" y1="20" x2="330" y2="310" stroke="#c4c2bc"/>
+<text x="600" y="185" text-anchor="end" font-size="12" fill="#787774">valence + (dễ chịu)</text>
+<text x="60" y="185" font-size="12" fill="#787774">valence − (khó chịu)</text>
+<text x="338" y="30" font-size="12" fill="#787774">arousal + (kích động)</text>
+<text x="338" y="305" font-size="12" fill="#787774">arousal − (bình thản)</text>
+<g font-size="14" font-weight="600">
+<circle cx="170" cy="70" r="6" fill="#d44c47"/><text x="182" y="75" fill="#d44c47">giận (anger)</text>
+<circle cx="230" cy="105" r="6" fill="#9065b0"/><text x="242" y="110" fill="#9065b0">sợ (fear)</text>
+<circle cx="150" cy="150" r="6" fill="#787774"/><text x="80" y="140" fill="#787774">ghê tởm (disgust)</text>
+<circle cx="470" cy="80" r="6" fill="#d9730d"/><text x="482" y="85" fill="#d9730d">vui (joy, happy)</text>
+<circle cx="400" cy="50" r="6" fill="#b8860b"/><text x="412" y="55" fill="#b8860b">ngạc nhiên (surprise)</text>
+<circle cx="190" cy="250" r="6" fill="#337ea9"/><text x="202" y="255" fill="#337ea9">buồn (sadness)</text>
+<circle cx="340" cy="185" r="6" fill="#448361"/><text x="352" y="205" fill="#448361">trung tính (neutral)</text>
+<circle cx="470" cy="245" r="6" fill="#4b8b9b"/><text x="482" y="250" fill="#4b8b9b">thư thái</text>
+</g>
+</svg>
+</div>
+<p>Mỗi cảm xúc theo lớp có thể đặt lên mặt phẳng hai chiều. Ngữ điệu cho biết <b>arousal</b> rất tốt, nhưng <b>valence</b> thì kém hơn: giận và vui đều nói to, cao, nhanh.</p>
+<div class="tablewrap"><table>
+<tr><th>Cảm xúc</th><th>f0 (trang 02)</th><th>Năng lượng</th><th>Tốc độ</th></tr>
+<tr><td>giận</td><td>cao, dao động mạnh</td><td>cao</td><td>nhanh</td></tr>
+<tr><td>vui</td><td>cao, dao động mạnh</td><td>khá cao</td><td>nhanh</td></tr>
+<tr><td>buồn</td><td>thấp, phẳng</td><td>thấp</td><td>chậm</td></tr>
+<tr><td>trung tính</td><td>vừa</td><td>vừa</td><td>vừa</td></tr>
+</table></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Hai dòng "giận" và "vui" gần như giống nhau. Phân biệt chúng cần thêm <b>chất giọng</b> (căng, khàn) và nhất là <b>từ ngữ</b> ("tuyệt quá" hay "đồ tệ hại"). Đây là lý do SER hay dùng cả âm thanh lẫn chữ (trang 20, 21).
+<br>• Các xu hướng trong bảng là tổng kết thường gặp trong nghiên cứu tâm lý học giọng nói, thay đổi theo người, ngôn ngữ, văn hóa.
+<br>• Trang 15 có một giọng "robot" với các núm f0 và năng lượng: chính là các núm này.</div>
+</section>
+
+<section>
+<h2><span class="n">4</span>Hai bộ dữ liệu hay dùng</h2>
+<div class="tablewrap"><table>
+<tr><th></th><th>IEMOCAP</th><th>MELD</th></tr>
+<tr><td>nguồn</td><td>10 diễn viên (5 phiên, mỗi phiên 1 nam 1 nữ) đối thoại theo kịch bản và ứng tác, thu trong phòng thu</td><td>các đoạn hội thoại trong phim Friends</td></tr>
+<tr><td>lượng</td><td>khoảng 12 giờ, khoảng 10 000 câu</td><td>khoảng 13 000 câu, chia sẵn train/dev/test</td></tr>
+<tr><td>nhãn</td><td>mỗi câu ít nhất 3 người gán, lấy đa số; có cả nhãn theo lớp và theo chiều (valence, activation, dominance)</td><td>7 lớp: trung tính, vui, ngạc nhiên, giận, buồn, ghê tởm, sợ</td></tr>
+<tr><td>cách dùng phổ biến</td><td><b>4 lớp</b>: trung tính, vui (gộp cả "excited"), giận, buồn: 5 531 câu. Chia theo phiên để người nói ở test không có trong train</td><td>dùng nguyên split chính thức; chỉ số chính thường là weighted-F1</td></tr>
+<tr><td>khó ở chỗ</td><td>nhỏ, diễn viên, phòng thu sạch</td><td>câu ngắn, nhạc nền, tiếng cười khán giả, <b>lệch lớp nặng</b>: gần một nửa là trung tính</td></tr>
+</table></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Câu mà các người gán nhãn không thống nhất (hòa phiếu) thường bị bỏ. Điều đó làm dữ liệu "dễ" hơn đời thật.
+<br>• Chia theo <b>người nói</b> rất quan trọng: nếu cùng một người có ở cả train và test, mô hình có thể học nhận ra giọng người đó thay vì cảm xúc.</div>
+</section>
+
+<section>
+<h2><span class="n">5</span>Thước đo: vì sao cần UA</h2>
+<p>Bảng nhầm lẫn (confusion matrix) dưới đây dùng số câu mỗi lớp của tập test MELD gốc (2 610 câu). Hàng là nhãn thật, cột là nhãn đoán. Kéo thanh để mô hình <b>thiên dần về "trung tính"</b>:</p>
+<div class="ctrl"><span class="grp">Thiên về trung tính <input type="range" id="bias" min="0" max="1" step="0.05" value="0"> <b id="biasv"></b></span></div>
+<div class="tablewrap"><table class="cm" id="cm"></table></div>
+<div class="readout" id="r5"></div>
+<div class="tablewrap"><table>
+<tr><th>Thước đo</th><th>Cách tính</th><th>Nhạy với</th></tr>
+<tr><td><b>WA</b> (weighted accuracy)</td><td>số câu đúng / tổng số câu. Chính là độ chính xác thông thường</td><td>lớp đông: đoán đúng lớp đông là được điểm cao</td></tr>
+<tr><td><b>UA</b> (unweighted accuracy)</td><td>trung bình của recall từng lớp (tỉ lệ đúng trong mỗi lớp). Mỗi lớp nặng như nhau</td><td>lớp hiếm: bỏ qua "sợ" là mất 1/7 điểm</td></tr>
+<tr><td><b>macro-F1</b></td><td>trung bình F1 từng lớp; F1 = trung bình điều hòa của precision và recall</td><td>như UA, nhưng phạt thêm việc đoán bừa vào một lớp</td></tr>
+<tr><td><b>weighted-F1</b></td><td>F1 từng lớp, lấy trung bình theo số câu mỗi lớp</td><td>lớp đông, như WA</td></tr>
+</table></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Kéo hết sang phải ("luôn đoán trung tính"): WA khoảng 48%, nhưng UA chỉ 14% (= 1/7). Mô hình vô dụng mà WA vẫn trông được.
+<br>• Vì vậy bài báo SER phải báo UA (hoặc macro-F1). Trên IEMOCAP các lớp khá đều nên WA và UA gần nhau; trên MELD thì chênh nhiều.
+<br>• Một cách chữa lệch lớp khi huấn luyện: nhân loss của mỗi lớp với một trọng số tỉ lệ nghịch với số câu (class weight). UA tăng, nhưng WA thường giảm.</div>
+</section>
+
+<section>
+<h2>Tóm tắt</h2>
+<ul>
+<li>Nhãn theo lớp (4 hoặc 7 lớp) hoặc theo chiều (valence, arousal). Ngữ điệu cho biết arousal tốt, valence cần thêm từ ngữ.</li>
+<li>IEMOCAP (4 lớp, chia theo phiên) và MELD (7 lớp, lệch nặng về trung tính) là hai bộ chuẩn.</li>
+<li>WA dễ bị lớp đông thổi phồng; UA và macro-F1 coi mọi lớp như nhau.</li>
+</ul>
+<h3>Thuật ngữ mới</h3>
+<div class="tablewrap"><table>
+<tr><th>Nói thường</th><th>Thuật ngữ</th></tr>
+<tr><td>dễ chịu / khó chịu</td><td>valence</td></tr>
+<tr><td>mức kích động</td><td>arousal (IEMOCAP gọi là activation)</td></tr>
+<tr><td>ngữ điệu: cao độ, độ to, nhịp</td><td>prosody, đặc trưng paralinguistic</td></tr>
+<tr><td>bảng nhãn thật × nhãn đoán</td><td>confusion matrix</td></tr>
+<tr><td>tỉ lệ đúng trong một lớp / tỉ lệ đúng trong số câu đoán là lớp đó</td><td>recall / precision</td></tr>
+<tr><td>dữ liệu lớp nhiều lớp ít</td><td>mất cân bằng lớp (class imbalance)</td></tr>
+<tr><td>chia sao cho người nói ở test không có trong train</td><td>speaker-independent split; với IEMOCAP: leave-one-session-out</td></tr>
+</table></div>
+<div class="note exp"><b>Gắn với thực nghiệm:</b> trên MELD test, emotion2vec+ zero-shot có WA 45.9 nhưng UA chỉ 30.1 vì lệch về trung tính; SenseVoice-Small zero-shot WA 52.2, UA 28.6. Trên IEMOCAP (4 lớp, test là phiên 5), SenseVoice fine-tune có WA 71.9, UA 73.7: hai số gần nhau vì các lớp khá đều.</div>
+</section>
+<nav class="pn"></nav>
+</div>
+<script src="assets/learn.js"></script>
+<script>
+const CL = ['neutral', 'joy', 'surprise', 'anger', 'sadness', 'disgust', 'fear'], CNT = [1256, 402, 281, 345, 208, 68, 50], K = CL.length;
+let BIAS = 0;
+function draw5() {
+  document.getElementById('biasv').textContent = r2(BIAS);
+  const M = CNT.map((n, c) => {
+    const p = Array.from({length: K}, (_, d) => d === c ? 0.5 : 0.5 / (K - 1)).map((v, d) => (1 - BIAS) * v + (d === 0 ? BIAS : 0));
+    return p.map(v => v * n);
+  });
+  const colSum = Array.from({length: K}, (_, d) => M.reduce((s, row) => s + row[d], 0)), N = CNT.reduce((a, b) => a + b, 0);
+  const rec = M.map((row, c) => row[c] / CNT[c]), prec = M.map((_, c) => colSum[c] ? M[c][c] / colSum[c] : 0);
+  const f1 = rec.map((r, c) => r + prec[c] ? 2 * r * prec[c] / (r + prec[c]) : 0);
+  const WA = M.reduce((s, row, c) => s + row[c], 0) / N, UA = rec.reduce((a, b) => a + b, 0) / K;
+  const mF1 = f1.reduce((a, b) => a + b, 0) / K, wF1 = f1.reduce((s, f, c) => s + f * CNT[c], 0) / N;
+  const mx = Math.max(...M.flat());
+  document.getElementById('cm').innerHTML = '<tr><th>thật \\ đoán</th>' + CL.map(c => `<th>${c}</th>`).join('') + '<th>số câu</th><th>recall</th></tr>' +
+    M.map((row, c) => `<tr><th>${CL[c]}</th>` + row.map((v, d) => `<td class="${c === d ? 'diag' : ''}" style="background:${rgb(cmap(0.75 * v / mx))};color:${v / mx > 0.55 ? '#fff' : '#37352f'}">${r0(v)}</td>`).join('') + `<td>${CNT[c]}</td><td>${r0(100 * rec[c])}%</td></tr>`).join('');
+  document.getElementById('r5').innerHTML = `WA = <b>${r1(100 * WA)}%</b> &nbsp; UA = <b>${r1(100 * UA)}%</b> &nbsp; macro-F1 = <b>${r1(100 * mF1)}%</b> &nbsp; weighted-F1 = <b>${r1(100 * wF1)}%</b>`;
+}
+document.getElementById('bias').addEventListener('input', e => { BIAS = +e.target.value; draw5(); });
+draw5();
+</script>
+</body>
+</html>

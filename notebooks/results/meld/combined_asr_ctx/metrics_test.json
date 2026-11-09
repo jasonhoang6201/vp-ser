@@ -1,0 +1,148 @@
+{
+  "name": "combined_asr_ctx",
+  "dataset": "meld",
+  "split": "test",
+  "notes": "SenseVoice-FT ASR + roberta-large fine-tuned (5 ep, lr 1e-05); train text asr, eval text asr, ctx 3, audio e2v False; 3-seed ensemble",
+  "asr": {
+    "wer": 0.27341651503335934,
+    "n_utts": 2572,
+    "n_ref_words": 23082,
+    "n_empty_ref_skipped": 2,
+    "wer_by_emotion": {
+      "anger": 0.27840092033362096,
+      "disgust": 0.22522522522522523,
+      "fear": 0.3509036144578313,
+      "joy": 0.2769562538508934,
+      "neutral": 0.2655801463098435,
+      "sadness": 0.2672527472527473,
+      "surprise": 0.3036876355748373
+    }
+  },
+  "ser": {
+    "wa": 0.49145299145299143,
+    "ua": 0.4154438481994108,
+    "macro_f1": 0.38033691563646055,
+    "weighted_f1": 0.505734968588281,
+    "recall_by_emotion": {
+      "neutral": 0.5189669087974172,
+      "joy": 0.5415617128463476,
+      "surprise": 0.5575539568345323,
+      "anger": 0.37091988130563797,
+      "sadness": 0.5,
+      "disgust": 0.1791044776119403,
+      "fear": 0.24
+    },
+    "n": 2574,
+    "n_invalid_pred": 0,
+    "labels": [
+      "neutral",
+      "joy",
+      "surprise",
+      "anger",
+      "sadness",
+      "disgust",
+      "fear"
+    ],
+    "confusion": [
+      [
+        643,
+        206,
+        126,
+        88,
+        109,
+        16,
+        51
+      ],
+      [
+        82,
+        215,
+        49,
+        17,
+        18,
+        9,
+        7
+      ],
+      [
+        37,
+        32,
+        155,
+        28,
+        12,
+        12,
+        2
+      ],
+      [
+        54,
+        46,
+        38,
+        125,
+        30,
+        23,
+        21
+      ],
+      [
+        39,
+        13,
+        12,
+        20,
+        103,
+        2,
+        17
+      ],
+      [
+        19,
+        6,
+        9,
+        16,
+        2,
+        12,
+        3
+      ],
+      [
+        11,
+        4,
+        8,
+        4,
+        8,
+        3,
+        12
+      ]
+    ]
+  },
+  "seeds": [
+    {
+      "seed": 0,
+      "best_epoch": 2,
+      "dev_ua": 0.46058680545709557,
+      "test_ua": 0.40657983776484485,
+      "test_wf1": 0.4951693150695851,
+      "gate": null
+    },
+    {
+      "seed": 1,
+      "best_epoch": 4,
+      "dev_ua": 0.45409791543377004,
+      "test_ua": 0.40055807329899673,
+      "test_wf1": 0.4965847902361981,
+      "gate": null
+    },
+    {
+      "seed": 2,
+      "best_epoch": 3,
+      "dev_ua": 0.46672219049133246,
+      "test_ua": 0.4188487618958995,
+      "test_wf1": 0.48555839594330946,
+      "gate": null
+    }
+  ],
+  "config": {
+    "train": "asr",
+    "eval": "asr",
+    "ctx": 3,
+    "audio": false
+  },
+  "ua_mean": 0.40866222431991367,
+  "ua_std": 0.009321457646782806,
+  "wf1_mean": 0.4924375004163642,
+  "wf1_std": 0.005999370904538752
+}

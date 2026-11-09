@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>CTC 4: Loss cộng mọi cách căn</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../lib/nn.js"></script>
+<script src="../lib/ctc.js"></script>
+<script src="../build/ctc-4-loss.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn thành phần', '3 Trống, rút gọn', '4 Loss cộng mọi cách căn', '5 Giải mã'];
+const BA = CTC.paths('ba', 4);
+const fmtN = n => n.toLocaleString('vi-VN');
+
+function circle(x, y, r, fill, stroke, lw = 2) { const g = Clip.g; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); if (fill) { g.fillStyle = fill; g.fill(); } if (stroke) { g.strokeStyle = stroke; g.lineWidth = lw; g.stroke(); } }
+
+// Blank-extended lattice for word y over T frames; `path` (list of states) is drawn on top.
+function lattice(y, T, B, o = {}) {
+  const L = CTC.lattice(y), S_ = L.length, cx = t => B.x + (t + 0.5) * B.w / T, cy = s => B.y + (s + 0.5) * B.h / S_;
+  L.forEach((c, s) => text(c === '-' ? '−' : c, B.x - 24, cy(s), {size: 28, weight: 700, color: c === '-' ? COL.mute : COL.acc, align: 'right', mono: true}));
+  for (let t = 0; t + 1 < T; t++) for (let s = 0; s < S_; s++) {
+    if (o.moves !== false) {
+      line(cx(t) + 14, cy(s), cx(t + 1) - 14, cy(s), COL.line, 1.5);
+      if (s + 1 < S_) line(cx(t) + 12, cy(s) + 8, cx(t + 1) - 12, cy(s + 1) - 8, COL.line, 1.5);
+      if (s + 2 < S_ && CTC.canSkip(L, s + 2)) line(cx(t) + 12, cy(s) + 10, cx(t + 1) - 12, cy(s + 2) - 10, COL.frame + '66', 1.5, [6, 4]);
+    }
+  }
+  for (let t = 0; t < T; t++) for (let s = 0; s < S_; s++) {
+    const ok = (t > 0 || s < 2) && (t < T - 1 || s >= S_ - 2);
+    circle(cx(t), cy(s), 13, ok ? COL.card : '#f1f0ed', L[s] === '-' ? COL.line2 : COL.acc, 2);
+  }
+  if (o.path) poly(o.path.map((_, t) => cx(t)), o.path.map(s => cy(s)), COL.frame, 5, null, o.upto == null ? 1 : o.upto);
+  return {cx, cy, L};
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('CTC', 'Phần 4/5: rất nhiều chuỗi frame cho cùng một câu', 3, PARTS);
+
+function shotMany(G, t) {
+  const sm = S('many'), dm = D('many'), ss = S('sum'), sa = S('same');
+  heading('Câu "ba", 4 frame: mọi chuỗi rút gọn ra "ba"');
+  const strs = BA.out.map(p => p.map(s => BA.L[s]).join(''));
+  const n = Math.ceil(strs.length * P(t, sm + 0.5, dm * 0.6));
+  strs.slice(0, n).forEach((x, j) => CTC.row(220 + (j % 5) * 300, 240 + Math.floor(j / 5) * 80, x, {w: 48, h: 50, size: 24}));
+  fade(G, P(t, sm + dm * 0.7, 0.5), () => text(`${strs.length} chuỗi`, 1700, 330, {size: 34, weight: 700, color: COL.frame, align: 'center'}));
+  fade(G, P(t, ss + 0.3, 0.5), () => {
+    text('P(câu | âm thanh)  =  Σ  Π P(ký hiệu ở frame t)', 960, 560, {size: 38, weight: 700, color: COL.acc, align: 'center'});
+    text('mọi chuỗi rút gọn ra câu', 900, 610, {size: 22, color: COL.mute, align: 'center'});
+    text('từng frame', 1210, 610, {size: 22, color: COL.mute, align: 'center'});
+  });
+  fade(G, P(t, sa + 0.3, 0.5), () => text('= ý của Forward ở trang HMM: không chắc ranh giới thì cộng mọi khả năng', 960, 720, {size: 28, weight: 700, color: COL.ok, align: 'center'}));
+}
+
+function shotGrow(G, t) {
+  const s = S('grow'), d = D('grow');
+  heading('Số chuỗi tăng rất nhanh');
+  const rows = [['"ba"', 4], ['"ba"', 8], ['"ba"', 12], ['"mai"', 30], ['"mai"', 100]];
+  const cx = [560, 900, 1360];
+  fade(G, P(t, s + 0.2, 0.5), () => {
+    ['câu', 'số frame', 'số chuỗi'].forEach((h, j) => text(h, cx[j], 260, {size: 24, weight: 600, color: COL.mute, align: 'center'}));
+    line(420, 288, 1560, 288, COL.line2, 2);
+  });
+  rows.forEach(([w, T], i) => fade(G, P(t, s + 0.6 + i * d * 0.15, 0.5), () => {
+    const y = 340 + i * 76, n = CTC.count(w.replace(/"/g, ''), T);
+    text(w, cx[0], y, {size: 30, weight: 700, align: 'center'});
+    text(String(T), cx[1], y, {size: 30, align: 'center'});
+    text(fmtN(n), cx[2], y, {size: 32, weight: 700, color: i > 2 ? COL.hl : COL.acc, align: 'center'});
+  }));
+}
+
+function shotLattice(G, t) {
+  const sl = S('lattice'), sm = S('moves'), dm = D('moves');
+  heading(t < sm ? 'Lưới có chèn trống: "− b − a −"' : 'Ở lại, sang kế, hoặc nhảy qua trống');
+  const B = {x: 420, y: 230, w: 1100, h: 440}, path = [0, 1, 1, 2, 3, 3, 4];
+  fade(G, P(t, sl + 0.3, 0.5), () => {
+    lattice('ba', 7, B, {moves: t >= sm, path: t >= sm + dm * 0.5 ? path : null, upto: P(t, sm + dm * 0.5, 1.5)});
+    text('frame →', B.x + B.w, B.y + B.h + 30, {size: 22, color: COL.mute, align: 'right'});
+  });
+  fade(G, P(t, sm + 0.5, 0.5), () => {
+    text('— ở lại / sang kế', 1560, 300, {size: 22, color: COL.mute});
+    text('- - nhảy qua trống', 1560, 340, {size: 22, color: COL.frame});
+  });
+  fade(G, P(t, sm + dm * 0.75, 0.5), () => text('một đường = một chuỗi frame: −bb−aa−', 960, 760, {size: 28, weight: 700, color: COL.frame, align: 'center'}));
+}
+
+function shotAa(G, t) {
+  const s = S('aa'), d = D('aa');
+  heading('Hai chữ giống nhau: không được nhảy qua trống');
+  const B = {x: 360, y: 240, w: 440, h: 440};
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    const {cx, cy} = lattice('aa', 3, B);
+    line(cx(0) + 12, cy(1) + 10, cx(1) - 12, cy(3) - 10, COL.hl, 3, [6, 4]);
+    text('✗', (cx(0) + cx(1)) / 2 + 16, (cy(1) + cy(3)) / 2, {size: 30, weight: 700, color: COL.hl});
+    text('"aa", T = 3: chỉ 1 chuỗi (a−a)', B.x + B.w / 2, B.y + B.h + 40, {size: 24, weight: 700, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.35, 0.5), () => {
+    card(980, 280, 640, 160, {stroke: COL.hl});
+    text('"aa" với T = 2', 1010, 330, {size: 28, weight: 700});
+    text(`${CTC.count('aa', 2)} chuỗi: không viết được`, 1010, 390, {size: 28, weight: 700, color: COL.hl});
+  });
+  fade(G, P(t, s + d * 0.65, 0.5), () => {
+    card(980, 480, 640, 160, {stroke: COL.acc});
+    text('CTC cần', 1010, 530, {size: 24, color: COL.mute});
+    text('T ≥ độ dài câu + số cặp chữ lặp', 1010, 585, {size: 28, weight: 700, color: COL.acc});
+  });
+}
+
+function shotLoss(G, t) {
+  const sl = S('loss'), dl = D('loss'), ss = S('self'), ds = D('self');
+  heading(t < ss ? 'Loss CTC' : 'Mạng tự tìm cách căn');
+  if (t < ss) {
+    fade(G, P(t, sl + 0.3, 0.5), () => text('loss = −log P(câu đúng | âm thanh)', 960, 360, {size: 48, weight: 700, color: COL.hl, align: 'center'}));
+    fade(G, P(t, sl + dl * 0.5, 0.5), () => {
+      text('học bằng gradient descent, như trang trước', 960, 480, {size: 28, align: 'center'});
+      text('gradient cũng tính qua forward-backward', 960, 530, {size: 28, color: COL.mute, align: 'center'});
+    });
+    return;
+  }
+  // Before/after: probability mass spread over the lattice vs concentrated on a few sensible alignments.
+  const B = {x: 260, y: 260, w: 600, h: 400}, B2 = {x: 1060, y: 260, w: 600, h: 400};
+  const sharp = P(t, ss + ds * 0.4, 1.5);
+  const draw = (BB, wgt, label) => {
+    const r = BA.out;
+    r.forEach((p, j) => {
+      const w = wgt(j);
+      poly(p.map((_, k) => BB.x + (k + 0.5) * BB.w / 4), p.map(s => BB.y + (s + 0.5) * BB.h / 5 + (j - 7) * 1.5), COL.frame + (w > 0.5 ? 'ff' : '33'), 1 + 5 * w);
+    });
+    text(label, BB.x + BB.w / 2, BB.y + BB.h + 40, {size: 26, weight: 700, align: 'center'});
+  };
+  fade(G, P(t, ss + 0.3, 0.5), () => draw(B, () => 0.25, 'lúc đầu: xác suất rải đều'));
+  fade(G, P(t, ss + ds * 0.4, 0.5), () => draw(B2, j => (j === 7 || j === 4 ? sharp : 0.1 * (1 - sharp)), 'sau khi học: dồn vào vài cách hợp lý'));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['loss CTC cộng mọi chuỗi frame rút gọn ra câu đúng'], ['tính bằng forward trên lưới "− b − a −"'], ['không cần nhãn từng frame']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.8, 0.6), () => {
+      text('✓', 420, 300 + j * 84, {size: 34, weight: 700, color: COL.ok});
+      text(a, 470, 300 + j * 84, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 820, 640, 'Phần 5: giải mã  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 4', [
+  ['một chuỗi frame cụ thể', 'đường căn (alignment, path)', 'rút gọn ra câu đích'],
+  ['lưới có chèn trống', 'extended label sequence', '− b − a −'],
+  ['tổng mọi đường', 'forward (α), forward-backward', 'như HMM trang 07'],
+  ['điểm phạt của CTC', 'CTC loss = −log P(y | x)', 'không cần ranh giới'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'many', to: 'same', draw: shotMany},
+    {from: 'grow', to: 'grow', draw: shotGrow},
+    {from: 'lattice', to: 'moves', draw: shotLattice},
+    {from: 'aa', to: 'aa', draw: shotAa},
+    {from: 'loss', to: 'self', draw: shotLoss},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/ctc-4-loss.wav');
+</script>
+</body>
+</html>

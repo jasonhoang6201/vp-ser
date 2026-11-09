@@ -1,0 +1,26 @@
+.DS_Store
+venv/
+node_modules/
+__pycache__/
+.ipynb_checkpoints/
+
+# Datasets: IEMOCAP license forbids redistribution, MELD is large
+dataset/
+notebooks/data_backup/
+notebooks/results/**/predictions*.csv
+
+# Feature cache and run logs (large, regenerable on Colab)
+notebooks/cache/
+notebooks/runs/
+
+# Generated media
+video/
+video-pipeline/audio/
+video-pipeline/build/
+*.wav
+*.mp3
+*.mp4
+*.npz
+*.npy
+*.tar
+*.tar.gz

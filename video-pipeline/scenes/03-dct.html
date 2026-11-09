@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>MFCC 3: DCT</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/dsp.js"></script>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/03-dct.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, axes, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT, curveBox} = UI;
+
+const a2 = DSP.frameInfo(DSP.envA, 200), X40 = a2.ldb, CC = a2.cc;
+const LO = Math.floor(Math.min(...X40) / 10) * 10 - 10, HI = Math.ceil(Math.max(...X40) / 10) * 10 + 10;
+const rec = K => DSP.idct(CC, K, 40);
+const ENV13 = rec(13), RIP = X40.map((v, j) => v - ENV13[j]);
+const wave = (k, j, n = 40) => Math.cos(Math.PI * k * (j + 0.5) / n);
+
+// Share of the variance across 400 random vowel frames held by each DCT coefficient.
+const RF = DSP.randomFrames(400);
+const VAR = Array.from({length: 40}, (_, k) => {
+  const v = RF.map(r => r.cc[k]), m = v.reduce((a, b) => a + b) / v.length;
+  return v.reduce((s, x) => s + (x - m) ** 2, 0) / v.length;
+});
+const VTOT = VAR.reduce((a, b) => a + b), CUM = VAR.map((_, k) => VAR.slice(0, k + 1).reduce((a, b) => a + b) / VTOT);
+
+// Textbook model of neighbouring filters: correlation rho^|i-j|. Its DCT is close to diagonal, which is the
+// reason DCT approximates PCA for this kind of data.
+const RHO = 0.9, NM = 40;
+const SIG = Array.from({length: NM}, (_, i) => Array.from({length: NM}, (_, j) => RHO ** Math.abs(i - j)));
+const T = Array.from({length: NM}, (_, k) => Array.from({length: NM}, (_, j) => Math.sqrt((k ? 2 : 1) / NM) * wave(k, j)));
+const SIGD = (() => {
+  const TS = T.map(r => Array.from({length: NM}, (_, j) => r.reduce((s, v, m) => s + v * SIG[m][j], 0)));
+  const C = TS.map(r => T.map(q => r.reduce((s, v, m) => s + v * q[m], 0)));
+  return C.map((r, i) => r.map((v, j) => v / Math.sqrt(C[i][i] * C[j][j])));
+})();
+
+function curve(B, ys, col, lw = 3, upto = 1, dash) { const {xs, Y} = curveBox(B, LO, HI); poly(xs, ys.map(Y), col, lw, dash, upto); }
+function dots(B, ys, col, r = 4) {
+  const {xs, Y} = curveBox(B, LO, HI);
+  ys.forEach((v, j) => { Clip.g.beginPath(); Clip.g.arc(xs[j], Y(v), r, 0, 2 * Math.PI); Clip.g.fillStyle = col; Clip.g.fill(); });
+}
+function frameAxes(B, o = {}) {
+  line(B.x, B.y + B.h, B.x + B.w, B.y + B.h, COL.line2, 2);
+  const {Y} = curveBox(B, LO, HI);
+  if (o.grid !== false) for (let v = LO + 10; v <= HI; v += 20) { line(B.x, Y(v), B.x + B.w, Y(v), '#ecebe8', 1.5); text(`${v} dB`, B.x - 12, Y(v), {size: 18, color: COL.mute, align: 'right'}); }
+  text('bộ lọc 1', B.x, B.y + B.h + 24, {size: 18, color: COL.mute});
+  text('bộ lọc 40', B.x + B.w, B.y + B.h + 24, {size: 18, color: COL.mute, align: 'right'});
+}
+function heatCell(v) {
+  const c = clamp(Math.abs(v));
+  return v >= 0 ? `rgba(217,115,13,${c})` : `rgba(51,126,169,${c})`;
+}
+function matrix(G, x, y, size, M) {
+  const n = M.length, cs = size / n;
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { G.fillStyle = heatCell(M[i][j]); G.fillRect(x + j * cs, y + i * cs, cs + 0.5, cs + 0.5); }
+  G.strokeStyle = COL.line2; G.lineWidth = 2; G.strokeRect(x, y, size, size);
+}
+function coefBars(G, B, from, o = {}) {
+  const vals = CC.slice(from), mx = Math.max(...vals.map(Math.abs)), bw = B.w / vals.length, y0 = B.y + B.h / 2;
+  line(B.x, y0, B.x + B.w, y0, COL.line2, 1.5);
+  vals.forEach((v, i) => {
+    const k = i + from, h = v / mx * B.h / 2 * (o.grow ?? 1);
+    G.fillStyle = o.split ? (k <= 12 ? COL.ok : COL.frame) : COL.acc;
+    G.fillRect(B.x + i * bw + bw * 0.15, Math.min(y0, y0 - h), bw * 0.7, Math.abs(h));
+  });
+  text(`c${from}`, B.x + bw / 2, B.y + B.h + 22, {size: 18, color: COL.mute, align: 'center'});
+  text('c39', B.x + B.w - bw / 2, B.y + B.h + 22, {size: 18, color: COL.mute, align: 'center'});
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('DCT: xếp đường phổ theo độ nhấp nhô', 'Phần 3/6: biến đổi cosin rời rạc', 2);
+
+function shotRecap(G, t) {
+  const s = S('recap'), d = D('recap'), sp = S('pain'), dp = D('pain');
+  const pain = t > sp - 0.3;
+  heading(pain ? 'Vướng: chỉ có đường tổng' : 'Sau log: log-Mel = khuôn + lược');
+  const B = {x: 220, y: 230, w: 1000, h: 300};
+  frameAxes(B);
+  curve(B, X40, COL.acc, 3.5, P(t, s + 0.3, 1.2));
+  dots(B, X40, COL.acc);
+  text('40 số log-Mel, âm "a", giọng 200 Hz', B.x, B.y - 30, {size: 22, color: COL.mute});
+  const qs = P(t, s + d * 0.45, 0.8) * (1 - P(t, sp + dp * 0.1, 0.6));
+  fade(G, qs, () => {
+    curve(B, ENV13, COL.ok, 3, 1, [9, 6]);
+    const B2 = {x: B.x, y: 600, w: B.w, h: 130}, lo = -20, hi = 20;
+    line(B2.x, B2.y + B2.h / 2, B2.x + B2.w, B2.y + B2.h / 2, COL.line2, 1.5);
+    const xs = curveBox(B2, lo, hi).xs, Y = curveBox(B2, lo, hi).Y;
+    poly(xs, RIP.map(Y), COL.frame, 3);
+    text('phần nhấp nhô nhanh: lược', B2.x + B2.w + 20, B2.y + B2.h / 2, {size: 24, weight: 600, color: COL.frame});
+    text('phần chậm: khuôn', B.x + B.w + 20, B.y + 90, {size: 24, weight: 600, color: COL.ok});
+  });
+  fade(G, P(t, sp + dp * 0.15, 0.6), () => {
+    card(1300, 260, 520, 420, {stroke: COL.hl, lw: 3});
+    text('Ta chỉ có đường xanh', 1560, 320, {size: 28, weight: 700, align: 'center'});
+    text('không có riêng khuôn, riêng lược', 1560, 370, {size: 24, color: COL.mute, align: 'center'});
+    text('để trừ đi', 1560, 410, {size: 24, color: COL.mute, align: 'center'});
+    fade(G, P(t, sp + dp * 0.55, 0.6), () => {
+      line(1340, 460, 1780, 460, COL.line, 2);
+      text('Cần: xếp đường theo', 1560, 520, {size: 28, weight: 700, color: COL.acc, align: 'center'});
+      text('độ nhấp nhô', 1560, 565, {size: 28, weight: 700, color: COL.acc, align: 'center'});
+      text('giữ chậm, bỏ nhanh', 1560, 625, {size: 24, color: COL.mute, align: 'center'});
+    });
+  });
+}
+
+function shotIdea(G, t) {
+  heading('Cùng một ý tưởng: cộng các sóng');
+  const s = S('idea'), d = D('idea');
+  const panel = (x, title, sub, at, sig, comps, col) => fade(G, P(t, s + d * at, 0.6), () => {
+    card(x, 230, 780, 520);
+    text(title, x + 30, 276, {size: 28, weight: 700, color: col});
+    text(sub, x + 30, 316, {size: 22, color: COL.mute});
+    const n = 300, xs = Array.from({length: n}, (_, i) => x + 60 + i / (n - 1) * 660);
+    comps.forEach((f, j) => {
+      const y0 = 400 + j * 70;
+      poly(xs, xs.map((_, i) => y0 - f(i / (n - 1)) * 24), COL.line2, 2.5, null, P(t, s + d * (at + 0.1 + j * 0.06), 0.6));
+      text(j ? '+' : '', x + 40, y0, {size: 24, color: COL.mute, align: 'center'});
+    });
+    line(x + 60, 600, x + 720, 600, COL.line, 1.5);
+    poly(xs, xs.map((_, i) => 660 - sig(i / (n - 1)) * 50), col, 3.5, null, P(t, s + d * (at + 0.3), 0.8));
+  });
+  const sines = [u => Math.sin(2 * Math.PI * 3 * u), u => 0.6 * Math.sin(2 * Math.PI * 6 * u + 1), u => 0.35 * Math.sin(2 * Math.PI * 9 * u + 2)];
+  panel(120, 'FFT, trang 03', 'sóng âm = tổng các sóng sin', 0.05, u => sines.reduce((a, f) => a + f(u), 0) / 1.6, sines, COL.ink);
+  const coss = [u => Math.cos(Math.PI * u),u => 0.6 * Math.cos(Math.PI * 3 * u), u => 0.35 * Math.cos(Math.PI * 7 * u)];
+  // The 13-wave envelope evaluated continuously: position (j + 0.5) / 40 becomes u.
+  const spec = u => (CC.slice(0, 13).reduce((a, c, k) => a + c * Math.sqrt((k ? 2 : 1) / 40) * Math.cos(Math.PI * k * u), 0) - 15) / 25;
+  panel(1020, 'DCT, phần này', 'đường phổ 40 số = tổng các sóng cosin', 0.5, spec, coss, COL.acc);
+}
+
+function shotBasis(G, t) {
+  heading('40 sóng cosin, đánh số 0 đến 39');
+  const s = S('basis'), d = D('basis');
+  const KS = [0, 1, 2, 3, 5, 13, 25, 39], names = {0: 'phẳng', 1: 'nửa chu kỳ: nghiêng', 2: 'một chu kỳ'};
+  KS.forEach((k, i) => {
+    const col = i % 2, row = Math.floor(i / 2), x = 150 + col * 840, y = 230 + row * 150;
+    const at = k <= 2 ? [0.25, 0.4, 0.55][k] : 0.7 + (i - 3) * 0.05;
+    fade(G, P(t, s + d * at, 0.5), () => {
+      text(`sóng ${k}`, x, y + 40, {size: 26, weight: 700, color: k >= 13 ? COL.frame : COL.ok});
+      if (names[k]) text(names[k], x, y + 76, {size: 20, color: COL.mute});
+      const B = {x: x + 210, y: y + 5, w: 540, h: 80}, xs = Array.from({length: 40}, (_, j) => B.x + (j + 0.5) / 40 * B.w);
+      line(B.x, B.y + B.h / 2, B.x + B.w, B.y + B.h / 2, COL.line, 1.5);
+      const ys = xs.map((_, j) => B.y + B.h / 2 - wave(k, j) * B.h / 2 * 0.9);
+      poly(xs, ys, k >= 13 ? COL.frame : COL.ok, 2.5);
+      ys.forEach((yy, j) => { G.beginPath(); G.arc(xs[j], yy, 3, 0, 2 * Math.PI); G.fillStyle = k >= 13 ? COL.frame : COL.ok; G.fill(); });
+    });
+  });
+}
+
+function shotCoef(G, t) {
+  heading('Hệ số: mỗi sóng cần bao nhiêu');
+  const s = S('coef'), d = D('coef');
+  fade(G, P(t, s + 0.3, 0.6), () => {
+    card(160, 220, 1600, 120);
+    text('cₖ = Σⱼ xⱼ · cos(π k (j + ½) / 40)', 960, 268, {size: 40, weight: 700, mono: true, align: 'center'});
+    text('xⱼ: số log-Mel thứ j · cₖ: lượng của sóng k (có thể âm) · DCT loại II, có chuẩn hóa', 960, 315, {size: 22, color: COL.mute, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.4, 0.6), () => {
+    const B = {x: 260, y: 420, w: 560, h: 260};
+    frameAxes(B, {grid: false});
+    curve(B, X40, COL.acc, 3); dots(B, X40, COL.acc, 3.5);
+    text('40 số log-Mel', B.x + B.w / 2, B.y - 24, {size: 24, weight: 600, align: 'center'});
+    arrow(880, 550, 1040, 550, COL.frame, 4, 14);
+    text('DCT', 960, 520, {size: 28, weight: 700, color: COL.frame, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.55, 0.6), () => {
+    const B = {x: 1100, y: 420, w: 600, h: 260};
+    coefBars(G, B, 1, {grow: P(t, s + d * 0.55, 1.2)});
+    text(`40 hệ số (c0 = ${CC[0].toFixed(0)}, vẽ từ c1)`, B.x + B.w / 2, B.y - 24, {size: 24, weight: 600, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.82, 0.5), () => chip(G, 760, 740, '40 số vào  →  40 hệ số ra: chưa mất gì', HOT));
+}
+
+function shotBuild(G, t) {
+  const s = S('build'), d = D('build'), s2 = S('slowfast'), d2 = D('slowfast');
+  // The count of waves follows the narration: 1, 2, a few, about 13, then all 40.
+  const u = (t - s) / d, K = t > s2 ? 13 : u < 0.2 ? 1 : u < 0.33 ? 2 : u < 0.55 ? Math.round(lerp(3, 6, (u - 0.33) / 0.22)) : u < 0.8 ? 13 : 40;
+  heading(t > s2 ? 'Hệ số đầu: khuôn. Hệ số cuối: lược' : 'Cộng dần các sóng theo hệ số');
+  const B = {x: 220, y: 230, w: 1000, h: 380};
+  frameAxes(B);
+  curve(B, X40, COL.line2, 3); dots(B, X40, '#b9b7b0', 4);
+  curve(B, rec(K), COL.frame, 4);
+  fade(G, 1 - P(t, s2, 0.5), () => {
+    card(1300, 260, 500, 200);
+    text('số sóng đang cộng', 1550, 310, {size: 24, color: COL.mute, align: 'center'});
+    text(`${K}`, 1550, 380, {size: 72, weight: 700, color: COL.frame, align: 'center'});
+    text(`c0 đến c${K - 1}`, 1550, 435, {size: 22, color: COL.mute, align: 'center'});
+  });
+  fade(G, 1 - P(t, s2, 0.5), () => {
+    poly([1320, 1370], [520, 520], COL.line2, 3); text('40 số log-Mel', 1385, 520, {size: 22, color: COL.mute});
+    poly([1320, 1370], [560, 560], COL.frame, 4); text('dựng lại từ K sóng', 1385, 560, {size: 22, color: COL.frame});
+  });
+  if (t < s2 - 0.3) return;
+  const {X} = curveBox(B, LO, HI);
+  fade(G, P(t, s2 + d2 * 0.1, 0.5), () => {
+    rrect(X(0) - 18, B.y + 10, X(11) - X(0) + 36, B.h - 20, 10, 'rgba(212,76,71,0.06)', COL.hl);
+    text('khía lăn tăn: họa âm còn sót', X(0), B.y - 20, {size: 22, weight: 600, color: COL.hl});
+  });
+  fade(G, P(t, s2 + d2 * 0.45, 0.6), () => {
+    const C = {x: 1290, y: 300, w: 540, h: 260};
+    card(C.x - 30, C.y - 70, C.w + 60, C.h + 160);
+    coefBars(G, C, 1, {split: true});
+    text('c1 – c12: khuôn', C.x, C.y + C.h + 60, {size: 24, weight: 700, color: COL.ok});
+    text('c13 – c39: lược', C.x + C.w, C.y + C.h + 60, {size: 24, weight: 700, color: COL.frame, align: 'right'});
+    text('40 hệ số của frame này', C.x + C.w / 2, C.y - 36, {size: 22, color: COL.mute, align: 'center'});
+  });
+}
+
+function shotWhy(G, t) {
+  heading('Vì sao DCT mà không phải FFT?');
+  const s = S('whynotfft'), d = D('whynotfft');
+  fade(G, P(t, s + 0.2, 0.5), () => {
+    chip(G, 160, 220, '1. DCT cho số thực: không phần ảo, không pha', {size: 26, color: COL.ink});
+  });
+  const row = (y, title, col, mirror, at, mark) => fade(G, P(t, s + d * at, 0.6), () => {
+    text(title, 160, y - 10, {size: 26, weight: 700, color: col});
+    const B = {x: 160, y: y + 20, w: 1600, h: 200}, lo = LO, hi = HI;
+    const X = j => B.x + (j + 0.5) / 120 * B.w, Y = v => B.y + B.h - (v - lo) / (hi - lo) * B.h;
+    const ys = [], xs = [];
+    for (let c = 0; c < 3; c++) for (let j = 0; j < 40; j++) { xs.push(X(c * 40 + j)); ys.push(X40[mirror && c % 2 ? 39 - j : j]); }
+    for (let c = 0; c < 3; c++) {
+      const a = c * 40, b = a + 40;
+      poly(xs.slice(a, b), ys.slice(a, b).map(Y), c === 0 ? COL.acc : COL.line2, 3, c ? [8, 6] : null);
+      if (c < 2) poly([xs[b - 1], xs[b]], [Y(ys[b - 1]), Y(ys[b])], mark, 4);
+    }
+    [40, 80].forEach(j => { line(X(j - 0.5), B.y, X(j - 0.5), B.y + B.h, COL.line, 1.5, [4, 6]); });
+    G.beginPath(); G.arc(X(39.5), Y((ys[39] + ys[40]) / 2), 26, 0, 2 * Math.PI); G.strokeStyle = mark; G.lineWidth = 3; G.stroke();
+  });
+  row(340, '2. FFT coi đường là tuần hoàn: cuối nối về đầu, bị nhảy', COL.hl, false, 0.4, COL.hl);
+  row(620, 'DCT soi gương đường đó trước: hai đầu nối mượt', COL.ok, true, 0.75, COL.ok);
+}
+
+function shotCompact(G, t) {
+  heading('Năng lượng dồn vào vài hệ số đầu (energy compaction)');
+  const s = S('compact'), d = D('compact');
+  const B = {x: 220, y: 240, w: 1200, h: 440}, bw = B.w / 40, vmx = Math.max(...VAR.slice(1));
+  fade(G, P(t, s + d * 0.35, 0.6), () => {
+    line(B.x, B.y + B.h, B.x + B.w, B.y + B.h, COL.line2, 2);
+    const grow = P(t, s + d * 0.35, 1.4);
+    for (let k = 0; k < 40; k++) {
+      const h = Math.min(VAR[k] / vmx, 1.15) * B.h * 0.8 * grow;
+      G.fillStyle = k <= 12 ? COL.ok : COL.frame;
+      G.fillRect(B.x + k * bw + bw * 0.15, B.y + B.h - h, bw * 0.7, h);
+    }
+    text('phương sai của từng hệ số trên 400 frame nguyên âm', B.x, B.y - 30, {size: 22, color: COL.mute});
+    text('c0', B.x + bw / 2, B.y + B.h + 24, {size: 18, color: COL.mute, align: 'center'});
+    text('c12', B.x + 12.5 * bw, B.y + B.h + 24, {size: 18, color: COL.ok, align: 'center'});
+    text('c39', B.x + 39.5 * bw, B.y + B.h + 24, {size: 18, color: COL.mute, align: 'center'});
+    if (VAR[0] / vmx > 1.15) text('(c0 cắt ngọn)', B.x, B.y + B.h * (1 - 0.92) - 18, {size: 18, color: COL.mute});
+  });
+  fade(G, P(t, s + d * 0.7, 0.6), () => {
+    card(1480, 300, 340, 260, {stroke: COL.ok, lw: 3});
+    text('c0 đến c12', 1650, 360, {size: 26, color: COL.mute, align: 'center'});
+    text(`${Math.round(CUM[12] * 100)}%`, 1650, 440, {size: 72, weight: 700, color: COL.ok, align: 'center'});
+    text('phương sai của 40 hệ số', 1650, 510, {size: 22, color: COL.mute, align: 'center'});
+  });
+}
+
+function shotDecor(G, t) {
+  const s = S('decor'), d = D('decor'), sh = S('hist'), dh = D('hist');
+  heading(t > sh - 0.3 ? 'Ahmed, Natarajan, Rao (1974)' : 'DCT khử tương quan, gần giống PCA');
+  if (t < sh - 0.3) {
+    fade(G, P(t, s + d * 0.15, 0.6), () => {
+      matrix(G, 260, 260, 400, SIG);
+      text('tương quan giữa 40 bộ lọc', 460, 700, {size: 24, weight: 600, align: 'center'});
+      text('(mô hình: hai bộ lọc càng gần, tương quan càng mạnh)', 460, 740, {size: 20, color: COL.mute, align: 'center'});
+    });
+    fade(G, P(t, s + d * 0.4, 0.5), () => { arrow(720, 460, 900, 460, COL.frame, 4, 14); text('DCT', 810, 425, {size: 28, weight: 700, color: COL.frame, align: 'center'}); });
+    fade(G, P(t, s + d * 0.45, 0.6), () => {
+      matrix(G, 960, 260, 400, SIGD);
+      text('tương quan giữa 40 hệ số', 1160, 700, {size: 24, weight: 600, align: 'center'});
+      text('gần như chỉ còn đường chéo', 1160, 740, {size: 20, color: COL.ok, weight: 600, align: 'center'});
+    });
+    fade(G, P(t, s + d * 0.65, 0.6), () => {
+      card(1440, 300, 380, 300);
+      text('PCA (Karhunen - Loève)', 1630, 350, {size: 24, weight: 700, align: 'center'});
+      text('học từ dữ liệu', 1630, 390, {size: 22, color: COL.mute, align: 'center'});
+      text('≈', 1630, 445, {size: 44, color: COL.mute, align: 'center'});
+      text('DCT', 1630, 500, {size: 28, weight: 700, color: COL.acc, align: 'center'});
+      text('công thức cố định', 1630, 540, {size: 22, color: COL.mute, align: 'center'});
+    });
+    return;
+  }
+  const ev = [[1974, 'DCT', 'Ahmed, Natarajan, Rao: gần PCA, tính nhanh'], [1980, 'MFCC', 'Davis và Mermelstein dùng DCT trên log-Mel'],
+    [1992, 'JPEG', 'nén ảnh theo khối 8 × 8 bằng DCT'], [1993, 'MP3', 'nén âm thanh bằng MDCT, một biến thể của DCT']];
+  // Evenly spaced rather than to scale: 1992 and 1993 would sit on top of each other.
+  const x0 = 260, x1 = 1660, Xi = i => x0 + 100 + i * (x1 - x0 - 200) / 3;
+  fade(G, P(t, sh, 0.5), () => line(x0, 420, x1, 420, COL.line2, 3));
+  ev.forEach(([y, n, desc], i) => fade(G, P(t, sh + dh * (0.1 + i * 0.18), 0.5), () => {
+    const x = Xi(i), up = i % 2 === 0, yy = up ? 330 : 520;
+    G.beginPath(); G.arc(x, 420, 10, 0, 2 * Math.PI); G.fillStyle = i ? COL.acc : COL.frame; G.fill();
+    text(String(y), x, up ? 460 : 380, {size: 22, color: COL.mute, align: 'center'});
+    text(n, x, yy, {size: 32, weight: 700, color: i ? COL.acc : COL.frame, align: 'center'});
+    text(desc, x, yy + 44, {size: 22, color: COL.mute, align: 'center'});
+  }));
+}
+
+function shotFix(G, t) {
+  heading('Vướng 2 của phần 1 được gỡ');
+  const s = S('fix'), d = D('fix');
+  fade(G, P(t, s + 0.3, 0.6), () => {
+    card(240, 240, 640, 420);
+    text('Mô hình Gauss đường chéo', 560, 290, {size: 28, weight: 700, align: 'center'});
+    const n = 13, cs = 22, x = 560 - n * cs / 2, y = 340;
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      G.fillStyle = i === j ? COL.acc : '#f1f0ed'; G.fillRect(x + j * cs + 1, y + i * cs + 1, cs - 2, cs - 2);
+    }
+    text('chỉ cần phương sai trên đường chéo', 560, 640 - 20, {size: 22, color: COL.mute, align: 'center'});
+  });
+  const items = [['giả định: các số không tương quan', 0.3], ['sau DCT: giả định gần đúng', 0.5], ['ít tham số, cần ít dữ liệu', 0.75]];
+  items.forEach(([s2, at], j) => fade(G, P(t, s + d * at, 0.5), () => {
+    text(j ? '✓' : '•', 1000, 330 + j * 100, {size: 40, weight: 700, color: j ? COL.ok : COL.mute});
+    text(s2, 1050, 330 + j * 100, {size: 30});
+  }));
+}
+
+function shotResult(G, t) {
+  heading('Kết quả bước DCT');
+  const s = S('result'), d = D('result');
+  fade(G, P(t, s + 0.2, 0.6), () => {
+    const B = {x: 180, y: 300, w: 520, h: 260};
+    frameAxes(B, {grid: false}); curve(B, X40, COL.acc, 3);
+    text('40 số log-Mel', B.x + B.w / 2, B.y - 30, {size: 26, weight: 600, align: 'center'});
+    arrow(740, 430, 900, 430, COL.frame, 4, 14); text('DCT', 820, 395, {size: 28, weight: 700, color: COL.frame, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.25, 0.6), () => {
+    const C = {x: 960, y: 300, w: 560, h: 260};
+    coefBars(G, C, 1, {split: true});
+    text('40 hệ số, xếp theo độ nhấp nhô', C.x + C.w / 2, C.y - 30, {size: 26, weight: 600, align: 'center'});
+    text('khuôn', C.x + 60, C.y + C.h + 60, {size: 24, weight: 700, color: COL.ok});
+    text('lược', C.x + C.w - 60, C.y + C.h + 60, {size: 24, weight: 700, color: COL.frame, align: 'right'});
+  });
+  fade(G, P(t, s + d * 0.55, 0.5), () => {
+    text('✓ chưa mất gì   ✓ đầu khuôn, cuối lược   ✓ ít tương quan', 960, 720, {size: 28, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.8, 0.5), () => chip(G, 1560, 400, 'Phần 4: cắt  →', {fill: COL.accSoft, stroke: COL.acc, color: COL.acc, weight: 700, size: 26}));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ của phần 3', [
+  ['biến đổi cosin rời rạc', 'DCT (Discrete Cosine Transform)', 'viết đường 40 số thành tổng sóng cosin'],
+  ['sóng cơ sở', 'basis function', 'các sóng cosin số 0 đến 39'],
+  ['hệ số', 'coefficient, c0 ... c39', 'lượng của mỗi sóng, có thể âm'],
+  ['dồn năng lượng', 'energy compaction', 'vài hệ số đầu chứa phần lớn'],
+  ['khử tương quan', 'decorrelation', 'các hệ số gần như độc lập'],
+  ['phân tích thành phần chính', 'PCA, Karhunen - Loève (KLT)', 'DCT ≈ PCA cho dữ liệu kiểu này'],
+  ['tuần hoàn, soi gương', 'periodic vs. symmetric extension', 'FFT nhảy ở biên, DCT thì không'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 9,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'recap', to: 'pain', draw: shotRecap},
+    {from: 'idea', to: 'idea', draw: shotIdea},
+    {from: 'basis', to: 'basis', draw: shotBasis},
+    {from: 'coef', to: 'coef', draw: shotCoef},
+    {from: 'build', to: 'slowfast', draw: shotBuild},
+    {from: 'whynotfft', to: 'whynotfft', draw: shotWhy},
+    {from: 'compact', to: 'compact', draw: shotCompact},
+    {from: 'decor', to: 'hist', draw: shotDecor},
+    {from: 'fix', to: 'fix', draw: shotFix},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/03-dct.wav');
+</script>
+</body>
+</html>

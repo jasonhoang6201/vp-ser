@@ -1,0 +1,76 @@
+{
+  "name": "cascade_fusion_gated_gt_wavlm",
+  "dataset": "iemocap",
+  "split": "test",
+  "notes": "gated; predictions = 3-seed ensemble; uses GROUND-TRUTH text (upper bound)",
+  "ser": {
+    "wa": 0.7703464947622884,
+    "ua": 0.7745928178963892,
+    "macro_f1": 0.772647690556173,
+    "weighted_f1": 0.7714902569824702,
+    "recall_by_emotion": {
+      "neutral": 0.8125,
+      "joy": 0.7307692307692307,
+      "anger": 0.8,
+      "sadness": 0.7551020408163265
+    },
+    "n": 1241,
+    "n_invalid_pred": 0,
+    "labels": [
+      "neutral",
+      "joy",
+      "anger",
+      "sadness"
+    ],
+    "confusion": [
+      [
+        312,
+        27,
+        17,
+        28
+      ],
+      [
+        88,
+        323,
+        17,
+        14
+      ],
+      [
+        19,
+        8,
+        136,
+        7
+      ],
+      [
+        34,
+        19,
+        7,
+        185
+      ]
+    ]
+  },
+  "seeds": [
+    {
+      "seed": 0,
+      "dev_ua": 0.8561917646412119,
+      "test_ua": 0.7806482448748729,
+      "test_wf1": 0.7759827486026325
+    },
+    {
+      "seed": 1,
+      "dev_ua": 0.8453986121693251,
+      "test_ua": 0.7550457923554037,
+      "test_wf1": 0.7570414586776609
+    },
+    {
+      "seed": 2,
+      "dev_ua": 0.843845538230356,
+      "test_ua": 0.7697169853518331,
+      "test_wf1": 0.7678094988732155
+    }
+  ],
+  "ua_mean": 0.7684703408607033,
+  "ua_std": 0.012846672161239562,
+  "wf1_mean": 0.7669445687178363,
+  "wf1_std": 0.009500220741420727
+}

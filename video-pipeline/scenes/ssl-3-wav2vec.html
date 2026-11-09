@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>SSL 3: wav2vec 2.0</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/ssl-3-wav2vec.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Hai hướng', '3 wav2vec 2.0', '4 HuBERT', '5 Whisper'];
+const N = 24, X0 = 300, W = 56, MASK = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 16];
+const CODES = [12, 12, 40, 40, 40, 7, 7, 7, 7, 91, 91, 91, 91, 33, 33, 33, 5, 5, 5, 5, 61, 61, 61, 61];
+
+function wave(x, y, w, h) {
+  const xs = [], ys = [];
+  for (let k = 0; k <= 400; k++) { const u = k / 400; xs.push(x + u * w); ys.push(y + h / 2 * Math.sin(k * 0.9) * (0.4 + 0.6 * Math.abs(Math.sin(k * 0.031)))); }
+  poly(xs, ys, COL.mute, 1.5);
+}
+const masked = (t, k) => t >= S('mask') + 0.6 && MASK.includes(k);
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('wav2vec 2.0', 'Phần 3/5: che rồi chọn đáp án đúng', 2, PARTS);
+
+function shotPipe(G, t) {
+  const sc = S('cnn'), sq = S('quant'), sm = S('mask'), st = S('tf');
+  heading('wav2vec 2.0: bốn bước');
+  fade(G, P(t, sc + 0.3, 0.5), () => {
+    text('sóng âm thô', X0 - 20, 240, {size: 22, color: COL.mute, align: 'right'});
+    wave(X0, 240, N * W - 10, 70);
+    text('CNN', X0 - 20, 330, {size: 22, weight: 700, color: COL.acc, align: 'right'});
+    for (let k = 0; k < N; k++) {
+      arrow(X0 + k * W + W / 2 - 5, 280, X0 + k * W + W / 2 - 5, 310, COL.line2, 1.5, 6);
+      rrect(X0 + k * W, 316, W - 10, 44, 6, masked(t, k) ? COL.soft : COL.accSoft, masked(t, k) ? COL.line2 : COL.acc, 1.5);
+      if (masked(t, k)) text('?', X0 + k * W + W / 2 - 5, 338, {size: 22, weight: 700, color: COL.mute, align: 'center'});
+    }
+    text('1 vector / 20 ms', X0 + N * W + 10, 338, {size: 20, color: COL.acc});
+  });
+  fade(G, P(t, sq + 0.3, 0.5), () => {
+    text('mã', X0 - 20, 430, {size: 22, weight: 700, color: COL.ok, align: 'right'});
+    for (let k = 0; k < N; k++) {
+      line(X0 + k * W + W / 2 - 5, 362, X0 + k * W + W / 2 - 5, 406, COL.ok + '66', 1.5);
+      rrect(X0 + k * W, 410, W - 10, 40, 6, '#e8f3ec', COL.ok, 1.5);
+      text(String(CODES[k]), X0 + k * W + W / 2 - 5, 430, {size: 18, weight: 700, color: COL.ok, align: 'center'});
+    }
+    text('đáp án rời rạc (codebook)', X0 + N * W + 10, 430, {size: 20, color: COL.ok});
+  });
+  fade(G, P(t, sm + 0.3, 0.5), () => {
+    [[3, 13], [15, 17]].forEach(([a, b]) => { line(X0 + a * W, 300, X0 + b * W - 10, 300, COL.frame, 4); });
+    text('che các đoạn 10 frame, khoảng một nửa', X0 + 6 * W, 188, {size: 22, weight: 700, color: COL.frame, align: 'center'});
+  });
+  fade(G, P(t, st + 0.3, 0.5), () => {
+    rrect(X0, 520, N * W - 10, 90, 14, COL.frameSoft, COL.frame, 3);
+    text('Transformer: đọc cả câu, tạo vector ở mỗi chỗ bị che', X0 + (N * W) / 2, 565, {size: 26, weight: 700, color: COL.frame, align: 'center'});
+    for (let k = 0; k < N; k++) arrow(X0 + k * W + W / 2 - 5, 366, X0 + k * W + W / 2 - 5, 514, COL.frame + '22', 1, 4);
+  });
+}
+
+function shotContrast(G, t) {
+  const s = S('contrast'), d = D('contrast'), sw = S('why'), dw = D('why');
+  heading(t < sw ? 'Loss tương phản: chọn đúng 1 trong 101' : 'Vì sao chọn, mà không đoán thẳng?');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    rrect(260, 300, 220, 110, 14, COL.frameSoft, COL.frame, 3);
+    text('vector ở', 370, 340, {size: 22, color: COL.frame, align: 'center'});
+    text('frame bị che', 370, 372, {size: 24, weight: 700, color: COL.frame, align: 'center'});
+    const cands = [['91', true], ['7', false], ['33', false], ['5', false], ['40', false], ['61', false]];
+    cands.forEach(([c, ok], j) => {
+      const y = 230 + j * 70, on = ok && t > s + d * 0.5;
+      rrect(760, y, 160, 54, 10, on ? '#e8f3ec' : COL.card, on ? COL.ok : COL.line2, on ? 3 : 1.5);
+      text(`mã ${c}`, 840, y + 27, {size: 22, weight: 700, color: on ? COL.ok : COL.mute, align: 'center'});
+      line(490, 355, 750, y + 27, on ? COL.ok : COL.line, on ? 3 : 1.2);
+      text(ok ? 'đúng' : 'nhiễu', 940, y + 27, {size: 20, color: ok ? COL.ok : COL.mute});
+    });
+    text('… 100 mã nhiễu từ các frame khác cùng câu', 760, 670, {size: 22, color: COL.mute, maxW: 320});
+  });
+  fade(G, P(t, s + d * 0.6, 0.5), () => {
+    card(1120, 300, 560, 180, {stroke: COL.acc});
+    text('như câu trắc nghiệm', 1150, 350, {size: 26, color: COL.mute});
+    text('101 lựa chọn', 1150, 410, {size: 36, weight: 700, color: COL.acc});
+  });
+  fade(G, P(t, sw + 0.3, 0.5), () => {
+    card(1120, 520, 560, 200, {stroke: COL.ok});
+    text('đoán thẳng: phí sức vào nhiễu', 1150, 570, {size: 24, color: COL.hl});
+    text('chọn giữa frame thật:', 1150, 620, {size: 24});
+    text('phải nắm "đang có âm gì"', 1150, 670, {size: 26, weight: 700, color: COL.ok});
+  });
+}
+
+function shotLearn(G, t) {
+  const sl = S('learn'), dl = D('learn'), sn = S('num'), dn = D('num');
+  heading(t < sn ? 'Mô hình học được gì?' : 'Kết quả (Baevski và cộng sự, 2020)');
+  if (t < sn) {
+    fade(G, P(t, sl + 0.3, 0.5), () => {
+      text('muốn đoán đúng phần bị che, phải hiểu:', 960, 320, {size: 28, align: 'center'});
+      text('âm nào hay đi với âm nào', 960, 400, {size: 38, weight: 700, color: COL.acc, align: 'center'});
+      text('= kiến thức âm học + một phần ngôn ngữ, học từ âm thanh không nhãn', 960, 480, {size: 26, color: COL.ok, align: 'center'});
+    });
+    return;
+  }
+  fade(G, P(t, sn + 0.3, 0.5), () => {
+    card(220, 260, 600, 300, {stroke: COL.ok});
+    text('tiền huấn luyện', 250, 310, {size: 24, color: COL.mute});
+    text('53 000 giờ không nhãn', 250, 370, {size: 34, weight: 700, color: COL.ok});
+    text('tinh chỉnh CTC', 250, 450, {size: 24, color: COL.mute});
+    text('chỉ 10 phút có nhãn', 250, 510, {size: 34, weight: 700, color: COL.acc});
+  });
+  fade(G, P(t, sn + dn * 0.45, 0.5), () => {
+    const B = {x: 1000, y: 280, h: 300};
+    [['test-clean', 4.8], ['test-other', 8.2]].forEach(([l, v], j) => {
+      const h = v / 10 * B.h;
+      rrect(B.x + j * 280, B.y + B.h - h, 180, h, 8, COL.acc);
+      text(`${String(v).replace('.', ',')}%`, B.x + j * 280 + 90, B.y + B.h - h - 24, {size: 30, weight: 700, color: COL.acc, align: 'center'});
+      text(l, B.x + j * 280 + 90, B.y + B.h + 30, {size: 24, align: 'center'});
+    });
+    text('WER trên LibriSpeech, mô hình lớn, có dùng LM', 1230, 680, {size: 22, color: COL.mute, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['CNN đọc sóng âm, lượng tử hóa ra mã'], ['che khoảng một nửa số frame'], ['Transformer chọn mã đúng giữa 100 mã nhiễu'], ['tinh chỉnh CTC với rất ít nhãn']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.5, 0.6), () => {
+      text('✓', 460, 290 + j * 84, {size: 34, weight: 700, color: COL.ok});
+      text(a, 510, 290 + j * 84, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 840, 680, 'Phần 4: HuBERT  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 3', [
+  ['mạng tích chập đọc sóng âm', 'CNN feature encoder', '1 vector / 20 ms'],
+  ['đổi vector thành mã trong bảng', 'lượng tử hóa (quantization), codebook', 'đáp án rời rạc'],
+  ['che một phần đầu vào', 'masking', 'đoạn 10 frame, ~một nửa'],
+  ['chọn đúng giữa các đáp án nhiễu', 'contrastive loss, negative samples', '100 mã nhiễu'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'cnn', to: 'tf', draw: shotPipe},
+    {from: 'contrast', to: 'why', draw: shotContrast},
+    {from: 'learn', to: 'num', draw: shotLearn},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/ssl-3-wav2vec.wav');
+</script>
+</body>
+</html>

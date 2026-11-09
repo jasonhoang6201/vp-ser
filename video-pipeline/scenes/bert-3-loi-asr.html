@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>SER từ chữ · 3: Lỗi ASR</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/bert.js"></script>
+<script src="../build/bert-3-loi-asr.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn thành phần', '3 Lỗi ASR'];
+const CC = [COL.mute, COL.ok, COL.hl, COL.acc];
+
+// Sentence as word chips; words that differ from the reference are highlighted.
+function words(x, y, s, ref) {
+  const r = ref ? ref.split(' ') : null;
+  let xx = x;
+  s.split(' ').forEach((w, j) => {
+    const bad = r && !r.includes(w);
+    xx += chip(Clip.g, xx, y, w, {size: 28, weight: 700, color: bad ? COL.hl : COL.ink, stroke: bad ? COL.hl : COL.line}) + 12;
+  });
+  // Only a shorter hypothesis has deleted words; an equal-length one has substitutions, already highlighted.
+  if (r && r.length > s.split(' ').length) r.filter(w => !s.split(' ').includes(w)).forEach(w => {
+    xx += chip(Clip.g, xx, y, '(mất "' + w + '")', {size: 24, weight: 700, color: COL.hl, stroke: COL.hl}) + 12;
+  });
+}
+function probs(x, y, w, p) {
+  let xx = x;
+  p.forEach((v, k) => {
+    rrect(xx, y, v * w, 40, 4, CC[k]);
+    if (v > 0.12) text(`${BERT.CLS[k]} ${Math.round(100 * v)}%`, xx + 8, y + 20, {size: 20, weight: 700, color: '#fff'});
+    xx += v * w;
+  });
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('SER từ chữ: BERT, RoBERTa', 'Phần 3/3: lỗi ASR, cùng WER mà tác hại khác nhau', 2, PARTS);
+
+function shotEx(G, t) {
+  const st = S('toy'), s1 = S('ex1'), s2 = S('ex2'), sw = S('why'), s3 = S('ex3'), sn = S('not');
+  if (t < s1) {
+    heading('Bộ đoán minh họa: vài từ khóa (không phải RoBERTa)');
+    fade(G, P(t, st + 0.3, 0.5), () => {
+      [['love, happy, great, glad', 'vui', COL.ok], ['hate, stupid, angry, damn', 'giận', COL.hl], ['sad, sorry, miss, cry', 'buồn', COL.acc], ['not, never, don\'t', 'đảo nghĩa từ sau', COL.frame]].forEach(([a, b, c], j) => {
+        text(a, 900, 300 + j * 80, {size: 28, weight: 700, align: 'right'});
+        text('→ ' + b, 940, 300 + j * 80, {size: 28, weight: 700, color: c});
+      });
+    });
+    return;
+  }
+  const k = t >= s3 ? 2 : t >= s2 ? 1 : 0, s0 = [s1, s2, s3][k], [ref, hyp] = BERT.EXS[k];
+  heading(`Ví dụ ${k + 1}: WER ${Math.round(100 * BERT.wer(ref, hyp))}%`);
+  const pr = BERT.score(ref), ph = BERT.score(hyp), a = BERT.argmax(pr), b = BERT.argmax(ph);
+  fade(G, P(t, s0 + 0.3, 0.5), () => {
+    text('câu đúng', 240, 316, {size: 24, weight: 700, color: COL.mute, align: 'right'});
+    words(270, 290, ref);
+    probs(270, 370, 1400, pr);
+  });
+  fade(G, P(t, s0 + 1.5, 0.5), () => {
+    text('câu ASR', 240, 486, {size: 24, weight: 700, color: COL.mute, align: 'right'});
+    words(270, 460, hyp, ref);
+    probs(270, 540, 1400, ph);
+  });
+  fade(G, P(t, s0 + 3, 0.5), () => {
+    const same = a === b;
+    text(same ? `${BERT.CLS[a]} → ${BERT.CLS[b]}: không đổi` : `${k === 2 ? 'giận / buồn' : BERT.CLS[a]} → ${BERT.CLS[b]}: đổi nhãn`, 960, 680, {size: 34, weight: 700, color: same ? COL.ok : COL.hl, align: 'center'});
+  });
+  if (t >= sw && t < s3) fade(G, P(t, sw + 0.3, 0.5), () => text('WER coi mọi từ như nhau; SER thì không', 960, 760, {size: 28, weight: 700, color: COL.frame, align: 'center'}));
+  if (t >= sn) fade(G, P(t, sn + 0.3, 0.5), () => text('"not": ngắn, nói lướt, rất hay bị ASR bỏ', 960, 760, {size: 28, weight: 700, color: COL.frame, align: 'center'}));
+}
+
+function shotFix(G, t) {
+  const sf = S('fix'), sp = S('page');
+  heading(t < sp ? 'Giảm hại thế nào?' : 'Tóm tắt trang');
+  if (t < sp) {
+    fade(G, P(t, sf + 0.3, 0.5), () => {
+      text('RoBERTa mềm dẻo hơn bộ từ khóa nhiều, nhưng hiện tượng giống nhau', 960, 280, {size: 28, align: 'center'});
+      card(220, 360, 700, 220, {stroke: COL.ok});
+      text('fine-tune nhánh chữ', 260, 420, {size: 30, weight: 700, color: COL.ok});
+      text('trên chính transcript ASR: quen với lỗi', 260, 480, {size: 26});
+      card(1000, 360, 700, 220, {stroke: COL.frame});
+      text('ghép thêm âm thanh', 1040, 420, {size: 30, weight: 700, color: COL.frame});
+      text('giọng bù chỗ chữ sai (trang 21)', 1040, 480, {size: 26});
+    });
+    return;
+  }
+  fade(G, P(t, sp + 0.3, 0.5), () => {
+    const labels = ['tokenizer', 'encoder học sẵn (MLM)', 'token đầu câu', 'phân loại'], xs = UI.chipXs(G, labels, {size: 26, weight: 700}, 50);
+    labels.forEach((l, j) => { chip(G, xs[j], 320, l, {size: 26, weight: 700, color: COL.acc, stroke: COL.acc}); if (j) text('→', xs[j] - 25, 346, {size: 28, align: 'center'}); });
+    text('BERT mở đầu · RoBERTa dùng nhiều nhất', 960, 470, {size: 30, weight: 700, align: 'center'});
+    text('tác hại lỗi ASR không tỉ lệ với WER', 960, 550, {size: 30, weight: 700, color: COL.hl, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['✗', 'lỗi ở từ cảm xúc: đổi nhãn', COL.hl], ['✗', 'mất từ phủ định: đảo nghĩa', COL.hl], ['✓', 'cùng WER, tác hại khác nhau: xem kỹ lỗi ở đâu', COL.ok]].forEach(([m, a, c], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text(m, 420, 300 + j * 90, {size: 34, weight: 700, color: c});
+      text(a, 470, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 760, 640, 'Trang sau: ghép âm thanh với chữ  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 3', [
+  ['tỉ lệ lỗi từ', 'WER (word error rate)', 'mọi từ nặng như nhau'],
+  ['câu máy chép', 'ASR transcript (hypothesis)', ''],
+  ['từ đảo nghĩa', 'negation', 'not, never, don\'t'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'toy', to: 'not', draw: shotEx},
+    {from: 'fix', to: 'page', draw: shotFix},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/bert-3-loi-asr.wav');
+</script>
+</body>
+</html>

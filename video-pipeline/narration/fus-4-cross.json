@@ -1,0 +1,33 @@
+{
+  "clip": "fus-4-cross",
+  "title": "Ghép âm thanh và chữ · Phần 4: Cross-attention",
+  "segments": [
+    {"id": "intro",
+     "sub": "Ghép âm thanh và chữ, phần 4: cross-attention, mỗi từ tìm đoạn giọng của nó.",
+     "say": "Ghép âm thanh và chữ, phần bốn: cờ rót ờ ten sần, mỗi từ tìm đoạn giọng của nó."},
+    {"id": "qkv",
+     "sub": "query = vector của từ \"great\"; key, value = các frame âm thanh.",
+     "say": "Query là véc tơ của từ grết. Key và value là các frame âm thanh."},
+    {"id": "focus",
+     "sub": "Attention dồn trọng số vào đúng đoạn frame nói chữ \"great\", và lấy ra giọng của đúng chữ đó: gằn hay vui vẻ.",
+     "say": "Ờ ten sần dồn trọng số vào đúng đoạn frame nói chữ grết, và lấy ra giọng của đúng chữ đó: gằn, hay vui vẻ."},
+    {"id": "same",
+     "sub": "Cùng công thức attention ở trang 11; chỉ khác query lấy từ một nguồn (chữ), key, value lấy từ nguồn khác (âm thanh).",
+     "say": "Đây vẫn là công thức ờ ten sần ở trang mười một. Chỉ khác là query lấy từ một nguồn, là chữ, còn key và value lấy từ nguồn khác, là âm thanh."},
+    {"id": "both",
+     "sub": "Kết quả: mỗi từ có thêm thông tin \"được nói ra thế nào\". Có thể làm cả hai chiều: âm thanh nhìn chữ.",
+     "say": "Kết quả: mỗi từ có thêm thông tin được nói ra thế nào. Có thể làm cả hai chiều, cho âm thanh nhìn lại chữ."},
+    {"id": "stack",
+     "sub": "Nhiều mô hình chồng nhiều lớp cross-attention, đôi khi theo nhiều mức (từ, câu): co-attention, hierarchical attention.",
+     "say": "Nhiều mô hình chồng nhiều lớp cờ rót ờ ten sần lên nhau, đôi khi theo nhiều mức, từ và câu. Các tên hay gặp: cô ờ ten sần, và hai ơ rác ki cồ ờ ten sần."},
+    {"id": "cost",
+     "sub": "Cái giá: nhiều tham số, cần nhiều dữ liệu; với vài nghìn câu dễ học thuộc.",
+     "say": "Cái giá: nhiều tham số, cần nhiều dữ liệu. Với chỉ vài nghìn câu thì rất dễ học thuộc."},
+    {"id": "result",
+     "sub": "Tóm lại: query từ chữ, key-value từ âm thanh; mỗi từ biết mình được nói ra sao. Phần 5: ngữ cảnh hội thoại.",
+     "say": "Tóm lại: query từ chữ, key và value từ âm thanh, nên mỗi từ biết mình được nói ra sao. Phần năm: ngữ cảnh hội thoại."},
+    {"id": "terms",
+     "sub": "Thuật ngữ của phần này.",
+     "say": "Các thuật ngữ của phần này."}
+  ]
+}

@@ -1,0 +1,109 @@
+{
+  "name": "combined_asr_wavlm",
+  "dataset": "iemocap",
+  "split": "test",
+  "notes": "SenseVoice-FT ASR + roberta-large fine-tuned (5 ep, lr 1e-05); train text asr, eval text asr, ctx 0, audio wavlm; 3-seed ensemble",
+  "asr": {
+    "wer": 0.09783095527544948,
+    "n_utts": 1222,
+    "n_ref_words": 15629,
+    "n_empty_ref_skipped": 19,
+    "wer_by_emotion": {
+      "anger": 0.08309218685407194,
+      "joy": 0.1149704758596735,
+      "neutral": 0.08458422682868716,
+      "sadness": 0.09554531490015361
+    }
+  },
+  "ser": {
+    "wa": 0.750201450443191,
+    "ua": 0.7487271591328839,
+    "macro_f1": 0.745026299876659,
+    "weighted_f1": 0.7499315317306363,
+    "recall_by_emotion": {
+      "neutral": 0.828125,
+      "joy": 0.7013574660633484,
+      "anger": 0.7470588235294118,
+      "sadness": 0.7183673469387755
+    },
+    "n": 1241,
+    "n_invalid_pred": 0,
+    "labels": [
+      "neutral",
+      "joy",
+      "anger",
+      "sadness"
+    ],
+    "confusion": [
+      [
+        318,
+        18,
+        21,
+        27
+      ],
+      [
+        80,
+        310,
+        22,
+        30
+      ],
+      [
+        23,
+        15,
+        127,
+        5
+      ],
+      [
+        25,
+        36,
+        8,
+        176
+      ]
+    ]
+  },
+  "seeds": [
+    {
+      "seed": 0,
+      "best_epoch": 2,
+      "dev_ua": 0.7639773516203294,
+      "test_ua": 0.740448126365931,
+      "test_wf1": 0.7404778736292298,
+      "gate": [
+        0.2876425087451935,
+        0.7123575210571289
+      ]
+    },
+    {
+      "seed": 1,
+      "best_epoch": 4,
+      "dev_ua": 0.7529189629141009,
+      "test_ua": 0.7265827965801706,
+      "test_wf1": 0.7270318642476208,
+      "gate": [
+        0.27161550521850586,
+        0.7283844351768494
+      ]
+    },
+    {
+      "seed": 2,
+      "best_epoch": 3,
+      "dev_ua": 0.7685839523390077,
+      "test_ua": 0.7244357478568351,
+      "test_wf1": 0.7188049051586985,
+      "gate": [
+        0.5835245847702026,
+        0.416475385427475
+      ]
+    }
+  ],
+  "config": {
+    "train": "asr",
+    "eval": "asr",
+    "ctx": 0,
+    "audio": true
+  },
+  "ua_mean": 0.7304888902676456,
+  "ua_std": 0.008691504029863805,
+  "wf1_mean": 0.7287715476785164,
+  "wf1_std": 0.010940715900294632
+}

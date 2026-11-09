@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cái lược và cái khuôn</title>
+<style>
+:root{
+  --page:#fbfbfa;--bg:#ffffff;--soft:#f7f7f5;--line:#dcdbd7;--line2:#c4c2bc;
+  --ink:#37352f;--mute:#787774;--acc:#337ea9;--acc-soft:#e7f3f8;
+  --a:#448361;--i:#9065b0;--u:#337ea9;--frame:#d9730d;--hl:#d44c47;
+  --lift:0 0 0 1px rgba(15,15,15,.10),0 2px 4px rgba(15,15,15,.04),0 8px 20px rgba(15,15,15,.05);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);font:15px/1.65 Inter,"Be Vietnam Pro",system-ui,sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:28px 16px 80px}
+h1{font-size:24px;line-height:1.3;margin:0 0 6px}
+h2{font-size:18px;margin:0 0 8px;display:flex;gap:10px;align-items:baseline}
+h2 .n{display:inline-flex;justify-content:center;align-items:center;min-width:26px;height:26px;border-radius:50%;background:var(--ink);color:#fff;font-size:13px}
+p{margin:0 0 10px}
+.sub{color:var(--mute);margin:0 0 20px}
+section{background:var(--bg);box-shadow:var(--lift);border-radius:8px;padding:20px;margin:0 0 22px}
+.fig{margin:12px 0 4px}
+canvas{display:block}
+.note{border-left:3px solid var(--hl);background:#fdf3f2;padding:10px 14px;border-radius:0 6px 6px 0;margin:12px 0 0}
+.note.blue{border-color:var(--acc);background:var(--acc-soft)}
+.note b{color:var(--hl)}
+.note.blue b{color:var(--acc)}
+button{font:inherit;font-size:14px;padding:5px 12px;border:1px solid var(--line2);background:var(--bg);border-radius:6px;cursor:pointer;color:var(--ink)}
+button:hover{background:var(--soft)}
+button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.chip{display:inline-block;padding:0 7px;border-radius:4px;font-size:13px;color:#fff}
+.muted{color:var(--mute)}
+table{border-collapse:collapse;width:100%;font-size:14px;margin:8px 0}
+th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+th{background:var(--soft)}
+.bar{position:sticky;top:0;z-index:5;background:rgba(251,251,250,.96);backdrop-filter:blur(4px);border-bottom:1px solid var(--line);margin:0 -16px 22px;padding:10px 16px}
+.bar .row{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;font-size:14px}
+.bar label{display:flex;gap:8px;align-items:center}
+.bar input[type=range]{width:200px}
+.bar .v{display:flex;gap:6px}
+.readout{margin-top:8px;min-height:24px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.cell h3{font-size:14px;margin:0 0 4px}
+.cell .ctl{margin-top:4px}
+.big{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:10px 0}
+.big div{border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.big h3{margin:0 0 4px;font-size:15px}
+#ans{display:none}
+@media (max-width:640px){.grid,.big{grid-template-columns:1fr}.bar input[type=range]{width:140px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Cái lược và cái khuôn: giọng trầm/cao khác với chữ gì</h1>
+<p class="sub">Trên một spectrogram có <b>hai loại con số Hz</b>. Một loại cho biết giọng trầm hay cao (f0). Loại kia cho biết đang nói chữ gì (formant). Trang này tách hai thứ đó ra cho bạn nhìn. Mọi âm thanh và hình vẽ đều được tổng hợp ngay trong trang. Đây không phải giọng thật, nhưng được tạo theo đúng cách giọng thật hình thành.</p>
+
+<svg viewBox="0 0 940 150" style="width:100%;height:auto" role="img" aria-label="Dây thanh tạo lược, miệng tạo khuôn">
+  <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#787774"/></marker></defs>
+  <g font-size="13" text-anchor="middle" fill="#37352f">
+    <rect x="2" y="20" width="250" height="110" rx="8" fill="#fdf3f2" stroke="#d44c47"/>
+    <text x="127" y="44" font-weight="600">① Dây thanh rung</text>
+    <text x="127" y="64" fill="#787774" font-size="12">tạo ra "cái lược": các vạch cách đều</text>
+    <g stroke="#d44c47" stroke-width="2.5">
+      <line x1="62" y1="118" x2="62" y2="82"/><line x1="92" y1="118" x2="92" y2="82"/><line x1="122" y1="118" x2="122" y2="82"/><line x1="152" y1="118" x2="152" y2="82"/><line x1="182" y1="118" x2="182" y2="82"/>
+    </g>
+    <text x="127" y="78" fill="#d44c47" font-size="11">← khoảng cách = f0 →</text>
+
+    <rect x="345" y="20" width="250" height="110" rx="8" fill="#fbeee3" stroke="#d9730d"/>
+    <text x="470" y="44" font-weight="600">② Miệng và lưỡi</text>
+    <text x="470" y="64" fill="#787774" font-size="12">tạo ra "cái khuôn": chỗ nào được làm to</text>
+    <path d="M385 118 C 410 118, 415 80, 435 80 S 460 118, 480 112 S 510 86, 525 86 S 545 118, 560 118" fill="none" stroke="#d9730d" stroke-width="2.5"/>
+    <text x="435" y="75" fill="#d9730d" font-size="11">F1</text><text x="525" y="81" fill="#d9730d" font-size="11">F2</text>
+
+    <rect x="688" y="20" width="250" height="110" rx="8" fill="#e7f3f8" stroke="#337ea9"/>
+    <text x="813" y="44" font-weight="600">③ Âm thanh phát ra</text>
+    <text x="813" y="64" fill="#787774" font-size="12">lược × khuôn: vạch nào gần F1, F2 thì sáng</text>
+    <g stroke-width="2.5">
+      <line x1="733" y1="118" x2="733" y2="106" stroke="#9b9a97"/><line x1="763" y1="118" x2="763" y2="80" stroke="#d44c47"/><line x1="793" y1="118" x2="793" y2="104" stroke="#9b9a97"/><line x1="823" y1="118" x2="823" y2="98" stroke="#9b9a97"/><line x1="853" y1="118" x2="853" y2="86" stroke="#d44c47"/><line x1="883" y1="118" x2="883" y2="108" stroke="#9b9a97"/>
+    </g>
+  </g>
+  <g stroke="#787774" stroke-width="1.5" marker-end="url(#ar)"><line x1="256" y1="75" x2="340" y2="75"/><line x1="599" y1="75" x2="683" y2="75"/></g>
+  <g font-size="12" fill="#787774" text-anchor="middle"><text x="298" y="68">hơi đi qua</text><text x="641" y="68">ra ngoài</text></g>
+</svg>
+
+<div class="bar">
+  <div class="row">
+    <label>Giọng (f0): <input type="range" id="f0" min="80" max="320" step="10" value="200"> <b id="f0v">200 Hz</b></label>
+    <span class="v">Chữ:
+      <button data-v="a">a</button><button data-v="i">i</button><button data-v="u">u</button>
+    </span>
+    <button id="playMain">▶ Nghe</button>
+  </div>
+  <div class="muted" style="font-size:13px">Thanh điều khiển này luôn ở trên cùng. Kéo f0 hay đổi chữ thì các hình ①, ②, ③ đổi theo.</div>
+</div>
+
+<section id="s1">
+<h2><span class="n">1</span>Cái lược: dây thanh tạo ra các vạch cách đều nhau</h2>
+<p>Dây thanh rung <b>f0</b> lần mỗi giây. Kết quả là năng lượng xuất hiện ở các tần số <b>f0, 2×f0, 3×f0, ...</b>, gọi là các <b>họa âm</b>. Trên spectrogram, chúng chính là các vạch ngang. Trong hình dưới, trục ngang là tần số (từ 0 đến 4000 Hz).</p>
+<div class="fig"><canvas id="c1"></canvas></div>
+<div class="note"><b>Khoanh vùng:</b> mũi tên đỏ đo <b>khoảng cách giữa hai vạch</b>, và khoảng cách đó chính bằng f0. Bạn kéo thanh f0 sang trái (giọng trầm) thì các vạch <b>sít lại</b>, kéo sang phải (giọng cao) thì các vạch <b>thưa ra</b>. Ở hình này các vạch cao bằng nhau, nghĩa là chưa có thông tin gì về chữ.</div>
+</section>
+
+<section id="s2">
+<h2><span class="n">2</span>Cái khuôn: hình dạng miệng quyết định chỗ nào được làm to</h2>
+<p>Khoang miệng giống một cái hộp cộng hưởng. Mỗi kiểu há miệng và đặt lưỡi sẽ <b>làm to</b> một vài vùng tần số. Những vùng đó gọi là <b>formant</b>, hai vùng thấp nhất có tên F1 và F2. Cái khuôn <b>không phụ thuộc vào f0</b>: bạn kéo thanh f0 thì hình này đứng yên.</p>
+<div class="fig"><canvas id="c2"></canvas></div>
+<div class="readout" id="mouth"></div>
+<div class="note"><b>Khoanh vùng:</b> hai đỉnh của đường cong là F1 và F2. Bấm qua lại giữa <b>a, i, u</b> để thấy hai đỉnh này dời chỗ. Đây là thứ cho biết đang nói <b>chữ gì</b>.</div>
+</section>
+
+<section id="s3">
+<h2><span class="n">3</span>Lược × khuôn: âm thanh thật sự phát ra</h2>
+<p>Hơi từ dây thanh (cái lược) đi qua miệng (cái khuôn). Mỗi vạch của lược bị khuôn làm to hoặc nhỏ tùy theo nó nằm ở đâu. <b>Vạch nào rơi gần F1 hoặc F2 thì sáng nhất.</b></p>
+<div class="fig"><canvas id="c3"></canvas></div>
+<div class="readout" id="r3"></div>
+<div class="note"><b>Khoanh vùng:</b> các vạch tô <b>đỏ</b> là vạch sáng nhất. Đường chấm là cái khuôn ở mục 2, và các vạch không bao giờ cao hơn đường này. Bạn thử hai việc:
+<br>(1) Giữ chữ "a", kéo f0 từ 100 lên 300. Các vạch đỏ thay đổi, nhưng chúng <b>luôn nằm trong vùng F1 và F2</b>.
+<br>(2) Giữ f0, bấm sang "i". Khoảng cách giữa các vạch giữ nguyên, chỉ có <b>chỗ sáng dời đi</b>.</div>
+</section>
+
+<section id="s4">
+<h2><span class="n">4</span>Nhìn trên spectrogram: hai người, hai chữ</h2>
+<p>Bốn spectrogram dưới đây được tính thật (cắt frame 25 ms, FFT) từ bốn âm tổng hợp. Tần số được dựng đứng như ở trang spectrogram. Mỗi âm được giữ đều, nên các vạch nằm ngang thẳng. Cột trái là giọng trầm, cột phải là giọng cao. Hàng trên là chữ "a", hàng dưới là chữ "i".</p>
+<div class="grid">
+  <div class="cell"><h3>Giọng trầm, f0 = 120 Hz, chữ "a"</h3><canvas id="g0"></canvas><div class="ctl"><button data-g="0">▶ Nghe</button></div></div>
+  <div class="cell"><h3>Giọng cao, f0 = 240 Hz, chữ "a"</h3><canvas id="g1"></canvas><div class="ctl"><button data-g="1">▶ Nghe</button></div></div>
+  <div class="cell"><h3>Giọng trầm, f0 = 120 Hz, chữ "i"</h3><canvas id="g2"></canvas><div class="ctl"><button data-g="2">▶ Nghe</button></div></div>
+  <div class="cell"><h3>Giọng cao, f0 = 240 Hz, chữ "i"</h3><canvas id="g3"></canvas><div class="ctl"><button data-g="3">▶ Nghe</button></div></div>
+</div>
+<div class="note"><b>Khoanh vùng:</b>
+<br><b>So theo hàng ngang</b> (cùng chữ, khác giọng): khung cam chấm (F1, F2) <b>nằm ở cùng độ cao</b>. Vì vậy cả hai đều là "a", hoặc cả hai đều là "i".
+<br><b>So theo cột dọc</b> (cùng giọng, khác chữ): thước đỏ ở góc phải đo khoảng cách giữa các vạch, và khoảng cách này <b>giống nhau</b> ở hai hình. Vì vậy hai hình là cùng một giọng.
+<br>Cột phải có các vạch thưa gấp đôi cột trái, vì 240 = 2 × 120.</div>
+</section>
+
+<section id="s5">
+<h2><span class="n">5</span>Tự kiểm tra</h2>
+<p>Một người có giọng <b>f0 = 200 Hz</b> nói chữ <b>"i"</b> (F1 khoảng 300 Hz, F2 khoảng 2300 Hz). <b>Những vạch nào sẽ sáng nhất?</b> Bạn tự nghĩ trước rồi mới bấm.</p>
+<div style="display:flex;gap:8px;flex-wrap:wrap"><button id="setQ">Đặt thanh điều khiển theo câu hỏi rồi xem hình ③</button><button id="showA">Xem đáp án</button></div>
+<div class="note blue" id="ans"><b>Đáp án:</b> các vạch nằm ở 200, 400, 600, ..., 2200, 2400, ...
+<br>Quanh F1 = 300 Hz: không có vạch nào rơi đúng 300, nên <b>200 Hz và 400 Hz</b> (hai vạch kẹp hai bên) cùng sáng.
+<br>Quanh F2 = 2300 Hz: tương tự, <b>2200 Hz và 2400 Hz</b> cùng sáng.
+<br>Ý cần nhớ: vạch chỉ có thể nằm ở bội số của f0. Formant không "tạo ra" vạch mới, nó chỉ <b>làm sáng</b> những vạch đã có sẵn ở gần nó.</div>
+</section>
+
+<section>
+<h2>Tóm tắt và liên hệ đề tài</h2>
+<div class="big">
+  <div><h3 style="color:var(--hl)">Cái lược = f0</h3>Do <b>dây thanh</b> tạo ra.<br>Trên spectrogram: <b>khoảng cách giữa các vạch ngang</b>.<br>Cho biết: giọng <b>trầm hay cao</b>, lên hay xuống (dấu thanh, ngữ điệu).<br>Ai cần: <b>SER</b>. Khi giận hay phấn khích, giọng thường cao lên và dao động nhiều. Khi buồn, giọng thường trầm và đều.</div>
+  <div><h3 style="color:var(--frame)">Cái khuôn = formant</h3>Do <b>miệng và lưỡi</b> tạo ra.<br>Trên spectrogram: <b>độ cao của các vùng sáng</b> (F1, F2).<br>Cho biết: đang nói <b>chữ gì</b>.<br>Ai cần: <b>ASR</b>. Model phải nhận ra "a" dù người nói giọng trầm hay cao, tức là phải học cách <b>bỏ qua cái lược</b>.</div>
+</div>
+<table>
+<tr><th>Thay đổi</th><th>Cái lược (khoảng cách vạch)</th><th>Cái khuôn (vị trí F1, F2)</th></tr>
+<tr><td>Cùng chữ "a", người khác giọng</td><td>Khác</td><td>Gần như giống (lệch chút ít theo từng người)</td></tr>
+<tr><td>Cùng một người, nói "a" rồi "i"</td><td>Giống</td><td>Khác</td></tr>
+<tr><td>Âm vô thanh "s"</td><td>Không có lược (dây thanh không rung)</td><td>Chỉ có một mảng xì ở vùng tần số cao</td></tr>
+</table>
+<p class="muted" style="font-size:13px">Các số formant (a: 800/1300, i: 300/2300, u: 300/800 Hz) chỉ là giá trị minh họa, chúng thay đổi theo người nói và giọng vùng miền. Hình chỉ vẽ tới 4000 Hz, vì phần quan trọng của nguyên âm nằm ở dưới mức này.</p>
+</section>
+</div>
+
+<script>
+const SR = 16000, FMAX = 4000;
+const C = {ink:'#37352f', mute:'#787774', line:'#dcdbd7', grey:'#9b9a97', a:'#448361', i:'#9065b0', u:'#337ea9', frame:'#d9730d', hl:'#d44c47'};
+const gauss = (f, c, w) => Math.exp(-0.5 * ((f - c) / w) ** 2);
+const taper = f => f < 3500 ? 1 : Math.max(0, (4000 - f) / 500);
+const V = {
+  a: {F: [800, 1300], W: [150, 170], env: f => 0.05 + gauss(f, 800, 150) + 0.8 * gauss(f, 1300, 170) + 0.25 * gauss(f, 2600, 220), mouth: 'Chữ "a": <b>há to miệng, lưỡi hạ thấp</b>. F1 cao (khoảng 800 Hz), F2 ở giữa (khoảng 1300 Hz).'},
+  i: {F: [300, 2300], W: [100, 200], env: f => 0.05 + gauss(f, 300, 100) + 0.75 * gauss(f, 2300, 200) + 0.35 * gauss(f, 3000, 220), mouth: 'Chữ "i": <b>miệng dẹt, lưỡi đưa ra trước</b>. F1 thấp (khoảng 300 Hz), F2 rất cao (khoảng 2300 Hz).'},
+  u: {F: [300, 800], W: [100, 140], env: f => 0.05 + gauss(f, 300, 100) + 0.75 * gauss(f, 800, 140) + 0.15 * gauss(f, 2300, 220), mouth: 'Chữ "u": <b>tròn môi, lưỡi lùi về sau</b>. F1 thấp (khoảng 300 Hz), F2 cũng thấp (khoảng 800 Hz).'},
+};
+for (const k in V) {
+  let m = 0;
+  for (let f = 0; f <= FMAX; f += 5) m = Math.max(m, V[k].env(f));
+  V[k].max = m;
+}
+const envN = (k, f) => V[k].env(f) / V[k].max;
+
+let F0 = 200, VOW = 'a';
+
+// Formants only brighten harmonics that already exist, so the brightest lines are the
+// harmonic(s) nearest each formant; two lines straddling a formant almost equally both count.
+function brightLines(f0, k) {
+  const out = [];
+  V[k].F.forEach((F, j) => {
+    const lo = Math.floor(F / f0) * f0, hi = lo + f0;
+    const cand = [lo, hi].filter(f => f > 0 && f < FMAX);
+    const d = cand.map(f => Math.abs(f - F)), best = Math.min(...d);
+    cand.forEach((f, q) => { if (d[q] - best < 0.25 * f0) out.push({f, j}); });
+  });
+  return out;
+}
+
+function fft(re, im) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let b = n >> 1;
+    for (; j & b; b >>= 1) j ^= b;
+    j ^= b;
+    if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang), h = len >> 1;
+    for (let i = 0; i < n; i += len) {
+      let cr = 1, ci = 0;
+      for (let k = 0; k < h; k++) {
+        const p = i + k, q = p + h;
+        const vr = re[q] * cr - im[q] * ci, vi = re[q] * ci + im[q] * cr;
+        re[q] = re[p] - vr; im[q] = im[p] - vi;
+        re[p] += vr; im[p] += vi;
+        const t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t;
+      }
+    }
+  }
+}
+
+function synth(f0, amp, dur) {
+  const n = Math.floor(dur * SR), s = new Float32Array(n);
+  for (let k = 1; k * f0 < FMAX; k++) {
+    const f = k * f0, a = amp(f) * taper(f), ph = k * 0.7;
+    if (a < 1e-4) continue;
+    for (let t = 0; t < n; t++) s[t] += a * Math.sin(2 * Math.PI * f * t / SR + ph);
+  }
+  let mx = 1e-9;
+  for (const v of s) mx = Math.max(mx, Math.abs(v));
+  for (let t = 0; t < n; t++) s[t] *= 0.5 / mx * Math.min(1, t / 400, (n - t) / 400);
+  return s;
+}
+
+let actx;
+function play(sig) {
+  actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+  const b = actx.createBuffer(1, sig.length, SR);
+  b.copyToChannel(sig, 0);
+  const src = actx.createBufferSource();
+  src.buffer = b; src.connect(actx.destination); src.start();
+}
+
+function setup(id, h) {
+  const c = document.getElementById(id), w = c.parentElement.clientWidth, d = window.devicePixelRatio || 1;
+  c.width = w * d; c.height = h * d; c.style.width = w + 'px'; c.style.height = h + 'px';
+  const g = c.getContext('2d');
+  g.setTransform(d, 0, 0, d, 0, 0);
+  g.textBaseline = 'middle';
+  return {g, w, h};
+}
+function text(g, s, x, y, color = C.mute, align = 'left', bold = false, bg = false) {
+  g.font = (bold ? '600 ' : '') + '12px Inter, system-ui, sans-serif';
+  g.textAlign = align;
+  if (bg) {
+    const w = g.measureText(s).width, x0 = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
+    g.fillStyle = 'rgba(255,255,255,.9)'; g.fillRect(x0 - 3, y - 9, w + 6, 18);
+  }
+  g.fillStyle = color; g.fillText(s, x, y);
+}
+function dashRect(g, x0, y0, w, h, color, lw = 2) {
+  g.save(); g.strokeStyle = color; g.lineWidth = lw; g.setLineDash([6, 4]); g.strokeRect(x0, y0, w, h); g.restore();
+}
+function hArrow(g, x0, x1, y, color) {
+  g.save(); g.strokeStyle = color; g.fillStyle = color; g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke();
+  for (const [x, s] of [[x0, 1], [x1, -1]]) {
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + 7 * s, y - 4); g.lineTo(x + 7 * s, y + 4); g.closePath(); g.fill();
+  }
+  g.restore();
+}
+function freqAxis(g, box) {
+  g.strokeStyle = C.line; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(box.l, box.t + box.h); g.lineTo(box.l + box.w, box.t + box.h); g.stroke();
+  for (let f = 0; f <= FMAX; f += 500) {
+    const x = box.l + f / FMAX * box.w;
+    g.beginPath(); g.moveTo(x, box.t + box.h); g.lineTo(x, box.t + box.h + 4); g.stroke();
+    text(g, String(f), x, box.t + box.h + 14, C.mute, 'center');
+  }
+  text(g, 'Hz', box.l + box.w + 6, box.t + box.h + 14);
+}
+const boxOf = R => ({l: 20, t: 30, w: R.w - 50, h: R.h - 62});
+
+function draw1() {
+  const R = setup('c1', 200), g = R.g, B = boxOf(R), X = f => B.l + f / FMAX * B.w;
+  freqAxis(g, B);
+  const top = B.t + 18;
+  g.lineWidth = 2.5; g.strokeStyle = C.hl;
+  for (let k = 1; k * F0 < FMAX; k++) {
+    g.beginPath(); g.moveTo(X(k * F0), B.t + B.h); g.lineTo(X(k * F0), top); g.stroke();
+  }
+  hArrow(g, X(F0), X(2 * F0), top - 10, C.hl);
+  text(g, 'f0 = ' + F0 + ' Hz', X(2 * F0) + 10, top - 10, C.hl, 'left', true, true);
+  for (let k = 1; k <= 3; k++) text(g, k + '×f0 = ' + (k * F0), X(k * F0), B.t + B.h - 12 - 18 * (k - 1), C.ink, 'left', false, true);
+}
+
+function envPath(g, B, k, X) {
+  g.beginPath();
+  for (let p = 0; p <= B.w; p++) {
+    const f = p / B.w * FMAX, y = B.t + B.h - envN(k, f) * B.h;
+    p ? g.lineTo(B.l + p, y) : g.moveTo(B.l + p, y);
+  }
+}
+function formantBands(g, B, k, X, labels) {
+  const v = V[k];
+  v.F.forEach((F, j) => {
+    const x0 = X(F - 1.3 * v.W[j]), x1 = X(F + 1.3 * v.W[j]);
+    g.fillStyle = C.frame + '14'; g.fillRect(x0, B.t, x1 - x0, B.h);
+    dashRect(g, x0, B.t, x1 - x0, B.h, C.frame, 1.5);
+    if (labels) text(g, 'F' + (j + 1) + ' ≈ ' + F + ' Hz', (x0 + x1) / 2, B.t - 10, C.frame, 'center', true);
+  });
+}
+
+function draw2() {
+  const R = setup('c2', 220), g = R.g, B = boxOf(R), X = f => B.l + f / FMAX * B.w;
+  formantBands(g, B, VOW, X, true);
+  envPath(g, B, VOW, X);
+  g.lineTo(B.l + B.w, B.t + B.h); g.lineTo(B.l, B.t + B.h); g.closePath();
+  g.fillStyle = C[VOW] + '33'; g.fill();
+  envPath(g, B, VOW, X);
+  g.strokeStyle = C[VOW]; g.lineWidth = 2.5; g.stroke();
+  freqAxis(g, B);
+  document.getElementById('mouth').innerHTML = V[VOW].mouth;
+}
+
+function draw3() {
+  const R = setup('c3', 280), g = R.g, B = boxOf(R), X = f => B.l + f / FMAX * B.w;
+  formantBands(g, B, VOW, X, true);
+  g.save(); g.setLineDash([3, 4]); envPath(g, B, VOW, X); g.strokeStyle = C[VOW]; g.lineWidth = 1.5; g.stroke(); g.restore();
+  const hot = brightLines(F0, VOW), hotF = new Set(hot.map(h => h.f));
+  for (let k = 1; k * F0 < FMAX; k++) {
+    const f = k * F0, y = B.t + B.h - envN(VOW, f) * taper(f) * B.h, on = hotF.has(f);
+    g.strokeStyle = on ? C.hl : C.grey; g.lineWidth = on ? 3.5 : 2.5;
+    g.beginPath(); g.moveTo(X(f), B.t + B.h); g.lineTo(X(f), y); g.stroke();
+  }
+  let lastX = -1e9;
+  for (const h of [...hot].sort((p, q) => p.f - q.f)) {
+    const x = X(h.f), y = B.t + B.h - envN(VOW, h.f) * B.h - 12;
+    const yy = x - lastX < 46 ? y - 16 : y;
+    text(g, h.f + '', x, Math.max(B.t + 8, yy), C.hl, 'center', true, true);
+    lastX = x;
+  }
+  hArrow(g, X(F0), X(2 * F0), B.t + B.h - 14, C.ink);
+  text(g, 'cách nhau f0 = ' + F0, X(2 * F0) + 10, B.t + B.h - 14, C.ink, 'left', false, true);
+  freqAxis(g, B);
+  const fmt = j => {
+    const fs = hot.filter(h => h.j === j).map(h => h.f);
+    return fs.map(f => `<b style="color:var(--hl)">${f} Hz</b> = ${f / F0}×${F0}`).join(' và ');
+  };
+  const v = V[VOW];
+  document.getElementById('r3').innerHTML =
+    `Vạch sáng quanh F1 (≈${v.F[0]} Hz): ${fmt(0)}. Vạch sáng quanh F2 (≈${v.F[1]} Hz): ${fmt(1)}.`;
+}
+
+const GRID = [{f0: 120, k: 'a'}, {f0: 240, k: 'a'}, {f0: 120, k: 'i'}, {f0: 240, k: 'i'}];
+const WIN = 400, NFFT = 2048, DB = 45;
+const hann = Float64Array.from({length: WIN}, (_, n) => 0.5 - 0.5 * Math.cos(2 * Math.PI * n / (WIN - 1)));
+for (const G of GRID) {
+  G.sig = synth(G.f0, f => V[G.k].env(f), 0.8);
+  const re = new Float64Array(NFFT), im = new Float64Array(NFFT), s0 = 4000;
+  for (let n = 0; n < WIN; n++) re[n] = G.sig[s0 + n] * hann[n];
+  fft(re, im);
+  const nb = Math.round(FMAX / SR * NFFT);
+  G.db = Float64Array.from({length: nb + 1}, (_, b) => 20 * Math.log10(Math.hypot(re[b], im[b]) + 1e-9));
+}
+const GMAX = Math.max(...GRID.map(G => Math.max(...G.db)));
+const STOPS = [[0, [251, 251, 250]], [0.35, [201, 225, 238]], [0.6, [90, 160, 200]], [0.8, [44, 95, 138]], [1, [27, 42, 73]]];
+function cmap(v) {
+  v = Math.max(0, Math.min(1, v));
+  for (let j = 1; j < STOPS.length; j++) {
+    if (v <= STOPS[j][0]) {
+      const [a, ca] = STOPS[j - 1], [b, cb] = STOPS[j], u = (v - a) / (b - a);
+      return ca.map((c, q) => Math.round(c + (cb[q] - c) * u));
+    }
+  }
+  return STOPS[STOPS.length - 1][1];
+}
+
+function drawGrid() {
+  GRID.forEach((G, idx) => {
+    const R = setup('g' + idx, 260), g = R.g, B = {l: 44, t: 8, w: R.w - 52, h: R.h - 30};
+    const Y = f => B.t + B.h - f / FMAX * B.h, nb = G.db.length - 1;
+    for (let p = 0; p < B.h; p++) {
+      const fb = (B.h - 1 - p) / (B.h - 1) * nb, b0 = Math.floor(fb), b1 = Math.min(nb, b0 + 1), u = fb - b0;
+      const v = G.db[b0] * (1 - u) + G.db[b1] * u, c = cmap((v - (GMAX - DB)) / DB);
+      g.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
+      g.fillRect(B.l, B.t + p, B.w, 1);
+    }
+    g.strokeStyle = C.line; g.strokeRect(B.l, B.t, B.w, B.h);
+    for (let f = 0; f <= FMAX; f += 1000) text(g, String(f), B.l - 6, Y(f), C.mute, 'right');
+    text(g, 'Hz', 4, B.t + 4, C.mute);
+    text(g, 'thời gian →', B.l + B.w / 2, B.t + B.h + 12, C.mute, 'center');
+    const v = V[G.k];
+    v.F.forEach((F, j) => {
+      const y0 = Y(F + 1.3 * v.W[j]), y1 = Y(F - 1.3 * v.W[j]);
+      dashRect(g, B.l + 3, y0, B.w * 0.6, y1 - y0, C.frame, 2);
+      text(g, 'F' + (j + 1) + ' ≈ ' + F, B.l + 10, (y0 + y1) / 2, C.frame, 'left', true, true);
+    });
+    const rx = B.l + B.w - 22, ya = Y(G.f0 * 3), yb = Y(G.f0 * 4);
+    g.save(); g.strokeStyle = C.hl; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(rx - 6, ya); g.lineTo(rx + 6, ya); g.moveTo(rx, ya); g.lineTo(rx, yb); g.moveTo(rx - 6, yb); g.lineTo(rx + 6, yb); g.stroke(); g.restore();
+    text(g, G.f0 + ' Hz', rx - 10, (ya + yb) / 2, C.hl, 'right', true, true);
+  });
+}
+
+function syncUI() {
+  document.getElementById('f0').value = F0;
+  document.getElementById('f0v').textContent = F0 + ' Hz';
+  document.querySelectorAll('[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === VOW));
+}
+function drawAll() { syncUI(); draw1(); draw2(); draw3(); drawGrid(); }
+
+document.getElementById('f0').addEventListener('input', e => { F0 = +e.target.value; syncUI(); draw1(); draw3(); });
+document.querySelectorAll('[data-v]').forEach(b => b.addEventListener('click', () => { VOW = b.dataset.v; syncUI(); draw2(); draw3(); }));
+document.getElementById('playMain').addEventListener('click', () => play(synth(F0, f => V[VOW].env(f), 1.0)));
+document.querySelectorAll('[data-g]').forEach(b => b.addEventListener('click', () => play(GRID[+b.dataset.g].sig)));
+document.getElementById('setQ').addEventListener('click', () => {
+  F0 = 200; VOW = 'i'; syncUI(); draw1(); draw2(); draw3();
+  document.getElementById('s3').scrollIntoView({behavior: 'smooth'});
+});
+document.getElementById('showA').addEventListener('click', () => { document.getElementById('ans').style.display = 'block'; });
+drawAll();
+let rt;
+window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(drawAll, 120); });
+</script>
+</body>
+</html>

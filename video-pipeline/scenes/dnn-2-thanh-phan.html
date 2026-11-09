@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>DNN-HMM 2: Mạng trong khung HMM</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/dnn-2-thanh-phan.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Mạng trong khung HMM', '3 Một nơ-ron', '4 Nhiều lớp', '5 Ghép vào HMM'];
+
+// Small layered-network sketch: columns of circles fully connected.
+function netSketch(x, y, w, h, sizes, col = COL.acc) {
+  const g = Clip.g, cx = sizes.map((_, l) => x + l * w / (sizes.length - 1)), cy = (n, k) => y + h / 2 + (k - (n - 1) / 2) * Math.min(34, h / n);
+  for (let l = 0; l + 1 < sizes.length; l++) for (let a = 0; a < sizes[l]; a++) for (let b = 0; b < sizes[l + 1]; b++)
+    line(cx[l], cy(sizes[l], a), cx[l + 1], cy(sizes[l + 1], b), col + '33', 1);
+  sizes.forEach((n, l) => { for (let k = 0; k < n; k++) { g.beginPath(); g.arc(cx[l], cy(n, k), 9, 0, Math.PI * 2); g.fillStyle = COL.card; g.fill(); g.strokeStyle = col; g.lineWidth = 2; g.stroke(); } });
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('DNN-HMM', 'Phần 2/5: đặt mạng nơ-ron vào khung HMM', 1, PARTS);
+
+function shotPipe(G, t) {
+  const sp = S('pipe'), dp = D('pipe');
+  heading('Đường đi của hệ lai');
+  fade(G, P(t, sp + 0.3, 0.5), () => {
+    for (let k = 0; k < 11; k++) rrect(160 + k * 18, 330, 14, 160, 3, k === 5 ? COL.frame : COL.acc + '88');
+    text('11 frame log-Mel', 260, 520, {size: 22, weight: 700, align: 'center'});
+    arrow(380, 410, 440, 410, COL.mute, 3);
+  });
+  fade(G, P(t, sp + dp * 0.2, 0.5), () => {
+    netSketch(470, 290, 300, 240, [6, 7, 7, 5]);
+    text('DNN', 620, 560, {size: 28, weight: 700, color: COL.acc, align: 'center'});
+    arrow(800, 410, 860, 410, COL.mute, 3);
+  });
+  fade(G, P(t, sp + dp * 0.4, 0.5), () => {
+    [0.05, 0.62, 0.08, 0.2, 0.05].forEach((v, k) => rrect(880 + k * 34, 490 - v * 200, 26, v * 200, 3, k === 1 ? COL.frame : COL.line2));
+    text('P(senone | frame)', 960, 530, {size: 22, weight: 700, align: 'center'});
+    arrow(1060, 410, 1120, 410, COL.mute, 3);
+  });
+  fade(G, P(t, sp + dp * 0.6, 0.5), () => {
+    chip(G, 1130, 384, '÷ prior', HOT);
+    arrow(1275, 410, 1335, 410, COL.mute, 3);
+  });
+  fade(G, P(t, sp + dp * 0.75, 0.5), () => {
+    card(1345, 320, 400, 180, {stroke: COL.ok});
+    text('như cũ:', 1375, 365, {size: 22, color: COL.mute});
+    text('HMM + LM + decoder', 1375, 420, {size: 30, weight: 700, color: COL.ok});
+  });
+}
+
+function shotParts(G, t) {
+  const ids = ['neuron', 'layers', 'softmax', 'label', 'prior'];
+  heading('Năm thành phần');
+  const cx = [200, 620, 1240, 1640];
+  fade(G, P(t, S('neuron') + 0.2, 0.5), () => {
+    ['Thành phần', 'Là gì', 'Giải quyết vấn đề', 'Phần'].forEach((h, j) => text(h, cx[j], 240, {size: 24, weight: 600, color: COL.mute}));
+    line(180, 266, 1720, 266, COL.line2, 2);
+  });
+  [['nơ-ron', 'tổng có trọng số + hàm kích hoạt', 'đơn vị tính toán cơ bản', '3'],
+   ['nhiều lớp', 'lớp này nối vào lớp sau', 'ranh giới phức tạp', '4'],
+   ['softmax + cross-entropy', 'ra xác suất, phạt khi đáp án đúng thấp', 'học phân biệt', '4'],
+   ['nhãn từ forced alignment', 'GMM-HMM cũ chia frame làm đáp án', 'DNN cần đáp án', '5'],
+   ['chia cho prior', 'P(trạng thái | frame) → điểm HMM cần', 'ghép vào HMM', '5']].forEach((r, i) =>
+    fade(G, P(t, S(ids[i]) + 0.3, 0.5), () => {
+      const y = 320 + i * 92, on = t >= S(ids[i]) && t < E(ids[i]) + 0.5;
+      if (on) rrect(180, y - 38, 1540, 76, 10, COL.frameSoft);
+      text(r[0], cx[0], y, {size: 28, weight: 700, color: COL.acc});
+      text(r[1], cx[1], y, {size: 25, maxW: 580});
+      text(r[2], cx[2], y, {size: 25, color: COL.mute});
+      text(r[3], cx[3], y, {size: 28, weight: 700, color: COL.frame});
+    }));
+}
+
+function shotHybrid(G, t) {
+  const s = S('hybrid'), d = D('hybrid');
+  heading('Hệ lai (hybrid)');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    card(300, 280, 600, 360, {stroke: COL.acc});
+    netSketch(380, 340, 400, 200, [5, 6, 6, 4]);
+    text('mạng nơ-ron: chấm điểm', 600, 600, {size: 28, weight: 700, color: COL.acc, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.4, 0.5), () => {
+    card(1020, 280, 600, 360, {stroke: COL.ok});
+    const g = Clip.g;
+    [0, 1, 2].forEach(k => {
+      const x = 1090 + k * 170, c = [COL.ok, COL.acc, COL.i][k];
+      rrect(x, 410, 110, 80, 12, c + '22', c, 3);
+      text(['m', 'a', 'i'][k], x + 55, 450, {size: 36, weight: 700, color: c, align: 'center'});
+      g.beginPath(); g.arc(x + 55, 392, 22, Math.PI * 0.85, Math.PI * 2.15); g.strokeStyle = c; g.lineWidth = 2.5; g.stroke();
+      if (k < 2) arrow(x + 114, 450, x + 166, 450, COL.mute, 2.5, 10);
+    });
+    text('HMM: thời gian, thứ tự', 1320, 600, {size: 28, weight: 700, color: COL.ok, align: 'center'});
+  });
+}
+
+function shotHist(G, t) {
+  const s = S('hist'), d = D('hist');
+  heading('Ý tưởng cũ, thắng muộn');
+  const X = y => 300 + (y - 1988) / 26 * 1320, Y0 = 470;
+  fade(G, P(t, s + 0.2, 0.5), () => {
+    line(260, Y0, 1680, Y0, COL.line2, 3);
+    [1990, 2000, 2010].forEach(y => { line(X(y), Y0 - 8, X(y), Y0 + 8, COL.line2, 2); text(String(y), X(y), Y0 + 34, {size: 20, color: COL.mute, align: 'center'}); });
+  });
+  fade(G, P(t, s + 0.6, 0.5), () => {
+    rrect(X(1990), Y0 - 150, X(1996) - X(1990), 110, 12, COL.accSoft, COL.acc, 2);
+    text('Bourlard, Morgan', (X(1990) + X(1996)) / 2, Y0 - 110, {size: 24, weight: 700, color: COL.acc, align: 'center'});
+    text('hệ lai, mạng nhỏ', (X(1990) + X(1996)) / 2, Y0 - 72, {size: 22, color: COL.mute, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.45, 0.5), () => {
+    const xc = X(2011);
+    line(X(2010), Y0, X(2012), Y0, COL.ok, 8);
+    rrect(xc - 140, Y0 - 150, 280, 110, 12, '#e8f3ec', COL.ok, 2);
+    text('DNN thắng hẳn', xc, Y0 - 110, {size: 24, weight: 700, color: COL.ok, align: 'center'});
+    text('2010–2012', xc, Y0 - 72, {size: 22, color: COL.mute, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.6, 0.5), () => {
+    [['GPU', 'tính nhanh'], ['nhiều dữ liệu', 'hàng nghìn giờ'], ['mạng sâu hơn', 'nhiều lớp']].forEach(([a, b], j) => {
+      card(420 + j * 380, 600, 340, 130, {stroke: COL.ok});
+      text(a, 590 + j * 380, 645, {size: 28, weight: 700, color: COL.ok, align: 'center'});
+      text(b, 590 + j * 380, 690, {size: 22, color: COL.mute, align: 'center'});
+    });
+    text('Hinton (Toronto), Microsoft, Google, IBM', 960, 790, {size: 24, color: COL.mute, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  fade(G, P(t, s + 0.3, 0.5), () => text('log-Mel → DNN → P(senone | frame) ÷ prior → HMM', 960, 300, {size: 36, weight: 700, color: COL.acc, align: 'center'}));
+  G.font = `500 24px ${Clip.FONT}`;
+  const labels = ['nơ-ron', 'nhiều lớp', 'softmax + cross-entropy', 'nhãn từ forced alignment', 'chia prior'];
+  let x = 960 - (labels.reduce((a, l) => a + G.measureText(l).width + 36 + 24, 0) - 24) / 2;
+  labels.forEach((l, j) => {
+    const x0 = x;
+    G.font = `500 24px ${Clip.FONT}`;
+    x += G.measureText(l).width + 36 + 24;
+    fade(G, P(t, s + 1.5 + j * 0.6, 0.5), () => chip(G, x0, 420, l, {size: 24}));
+  });
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 820, 600, 'Phần 3: một nơ-ron  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 2', [
+  ['khối tính cơ bản', 'nơ-ron (neuron)', 'tổng có trọng số + hàm kích hoạt'],
+  ['đổi điểm thành xác suất', 'softmax', 'cộng lại bằng 1'],
+  ['điểm phạt khi đoán sai', 'cross-entropy (loss)', 'phạt khi đáp án đúng thấp'],
+  ['tỉ lệ một senone trong dữ liệu', 'prior, P(s)', 'chia để ghép vào HMM'],
+  ['mạng chấm + HMM lo thời gian', 'hệ lai (hybrid DNN-HMM)', 'Bourlard, Morgan 1990s; thắng 2012'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'pipe', to: 'pipe', draw: shotPipe},
+    {from: 'neuron', to: 'prior', draw: shotParts},
+    {from: 'hybrid', to: 'hybrid', draw: shotHybrid},
+    {from: 'hist', to: 'hist', draw: shotHist},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/dnn-2-thanh-phan.wav');
+</script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+{
+  "clip": "llm-3-token",
+  "title": "Audio-LLM · Phần 3: Âm thanh chiếm bao nhiêu chỗ",
+  "segments": [
+    {"id": "intro",
+     "sub": "Audio-LLM, phần 3: âm thanh chiếm bao nhiêu chỗ trong đầu vào của LLM.",
+     "say": "Âu đi ô eo eo em, phần ba: âm thanh chiếm bao nhiêu chỗ trong đầu vào của mô hình ngôn ngữ."},
+    {"id": "rate",
+     "sub": "Mỗi khoảng 40 ms âm thanh thành một \"token\" âm thanh: 25 token mỗi giây.",
+     "say": "Mỗi khoảng bốn mươi mi li giây âm thanh thành một tô ken âm thanh, tức hai mươi lăm tô ken mỗi giây."},
+    {"id": "s4",
+     "sub": "4 giây: 100 token âm thanh. Cộng phần hệ thống và câu lệnh (ví dụ 12 + 28): khoảng 140 token.",
+     "say": "Bốn giây âm thanh cho một trăm tô ken. Cộng thêm phần hệ thống và câu lệnh, ví dụ mười hai và hai mươi tám tô ken, cả đầu vào khoảng một trăm bốn mươi tô ken."},
+    {"id": "s30",
+     "sub": "30 giây: 750 token âm thanh, cả đầu vào khoảng 790. Câu lệnh chỉ vài chục token, âm thanh thì hàng trăm.",
+     "say": "Ba mươi giây âm thanh cho bảy trăm năm mươi tô ken, cả đầu vào khoảng bảy trăm chín mươi. Câu lệnh chỉ vài chục tô ken, còn âm thanh thì hàng trăm."},
+    {"id": "quad",
+     "sub": "Self-attention tốn theo bình phương độ dài (trang 11): 790² so với 140² là gấp khoảng 32 lần. Encoder Whisper cũng chỉ nhận tối đa 30 giây mỗi lần.",
+     "say": "Xen ờ ten sần tốn theo bình phương độ dài, như ở trang mười một: bảy trăm chín mươi bình phương so với một trăm bốn mươi bình phương là gấp khoảng ba mươi hai lần. En cô đơ của Uýt spơ cũng chỉ nhận tối đa ba mươi giây mỗi lần."},
+    {"id": "slow",
+     "sub": "LLM sinh câu trả lời từng token (tự hồi quy), mỗi token chạy cả mô hình 7 tỉ tham số. Chậm hơn nhiều so với SenseVoice.",
+     "say": "Mô hình ngôn ngữ sinh câu trả lời từng tô ken một, tự hồi quy, và mỗi tô ken phải chạy cả mô hình bảy tỉ tham số. Vì vậy chậm hơn nhiều so với Sen xơ voi."},
+    {"id": "mem",
+     "sub": "Bộ nhớ: 8,2 tỉ tham số × 2 byte (16 bit) ≈ 16 GB GPU chỉ để chứa trọng số.",
+     "say": "Về bộ nhớ: tám phẩy hai tỉ tham số, mỗi tham số hai bai ở dạng mười sáu bít, là khoảng mười sáu ghi ga bai bộ nhớ gờ pê u, chỉ để chứa trọng số."},
+    {"id": "result",
+     "sub": "Tóm lại: 25 token mỗi giây âm thanh, chiếm phần lớn đầu vào; attention bình phương, sinh tự hồi quy, 16 GB: chậm và nặng. Phần 4: đọc câu trả lời tự do.",
+     "say": "Tóm lại: hai mươi lăm tô ken mỗi giây âm thanh, chiếm phần lớn đầu vào. Ờ ten sần tốn bình phương, sinh tự hồi quy, mười sáu ghi ga bai: chậm và nặng. Phần bốn: đọc câu trả lời tự do thành nhãn."},
+    {"id": "terms",
+     "sub": "Thuật ngữ của phần này.",
+     "say": "Các thuật ngữ của phần này."}
+  ]
+}

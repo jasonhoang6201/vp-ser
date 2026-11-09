@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Ghép âm thanh và chữ · 3: Ghép muộn và cổng</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/fus.js"></script>
+<script src="../build/fus-3-cong.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Các kiểu ghép', '3 Ghép muộn, cổng', '4 Cross-attention', '5 Ngữ cảnh'];
+const CC = [COL.mute, COL.ok, COL.hl, COL.acc];
+const B = {x: 520, w: 1100};
+const pct = v => (Math.round(1000 * v) / 10).toString().replace('.', ',') + '%';
+
+function bar(y, label, p, truth) {
+  text(label, B.x - 20, y + 25, {size: 24, weight: 700, align: 'right'});
+  let x = B.x;
+  p.forEach((v, k) => {
+    rrect(x, y, Math.max(0, v * B.w - 2), 50, 4, CC[k] + (k === truth ? '' : 'aa'));
+    if (v > 0.1) text(`${FUS.CLS[k]} ${pct(v)}`, x + 10, y + 25, {size: 20, weight: 700, color: '#fff'});
+    x += v * B.w;
+  });
+  const w = FUS.argmax(p), tie = p.filter(v => v === p[w]).length > 1;
+  text(tie ? 'hòa' : w === truth ? '✓' : '✗', B.x + B.w + 24, y + 25, {size: 30, weight: 700, color: tie ? COL.frame : w === truth ? COL.ok : COL.hl});
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Ghép âm thanh và chữ', 'Phần 3/5: ghép muộn và cổng, thử tay', 2, PARTS);
+
+function shotTry(G, t) {
+  const s1 = S('s1'), sl = S('late1'), sg = S('gate1'), s2 = S('s2'), d2 = D('s2'), s3 = S('s3');
+  const k = t >= s3 ? 2 : t >= s2 ? 1 : 0, sc = FUS.SCN[k], s0 = [s1, s2, s3][k];
+  heading(`Tình huống: ${sc.name} (nhãn đúng: ${FUS.CLS[sc.truth]})`);
+  fade(G, P(t, s0 + 0.3, 0.5), () => { bar(260, 'âm thanh', sc.a, sc.truth); bar(330, 'chữ', sc.t, sc.truth); });
+  const showLate = k === 0 ? t >= sl : k === 1 ? t >= s2 + d2 * 0.4 : t >= s3 + 1;
+  const showGate = k === 0 ? t >= sg : k === 1 ? t >= s2 + d2 * 0.7 : false;
+  if (showLate) fade(G, P(t, (k === 0 ? sl : k === 1 ? s2 + d2 * 0.4 : s3 + 1) + 0.3, 0.5), () => bar(460, 'ghép muộn (0,5 / 0,5)', FUS.late(sc), sc.truth));
+  if (showGate) fade(G, P(t, (k === 0 ? sg : s2 + d2 * 0.7) + 0.3, 0.5), () => {
+    const g = k === 0 ? lerp(0.5, 0.8, P(t, sg + 0.5, 1.5)) : 0.8;
+    bar(530, `cổng (g = ${g.toFixed(2).replace('.', ',')})`, FUS.gated(sc, g), sc.truth);
+  });
+  line(B.x - 300, 420, B.x + B.w + 60, 420, COL.line, 1.5);
+  if (k === 0 && t >= sl && t < sg) fade(G, P(t, sl + 1.5, 0.5), () => text('hai nguồn kéo về hai phía: lưng chừng, và sai', 960, 680, {size: 28, weight: 700, color: COL.hl, align: 'center'}));
+  if (k === 0 && t >= sg) fade(G, P(t, sg + 2, 0.5), () => text('nghe âm thanh nhiều hơn ở câu này: đúng', 960, 680, {size: 28, weight: 700, color: COL.ok, align: 'center'}));
+}
+
+function shotLearn(G, t) {
+  const sl = S('learn'), dl = D('learn'), sr = S('report');
+  heading(t < sr ? 'Cổng học được gì?' : 'g trung bình: con số đáng báo cáo');
+  if (t < sr) {
+    fade(G, P(t, sl + 0.3, 0.5), () => {
+      chip(G, 300, 320, 'chữ tích cực + giọng gằn', {size: 30, weight: 700});
+      arrow(760, 346, 880, 346, COL.mute, 3);
+      chip(G, 900, 320, 'g lớn: tin giọng', {size: 30, weight: 700, color: COL.ok, stroke: COL.ok});
+    });
+    fade(G, P(t, sl + dl * 0.45, 0.5), () => {
+      card(300, 460, 1320, 170, {stroke: COL.hl});
+      text('chỉ học được nếu dữ liệu có đủ ví dụ hai nguồn mâu thuẫn', 960, 520, {size: 28, weight: 700, color: COL.hl, align: 'center'});
+      text('nếu không: cổng gần như cố định, không hơn ghép sớm bao nhiêu', 960, 580, {size: 26, align: 'center'});
+    });
+    return;
+  }
+  fade(G, P(t, sr + 0.3, 0.5), () => {
+    const B2 = {x: 460, y: 380, w: 1000};
+    rrect(B2.x, B2.y, B2.w, 50, 10, COL.soft);
+    rrect(B2.x, B2.y, B2.w * 0.3, 50, 10, COL.frame);
+    text('0 (chỉ chữ)', B2.x, B2.y + 90, {size: 22, color: COL.acc});
+    text('1 (chỉ âm thanh)', B2.x + B2.w, B2.y + 90, {size: 22, color: COL.frame, align: 'right'});
+    text('minh họa: g trung bình 0,3 → mô hình dựa vào chữ nhiều hơn', 960, 330, {size: 28, weight: 700, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['✗', 'ghép muộn: 0,5 / 0,5 cố định, dễ sai khi mâu thuẫn', COL.hl], ['✓', 'cổng: trọng số theo từng câu', COL.ok], ['!', 'cổng cần dữ liệu có đủ ca mâu thuẫn', COL.frame]].forEach(([m, a, c], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text(m, 380, 300 + j * 90, {size: 34, weight: 700, color: c});
+      text(a, 430, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 790, 640, 'Phần 4: cross-attention  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 3', [
+  ['trung bình xác suất hai nguồn', 'late fusion', '0,5 / 0,5'],
+  ['trọng số trộn học theo câu', 'gated fusion', 'g từ 0 đến 1'],
+  ['mạng nhỏ ra g', 'modality gate', 'sigmoid'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 's1', to: 's3', draw: shotTry},
+    {from: 'learn', to: 'report', draw: shotLearn},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/fus-3-cong.wav');
+</script>
+</body>
+</html>

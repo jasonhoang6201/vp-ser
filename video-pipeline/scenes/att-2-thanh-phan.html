@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Attention 2: Bốn thành phần</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/att-2-thanh-phan.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn thành phần', '3 Query, key, value', '4 Decoder viết từng chữ', '5 Transformer, Conformer'];
+
+function block(x, y, w, h, label, c, on = true) {
+  rrect(x, y, w, h, 16, on ? c + '1c' : COL.card, c, on ? 3 : 1.5);
+  text(label, x + w / 2, y + h / 2, {size: 30, weight: 700, color: c, align: 'center'});
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Attention', 'Phần 2/5: bốn thành phần', 1, PARTS);
+
+function shotDiagram(G, t) {
+  const sp = S('pipe'), se = S('enc'), sd = S('dec'), sa = S('att'), ss = S('self');
+  const hot = id => t >= S(id) && t < E(id) + 0.4;
+  heading('Encoder, decoder, attention');
+  fade(G, P(t, sp + 0.3, 0.5), () => {
+    for (let k = 0; k < 12; k++) rrect(150 + k * 14, 470, 10, 120, 2, COL.acc + '88');
+    text('log-Mel', 230, 620, {size: 22, weight: 700, align: 'center'});
+    arrow(330, 530, 380, 530, COL.mute, 3);
+    block(390, 440, 300, 180, 'encoder', COL.acc, hot('enc') || hot('self'));
+    for (let k = 0; k < 10; k++) rrect(740 + k * 30, 470, 22, 120, 4, COL.acc + (hot('att') ? 'cc' : '66'));
+    text('T vector', 885, 620, {size: 22, weight: 700, align: 'center'});
+    arrow(700, 530, 730, 530, COL.mute, 3);
+  });
+  fade(G, P(t, sp + D('pipe') * 0.3, 0.5), () => {
+    block(1120, 250, 300, 140, 'attention', COL.frame, hot('att'));
+    block(1120, 470, 300, 180, 'decoder', COL.ok, hot('dec'));
+    arrow(1050, 500, 1120, 330, COL.frame, 2.5);
+    arrow(1270, 400, 1270, 460, COL.frame, 3);
+    arrow(1430, 560, 1520, 560, COL.mute, 3);
+    chip(G, 1530, 534, 'chữ tiếp theo', {size: 26, weight: 700, color: COL.ok, stroke: COL.ok});
+    const g = Clip.g;
+    g.beginPath(); g.moveTo(1640, 600); g.quadraticCurveTo(1640, 760, 1270, 740); g.quadraticCurveTo(1180, 736, 1180, 660);
+    g.strokeStyle = COL.ok; g.lineWidth = 2.5; g.setLineDash([8, 6]); g.stroke(); g.setLineDash([]);
+    arrow(1180, 676, 1180, 656, COL.ok, 2.5);
+    text('chữ vừa viết quay lại làm đầu vào', 1420, 780, {size: 22, color: COL.ok, align: 'center'});
+  });
+  const notes = [['enc', 'đọc toàn bộ âm thanh, mỗi frame thành một vector hiểu ngữ cảnh', '5'],
+    ['dec', 'viết từng chữ, dùng chữ đã viết: không cần LM ngoài', '4'],
+    ['att', 'chấm điểm mọi frame, softmax, trung bình có trọng số', '3, 4'],
+    ['self', 'self-attention cho các frame nhìn nhau; Conformer thêm convolution', '5']];
+  notes.forEach(([id, l, p]) => { if (hot(id)) fade(G, P(t, S(id) + 0.3, 0.4), () => { card(180, 190, 860, 180, {stroke: COL.frame}); text(l, 210, 240, {size: 26, weight: 700, maxW: 800}); text(`phần ${p}`, 210, 340, {size: 22, color: COL.mute}); }); });
+}
+
+function shotHist(G, t) {
+  const s = S('hist'), d = D('hist');
+  heading('Lịch sử');
+  const X = y => 300 + (y - 2013) / 4 * 1320, Y0 = 470;
+  fade(G, P(t, s + 0.2, 0.5), () => {
+    line(260, Y0, 1660, Y0, COL.line2, 3);
+    [2013, 2014, 2015, 2016, 2017].forEach(y => { line(X(y), Y0 - 8, X(y), Y0 + 8, COL.line2, 2); text(String(y), X(y), Y0 + 34, {size: 20, color: COL.mute, align: 'center'}); });
+  });
+  [[2014, 'Bahdanau và cộng sự', 'attention cho dịch máy', -1, 0.05], [2015, 'Chorowski và cộng sự', 'attention cho tiếng nói', 1, 0.4], [2016, 'LAS (Chan và cộng sự)', 'Listen, Attend and Spell', -1, 0.6]].forEach(([y, a, b, side, at]) =>
+    fade(G, P(t, s + d * at, 0.5), () => {
+      const x = X(y), ty = Y0 + side * 130;
+      line(x, Y0, x, Y0 + side * (side < 0 ? 40 : 100), COL.acc, 2);
+      Clip.g.beginPath(); Clip.g.arc(x, Y0, 9, 0, Math.PI * 2); Clip.g.fillStyle = COL.acc; Clip.g.fill();
+      text(String(y), x, ty, {size: 24, weight: 700, color: COL.acc, align: 'center'});
+      text(a, x, ty + 36, {size: 25, weight: 700, align: 'center'});
+      text(b, x, ty + 70, {size: 22, color: COL.mute, align: 'center'});
+    }));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['encoder: đọc âm thanh'], ['decoder: viết từng chữ'], ['attention: chọn đoạn âm thanh cho mỗi chữ'], ['self-attention: các frame nhìn nhau']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.4, 0.6), () => {
+      text('✓', 460, 290 + j * 84, {size: 34, weight: 700, color: COL.ok});
+      text(a, 510, 290 + j * 84, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 760, 680, 'Phần 3: attention tính thế nào  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 2', [
+  ['phần đọc / phần viết', 'encoder / decoder', ''],
+  ['viết chữ sau dựa trên chữ trước', 'tự hồi quy (autoregressive)', 'chữ vừa viết quay lại'],
+  ['chọn chỗ để nhìn', 'attention', 'trung bình có trọng số'],
+  ['các frame nhìn lẫn nhau', 'self-attention', 'Transformer, Conformer'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'pipe', to: 'self', draw: shotDiagram},
+    {from: 'hist', to: 'hist', draw: shotHist},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/att-2-thanh-phan.wav');
+</script>
+</body>
+</html>

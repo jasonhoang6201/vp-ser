@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lộ trình học xử lý tiếng nói</title>
+<link rel="stylesheet" href="assets/learn.css">
+<style>
+.node rect{fill:#fff;stroke:#c4c2bc;stroke-width:1.2;rx:7}
+.node.done rect{fill:#f7f7f5}
+.node text{font:13px Inter,system-ui,sans-serif;fill:#37352f}
+.node .num{font-weight:700;fill:#787774}
+.node a:hover rect{stroke:#337ea9;stroke-width:2}
+.edge{stroke:#9b9a97;stroke-width:1.4;fill:none;marker-end:url(#arr)}
+.edge.x{stroke-dasharray:5 4}
+.col{font:600 13px Inter,system-ui,sans-serif;fill:#787774}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="pn"></nav>
+<h1>Lộ trình: từ phổ âm thanh đến nhận dạng và tổng hợp tiếng nói</h1>
+<p class="sub">Mỗi trang đi theo cùng một thứ tự: <b>cách cũ vướng gì</b> → <b>cách mới ra đời để làm gì</b> → <b>gồm những thành phần nào, theo nguyên lý gì</b> → chi tiết từng thành phần, có hình tương tác. Bấm vào ô để mở trang.</p>
+
+<section>
+<h2>Bản đồ</h2>
+<p>Có bốn cột. <b>Nền tảng</b> dùng chung cho mọi nhánh. <b>Nhận dạng</b> (ASR, Automatic Speech Recognition) đi từ âm thanh ra chữ. <b>Cảm xúc</b> (SER, Speech Emotion Recognition) đoán cảm xúc từ âm thanh và chữ, rồi ghép với ASR: đây là nhánh dẫn thẳng tới các mô hình trong thực nghiệm. <b>Tổng hợp</b> (TTS, Text-to-Speech) đi ngược lại, từ chữ ra âm thanh. Mũi tên liền là học theo thứ tự. Mũi tên đứt nghĩa là trang sau mượn một ý của trang trước.</p>
+<div class="fig">
+<svg viewBox="0 0 1120 640" id="map">
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#9b9a97"/></marker></defs>
+<text class="col" x="95" y="22" text-anchor="middle">NỀN TẢNG</text>
+<text class="col" x="375" y="22" text-anchor="middle">NHẬN DẠNG (ASR)</text>
+<text class="col" x="655" y="22" text-anchor="middle">CẢM XÚC (SER)</text>
+<text class="col" x="1025" y="22" text-anchor="middle">TỔNG HỢP (TTS)</text>
+<g id="edges"></g>
+<g id="nodes"></g>
+</svg>
+</div>
+</section>
+
+<section>
+<h2>Từng trang giải quyết vướng gì</h2>
+<div class="tablewrap"><table>
+<tr><th>Trang</th><th>Vướng ở bước trước</th><th>Ý chính</th></tr>
+<tr><td><a href="01-spectrogram.html">01 Spectrogram</a> → <a href="05-mfcc.html">05 MFCC</a></td><td>sóng âm chỉ là dãy số lên xuống, khó nhìn ra âm gì</td><td>cắt frame, FFT, gộp theo thang Mel, log, DCT: mỗi 10 ms thành một bộ số mô tả khẩu hình</td></tr>
+<tr><td><a href="06-gmm.html">06 GMM</a></td><td>có MFCC của một frame, nhưng chưa biết frame đó giống âm nào bao nhiêu</td><td>mô tả "vùng" của mỗi âm bằng vài quả đồi Gauss, rồi chấm điểm frame mới</td></tr>
+<tr><td><a href="07-hmm.html">07 HMM</a></td><td>chấm từng frame riêng lẻ thì nhảy lung tung, không biết thứ tự và độ dài</td><td>các trạng thái nối nhau theo thời gian, Viterbi tìm đường đi tốt nhất</td></tr>
+<tr><td><a href="08-he-asr-co-dien.html">08 Hệ ASR cổ điển</a></td><td>có âm, chưa có từ và câu</td><td>mô hình âm học + từ điển phát âm + mô hình ngôn ngữ, đo bằng WER</td></tr>
+<tr><td><a href="09-dnn-hmm.html">09 DNN-HMM</a></td><td>GMM chấm điểm kém khi dữ liệu phức tạp</td><td>thay GMM bằng mạng nơ-ron</td></tr>
+<tr><td><a href="10-ctc.html">10 CTC</a></td><td>vẫn cần HMM, từ điển phát âm, nhãn cho từng frame</td><td>học thẳng âm thanh ra chữ, thêm ký tự trống, cộng mọi cách căn</td></tr>
+<tr><td><a href="11-attention.html">11 Attention</a></td><td>CTC đoán từng frame độc lập, không nhìn chữ đã viết</td><td>decoder viết từng chữ, mỗi lần "nhìn" vào đoạn âm thanh cần thiết</td></tr>
+<tr><td><a href="12-ssl-whisper.html">12 wav2vec 2.0, HuBERT, Whisper</a></td><td>dữ liệu có gán nhãn đắt</td><td>học từ âm thanh không nhãn, hoặc từ rất nhiều nhãn "tạm được"</td></tr>
+<tr><td><a href="13-tts-vocoder.html">13 TTS và vocoder</a></td><td>đi ngược: có chữ, cần ra sóng âm, mà Mel đã mất pha</td><td>chữ → Mel → vocoder dựng lại sóng</td></tr>
+<tr><td><a href="14-tacotron2.html">14 Tacotron 2</a></td><td>cách ghép âm cũ nghe máy móc</td><td>encoder-decoder có attention sinh từng frame Mel</td></tr>
+<tr><td><a href="15-fastspeech2.html">15 FastSpeech 2</a></td><td>Tacotron chậm, attention hay lặp hoặc bỏ chữ</td><td>đoán trước độ dài từng âm rồi sinh song song</td></tr>
+<tr><td><a href="16-vits.html">16 VITS</a></td><td>hai mô hình rời (Mel rồi vocoder), lỗi cộng dồn</td><td>một mô hình từ chữ ra sóng: VAE + flow + GAN</td></tr>
+<tr><td><a href="17-xtts.html">17 XTTS</a></td><td>muốn nói bằng giọng người lạ chỉ từ vài giây mẫu</td><td>đổi âm thanh thành token, mô hình ngôn ngữ kiểu GPT sinh token</td></tr>
+<tr><td><a href="18-ser-co-ban.html">18 SER cơ bản</a></td><td>cùng một câu, nhiều cảm xúc; dữ liệu lệch</td><td>nhãn theo lớp / theo chiều, IEMOCAP, MELD, vì sao cần UA</td></tr>
+<tr><td><a href="19-frame-den-cau.html">19 Từ frame đến cả câu</a></td><td>encoder ra mỗi frame một vector, ở nhiều tầng</td><td>pooling, trộn tầng, probe hay fine-tune, emotion2vec</td></tr>
+<tr><td><a href="20-text-bert.html">20 SER từ chữ</a></td><td>giọng phân biệt giận với vui kém; chữ từ ASR có lỗi</td><td>BERT, RoBERTa; lỗi ở từ cảm xúc hại hơn lỗi thường</td></tr>
+<tr><td><a href="21-fusion.html">21 Ghép âm thanh và chữ</a></td><td>mỗi nguồn mù một nửa; câu đứng riêng thiếu nghĩa</td><td>ghép sớm, muộn, cổng, cross-attention; ngữ cảnh hội thoại</td></tr>
+<tr><td><a href="22-multitask.html">22 Học ASR và SER cùng lúc</a></td><td>hai hệ rời thì tốn, không giúp nhau</td><td>encoder chung hai đầu, xung đột gradient, token chỉ việc (SenseVoice), ENT</td></tr>
+<tr><td><a href="23-audio-llm.html">23 Audio-LLM</a></td><td>mỗi việc một đầu ra, không giải thích được</td><td>encoder âm thanh + LLM, hỏi bằng câu lệnh, đọc lại câu trả lời</td></tr>
+<tr><td><a href="24-danh-gia.html">24 Đánh giá cho đúng</a></td><td>con số có thể đẹp hơn sự thật</td><td>chọn trên dev, nhiều seed, khoảng tin cậy, rò rỉ, chuẩn hóa WER</td></tr>
+</table></div>
+</section>
+<nav class="pn"></nav>
+</div>
+<script src="assets/learn.js"></script>
+<script>
+const NODES = [
+  ['01', 'Spectrogram', 0, 0, 1], ['02', 'f0 và formant', 0, 1, 1], ['03', 'Cộng dần họa âm', 0, 2, 1], ['04', 'Mel', 0, 3, 1], ['05', 'MFCC', 0, 4, 1],
+  ['06', 'GMM', 1, 0], ['07', 'HMM', 1, 1], ['08', 'Hệ ASR cổ điển', 1, 2], ['09', 'DNN-HMM', 1, 3], ['10', 'CTC', 1, 4], ['11', 'Attention, Transformer', 1, 5], ['12', 'wav2vec 2.0, Whisper', 1, 6],
+  ['13', 'TTS và vocoder', 3, 2], ['14', 'Tacotron 2', 3, 3], ['15', 'FastSpeech 2', 3, 4], ['16', 'VITS', 3, 5], ['17', 'XTTS', 3, 6],
+  ['18', 'SER cơ bản', 2, 0], ['19', 'Từ frame đến câu', 2, 1], ['20', 'SER từ chữ', 2, 2], ['21', 'Ghép âm thanh, chữ', 2, 3], ['22', 'Học ASR + SER', 2, 4], ['23', 'Audio-LLM', 2, 5], ['24', 'Đánh giá cho đúng', 2, 6],
+];
+const COLX = [95, 375, 655, 1025], W = 170, H = 42, Y0 = 50, DY = 82;
+const pos = id => { const n = NODES.find(m => m[0] === id); return {x: COLX[n[2]], y: Y0 + n[3] * DY}; };
+const EDGES = [['01', '02'], ['02', '03'], ['03', '04'], ['04', '05'], ['05', '06'], ['06', '07'], ['07', '08'], ['08', '09'], ['09', '10'], ['10', '11'], ['11', '12'],
+  ['04', '13'], ['13', '14'], ['14', '15'], ['15', '16'], ['16', '17'], ['11', '14', 1], ['07', '16', 1], ['12', '17', 1],
+  ['12', '18'], ['18', '19'], ['19', '20'], ['20', '21'], ['21', '22'], ['22', '23'], ['23', '24'], ['10', '22', 1], ['17', '23', 1]];
+const NS = 'http://www.w3.org/2000/svg', mk = (t, a) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
+const eg = document.getElementById('edges'), ng = document.getElementById('nodes');
+EDGES.forEach(([a, b, x]) => {
+  const p = pos(a), q = pos(b);
+  let d;
+  if (p.x === q.x) d = `M${p.x},${p.y + H / 2} L${q.x},${q.y - H / 2 - 2}`;
+  else {
+    const sx = p.x + (q.x > p.x ? W / 2 : -W / 2), ex = q.x + (q.x > p.x ? -W / 2 - 2 : W / 2 + 2), mx = (sx + ex) / 2;
+    d = `M${sx},${p.y} C${mx},${p.y} ${mx},${q.y} ${ex},${q.y}`;
+  }
+  eg.appendChild(mk('path', {d, class: 'edge' + (x ? ' x' : '')}));
+});
+NODES.forEach(([id, name, , , done]) => {
+  const {x, y} = pos(id), file = PAGES.find(p => p[0].startsWith(id + '-'))[0];
+  const g = mk('g', {class: 'node' + (done ? ' done' : '')}), a = mk('a', {href: file});
+  a.appendChild(mk('rect', {x: x - W / 2, y: y - H / 2, width: W, height: H, rx: 7}));
+  const t1 = mk('text', {x: x - W / 2 + 12, y: y + 5, class: 'num'}); t1.textContent = id;
+  const t2 = mk('text', {x: x - W / 2 + 38, y: y + 5}); t2.textContent = name;
+  a.append(t1, t2); g.appendChild(a); ng.appendChild(g);
+});
+</script>
+</body>
+</html>

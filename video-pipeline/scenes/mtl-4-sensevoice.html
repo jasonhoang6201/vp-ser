@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Học ASR và SER cùng lúc · 4: SenseVoice</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/mtl-4-sensevoice.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Thành phần', '3 Kéo một bộ tham số', '4 SenseVoice', '5 ENT'];
+const Q = [['[LID]', '<|vi|>', 'ngôn ngữ', COL.i], ['[SER]', '<|HAPPY|>', 'cảm xúc', COL.frame], ['[AED]', '<|Speech|>', 'sự kiện âm thanh', COL.ok], ['[ITN]', '<|withitn|>', 'chuẩn hóa số, dấu câu', COL.acc]];
+const CW = 108, X0 = 160;
+
+function row(t, showOut, hi) {
+  Q.forEach(([q, o, l, c], j) => {
+    const x = X0 + j * CW, on = hi === j;
+    rrect(x, 420, CW - 10, 60, 8, on ? c : c + '33', c, 2);
+    text(q, x + (CW - 10) / 2, 450, {size: 18, weight: 700, color: on ? '#fff' : c, align: 'center'});
+    if (showOut > 0) fade(Clip.g, showOut, () => {
+      arrow(x + (CW - 10) / 2, 400, x + (CW - 10) / 2, 340, COL.mute, 2);
+      rrect(x, 270, CW - 10, 60, 8, c);
+      text(o, x + (CW - 10) / 2, 300, {size: 15, weight: 700, color: '#fff', align: 'center'});
+      text(l, x + (CW - 10) / 2, 240 - (j % 2) * 26, {size: 17, color: c, align: 'center'});
+    });
+  });
+  const ch = ['h', 'ô', 'm', '·', 'n', 'a', 'y'];
+  for (let k = 0; k < 10; k++) {
+    const x = X0 + (4 + k) * CW;
+    rrect(x, 420, CW - 10, 60, 8, COL.soft, COL.line2, 1.5);
+    text(`frame ${k + 1}`, x + (CW - 10) / 2, 450, {size: 16, color: COL.mute, align: 'center'});
+    if (showOut > 0 && k < ch.length) fade(Clip.g, showOut, () => {
+      arrow(x + (CW - 10) / 2, 400, x + (CW - 10) / 2, 340, COL.mute, 2);
+      rrect(x, 270, CW - 10, 60, 8, COL.card, COL.ink, 1.5);
+      text(ch[k], x + (CW - 10) / 2, 300, {size: 24, weight: 700, align: 'center'});
+    });
+  }
+  text('… frame T', X0 + 14 * CW + 10, 450, {size: 20, color: COL.mute});
+  rrect(X0 - 10, 500, 14 * CW + 10, 60, 10, COL.accSoft, COL.acc, 2);
+  text('encoder không tự hồi quy, huấn luyện bằng CTC: mọi vị trí tính cùng lúc', X0 + 7 * CW, 530, {size: 22, weight: 700, color: COL.acc, align: 'center'});
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Học ASR và SER cùng lúc', 'Phần 4/5: token chỉ việc, SenseVoice', 3, PARTS);
+
+function shotSV(G, t) {
+  const sw = S('what'), st = S('tokens'), so = S('out'), dout = D('out'), sh = S('whisper'), s1 = S('one');
+  heading(t < st ? 'SenseVoice-Small (Alibaba, 2024)' : t < so ? '4 vector "câu hỏi" ở đầu chuỗi đầu vào' : t < sh ? 'Mỗi vị trí ra một câu trả lời' : 'Giống token chỉ việc của Whisper, nhưng song song');
+  fade(G, P(t, sw + 0.3, 0.5), () => {
+    const hi = t >= so && t < sh ? Math.min(3, Math.floor((t - so) / (dout * 0.6) * 4)) : -1;
+    row(t, t >= so ? P(t, so + 0.3, 0.6) : 0, hi);
+  });
+  if (t < st) fade(G, P(t, sw + 1, 0.5), () => text('không có hai đầu riêng: một mạng, một chuỗi đầu ra', 960, 680, {size: 28, weight: 700, color: COL.ok, align: 'center'}));
+  if (t >= sh && t < s1) fade(G, P(t, sh + 0.3, 0.5), () => {
+    text('Whisper: tự hồi quy, viết từng token · SenseVoice: CTC, mọi vị trí một lượt', 960, 660, {size: 26, weight: 700, align: 'center'});
+  });
+  if (t >= s1) fade(G, P(t, s1 + 0.3, 0.5), () => text('cảm xúc: một token cho cả câu, đoán cùng lúc với chữ', 960, 660, {size: 28, weight: 700, color: COL.frame, align: 'center'}));
+}
+
+function shotFt(G, t) {
+  const s = S('ft');
+  heading('Fine-tune cho dữ liệu mới');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    card(360, 290, 1200, 260, {stroke: COL.line2});
+    text('một dòng của file huấn luyện:', 400, 340, {size: 24, color: COL.mute});
+    text('{"source": "clip_0001.wav",', 400, 400, {size: 26, mono: true});
+    text(' "target": "<|en|><|ANGRY|><|Speech|><|withitn|>Oh great, just great."}', 400, 450, {size: 26, mono: true, maxW: 1120});
+    text('chỉ cần cập nhật nhãn cảm xúc và phần chữ', 960, 640, {size: 30, weight: 700, color: COL.ok, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['4 token câu hỏi ở đầu chuỗi'], ['CTC song song: nhanh'], ['một mạng ra ngôn ngữ, cảm xúc, sự kiện, chữ']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.4, 0.6), () => {
+      text('✓', 480, 300 + j * 90, {size: 34, weight: 700, color: COL.ok});
+      text(a, 530, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 780, 640, 'Phần 5: transducer có cảm xúc  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 4', [
+  ['đoán ngôn ngữ', 'LID (language identification)', ''],
+  ['phát hiện sự kiện âm thanh', 'AED (audio event detection)', 'cười, vỗ tay'],
+  ['chuẩn hóa số, dấu câu', 'ITN (inverse text normalization)', '"mười" → "10"'],
+  ['vector câu hỏi đầu chuỗi', 'task / query token', ''],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'what', to: 'one', draw: shotSV},
+    {from: 'ft', to: 'ft', draw: shotFt},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/mtl-4-sensevoice.wav');
+</script>
+</body>
+</html>

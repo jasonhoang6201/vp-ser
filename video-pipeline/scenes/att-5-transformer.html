@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Attention 5: Transformer và Conformer</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../lib/nn.js"></script>
+<script src="../lib/attn.js"></script>
+<script src="../build/att-5-transformer.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn thành phần', '3 Query, key, value', '4 Decoder viết từng chữ', '5 Transformer, Conformer'];
+const HEADS = [0, 1, 2].map(ATT.head);
+
+function frames(y, n, w, c = COL.acc) { for (let k = 0; k < n; k++) rrect(260 + k * w, y, w - 6, 50, 6, c + '22', c, 1.5); }
+
+function selfMatrix(Mx, x, y, s) {
+  const n = Mx.length, c = s / n;
+  Mx.forEach((row, i) => { const mx = Math.max(...row); row.forEach((v, j) => rrect(x + j * c, y + i * c, c - 0.5, c - 0.5, 0, Clip.heat(0.05 + 0.85 * v / mx))); });
+  rrect(x, y, s, s, 2, null, COL.line2, 1.5);
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Attention', 'Phần 5/5: Transformer và Conformer', 4, PARTS);
+
+function shotRnn(G, t) {
+  const sr = S('rnn'), dr = D('rnn'), ss = S('self'), sp = S('par'), dp = D('par');
+  heading(t < ss ? 'Encoder kiểu cũ: đọc lần lượt' : 'Self-attention: mọi frame nhìn mọi frame');
+  const n = 20, w = 70;
+  fade(G, P(t, sr + 0.3, 0.5), () => {
+    frames(330, n, w);
+    if (t < ss) {
+      const u = P(t, sr + 0.8, dr * 0.7), k = Math.floor(u * (n - 1));
+      for (let j = 0; j < k; j++) arrow(260 + j * w + w - 10, 355, 260 + (j + 1) * w + 4, 355, COL.acc, 2.5, 8);
+      rrect(260 + k * w - 4, 322, w + 2, 66, 8, null, COL.frame, 3);
+      text('phải chờ frame trước; tin ở đầu phai dần', 960, 470, {size: 28, weight: 700, color: COL.hl, align: 'center'});
+    } else {
+      const q = 15, g = Clip.g;
+      for (let j = 0; j < n; j++) {
+        g.beginPath(); g.moveTo(260 + q * w + w / 2 - 3, 330);
+        g.quadraticCurveTo((260 + q * w + 260 + j * w) / 2 + w / 2, 330 - 40 - Math.abs(q - j) * 9, 260 + j * w + w / 2 - 3, 330);
+        g.strokeStyle = COL.frame + '88'; g.lineWidth = 2; g.stroke();
+      }
+      rrect(260 + q * w - 4, 322, w + 2, 66, 8, null, COL.frame, 3);
+      text('query', 260 + q * w + w / 2, 410, {size: 22, weight: 700, color: COL.frame, align: 'center'});
+    }
+  });
+  fade(G, P(t, sp + 0.3, 0.5), () => {
+    card(360, 520, 1200, 150, {stroke: COL.ok});
+    text('mọi frame tính cùng lúc: chạy song song trên GPU', 960, 570, {size: 28, weight: 700, color: COL.ok, align: 'center'});
+    text('frame 300 nhìn thẳng tới frame 10 trong một bước', 960, 625, {size: 26, align: 'center'});
+  });
+}
+
+function shotHeads(G, t) {
+  const s = S('heads'), d = D('heads');
+  heading('Nhiều đầu (multi-head), mỗi đầu một kiểu nhìn');
+  [['đầu 1: nhìn các frame lân cận', COL.acc], ['đầu 2: nhìn frame cùng âm', COL.frame], ['đầu 3: nhìn đoạn có tiếng', COL.i]].forEach(([l, c], k) =>
+    fade(G, P(t, s + 0.6 + k * d * 0.22, 0.5), () => {
+      const x = 220 + k * 520;
+      selfMatrix(HEADS[k], x, 260, 440);
+      text(l, x + 220, 740, {size: 26, weight: 700, color: c, align: 'center'});
+    }));
+  fade(G, P(t, s + 0.6, 0.5), () => text('câu "a s i", 36 frame · hàng: frame làm query · minh họa, không lấy từ mô hình thật', 960, 800, {size: 20, color: COL.mute, align: 'center'}));
+}
+
+function stack(x, y, items, title, c) {
+  text(title, x + 200, y - 30, {size: 28, weight: 700, color: c, align: 'center'});
+  items.forEach(([l, col], j) => {
+    rrect(x, y + j * 84, 400, 66, 12, col + '1c', col, 2);
+    text(l, x + 200, y + j * 84 + 33, {size: 24, weight: 700, color: col, align: 'center'});
+    if (j < items.length - 1) arrow(x + 200, y + j * 84 + 68, x + 200, y + j * 84 + 82, COL.mute, 2, 6);
+  });
+}
+
+function shotBlock(G, t) {
+  const sb = S('block'), sp = S('pos'), dp = D('pos'), sc = S('cost'), dc = D('cost');
+  heading('Khối Transformer (Vaswani và cộng sự, 2017)');
+  fade(G, P(t, sb + 0.3, 0.5), () => {
+    stack(220, 300, [['self-attention nhiều đầu', COL.frame], ['feed-forward', COL.acc]], 'một khối', COL.ink);
+    text('× 12–24 khối', 420, 520, {size: 26, weight: 700, color: COL.mute, align: 'center'});
+  });
+  fade(G, P(t, sp + 0.3, 0.5), () => {
+    card(760, 260, 960, 200, {stroke: COL.hl});
+    text('không tự biết thứ tự: đảo frame thì kết quả chỉ đảo theo', 790, 315, {size: 25, weight: 700, color: COL.hl});
+    fade(G, P(t, sp + dp * 0.5, 0.5), () => text('→ cộng thêm thông tin vị trí (positional encoding)', 790, 380, {size: 25, weight: 700, color: COL.ok}));
+  });
+  fade(G, P(t, sc + 0.3, 0.5), () => {
+    card(760, 500, 960, 260, {stroke: COL.frame});
+    text('chi phí ∝ (số frame)²: mọi cặp frame', 790, 555, {size: 25, weight: 700, color: COL.frame});
+    const u = P(t, sc + dc * 0.4, 1);
+    for (let k = 0; k < 16; k++) rrect(790 + k * 26, 610, 22, 40, 3, COL.acc + '66');
+    arrow(1220, 630, 1300, 630, COL.mute, 3);
+    for (let k = 0; k < 4; k++) rrect(1320 + k * 50, 610, 44, 40, 4, COL.acc + (u > 0 ? 'cc' : '22'));
+    text('gộp 4 frame thành 1 (40 ms) bằng convolution trước', 790, 710, {size: 24});
+  });
+}
+
+function shotConf(G, t) {
+  const sc = S('conf'), sb = S('confblock'), db = D('confblock');
+  heading('Conformer (Gulati và cộng sự, 2020)');
+  fade(G, P(t, sc + 0.3, 0.5), () => {
+    card(220, 260, 700, 200, {stroke: COL.ok});
+    text('convolution: nhìn gần', 250, 315, {size: 28, weight: 700, color: COL.ok});
+    text('mẫu cục bộ, như chuyển tiếp giữa hai âm', 250, 365, {size: 24});
+    card(220, 490, 700, 200, {stroke: COL.frame});
+    text('attention: nhìn xa', 250, 545, {size: 28, weight: 700, color: COL.frame});
+    text('ngữ cảnh cả câu', 250, 595, {size: 24});
+  });
+  fade(G, P(t, sb + 0.3, 0.5), () => {
+    stack(1180, 260, [['½ feed-forward', COL.acc], ['self-attention', COL.frame], ['convolution', COL.ok], ['½ feed-forward', COL.acc]], 'một khối Conformer', COL.ink);
+    fade(G, P(t, sb + db * 0.6, 0.5), () => text('mã hóa vị trí tương đối', 1380, 640, {size: 22, color: COL.mute, align: 'center'}));
+  });
+}
+
+function shotReal(G, t) {
+  const s = S('real'), d = D('real');
+  heading('Hệ thực tế');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    const xs = UI.chipXs(G, ['encoder Conformer', 'CTC', 'decoder attention'], {size: 30, weight: 700}, 80);
+    [['encoder Conformer', COL.ok], ['CTC', COL.acc], ['decoder attention', COL.frame]].forEach(([l, c], j) => {
+      chip(G, xs[j], 320, l, {size: 30, weight: 700, color: c, stroke: c});
+      if (j < 2) text('+', xs[j + 1] - 40, 346, {size: 34, weight: 700, color: COL.mute, align: 'center'});
+    });
+  });
+  fade(G, P(t, s + d * 0.5, 0.5), () => {
+    card(460, 480, 1000, 160, {stroke: COL.i});
+    text('RNN-T (Transducer): nhận dạng trực tuyến', 960, 535, {size: 28, weight: 700, color: COL.i, align: 'center'});
+    text('vừa nói vừa ra chữ', 960, 590, {size: 24, color: COL.mute, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['self-attention: mọi frame nhìn nhau cùng lúc'], ['Transformer: nhiều đầu, cần positional encoding'], ['chi phí ∝ (số frame)²: gộp frame trước'], ['Conformer: thêm convolution để nhìn gần']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text('✓', 400, 290 + j * 84, {size: 34, weight: 700, color: COL.ok});
+      text(a, 450, 290 + j * 84, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.85, 0.5), () => chip(G, 760, 680, 'Trang sau: SSL và Whisper  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 5', [
+  ['các frame nhìn lẫn nhau', 'self-attention', 'mỗi frame làm query'],
+  ['nhiều kiểu nhìn song song', 'multi-head attention', ''],
+  ['thông tin vị trí cộng vào', 'positional encoding', 'vì attention không biết thứ tự'],
+  ['attention + convolution', 'Conformer', 'Gulati 2020'],
+  ['nhận dạng vừa nói vừa ra chữ', 'RNN-T (Transducer), streaming', ''],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'rnn', to: 'par', draw: shotRnn},
+    {from: 'heads', to: 'heads', draw: shotHeads},
+    {from: 'block', to: 'cost', draw: shotBlock},
+    {from: 'conf', to: 'confblock', draw: shotConf},
+    {from: 'real', to: 'real', draw: shotReal},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/att-5-transformer.wav');
+</script>
+</body>
+</html>

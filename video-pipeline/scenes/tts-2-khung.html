@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>TTS 2: Khung chung</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/tts-2-khung.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Khung 3 khối', '3 Pha', '4 Griffin-Lim', '5 Vocoder nơ-ron', '6 Đo chất lượng'];
+const BLK = [['xử lý văn bản', COL.i, 'front'], ['mô hình âm học', COL.acc, 'am'], ['vocoder', COL.frame, 'voc']];
+
+function mel(x, y, w, h) {
+  const n = 40, m = 14;
+  for (let k = 0; k < n; k++) for (let j = 0; j < m; j++) {
+    const f1 = 9 - 3 * Math.sin(k * 0.15), v = Math.exp(-((j - f1) ** 2) / 3) + 0.6 * Math.exp(-((j - 4 - Math.sin(k * 0.1)) ** 2) / 2);
+    rrect(x + k * w / n, y + (m - 1 - j) * h / m, w / n - 1, h / m - 1, 0, Clip.heat(0.08 + 0.7 * v));
+  }
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('TTS và vocoder', 'Phần 2/6: khung chung, 3 khối', 1, PARTS);
+
+function shotPipe(G, t) {
+  const sp = S('pipe'), hot = id => t >= S(id) && t < E(id) + 0.4;
+  heading('chữ → âm vị → Mel → sóng âm');
+  fade(G, P(t, sp + 0.3, 0.5), () => {
+    chip(G, 100, 300, '"25/12"', {size: 28, weight: 700});
+    BLK.forEach(([l, c, id], j) => {
+      const x = 300 + j * 500;
+      arrow(x - 70, 326, x - 10, 326, COL.mute, 3);
+      rrect(x, 270, 260, 112, 16, hot(id) ? c + '22' : COL.card, c, hot(id) ? 4 : 2);
+      text(l, x + 130, 326, {size: 28, weight: 700, color: c, align: 'center'});
+    });
+    text('âm vị', 655, 300, {size: 22, color: COL.mute, align: 'center'});
+    arrow(570, 326, 740, 326, COL.mute, 3);
+    mel(1100, 280, 120, 90);
+    text('Mel', 1160, 400, {size: 22, color: COL.mute, align: 'center'});
+    arrow(1070, 326, 1090, 326, COL.mute, 3);
+    arrow(1230, 326, 1290, 326, COL.mute, 3);
+    const xs = [], ys = [];
+    for (let k = 0; k <= 100; k++) { xs.push(1580 + k * 2.6); ys.push(326 + 40 * Math.sin(k * 0.9) * Math.abs(Math.sin(k * 0.05))); }
+    arrow(1560, 326, 1576, 326, COL.mute, 3);
+    poly(xs, ys, COL.mute, 1.5);
+  });
+}
+
+function shotBlocks(G, t) {
+  const sf = S('front'), sg = S('g2p'), sa = S('am'), sv = S('voc');
+  shotPipe(G, t);
+  fade(G, P(t, sf + 0.3, 0.5) * (1 - P(t, sa, 0.4)), () => {
+    card(240, 470, 1440, 300, {stroke: COL.i});
+    text('chuẩn hóa · G2P (grapheme-to-phoneme) · thanh điệu', 280, 520, {size: 28, weight: 700, color: COL.i});
+    fade(G, P(t, sg + 0.3, 0.5), () => {
+      chip(G, 280, 570, '25/12', {size: 28, weight: 700});
+      arrow(410, 596, 470, 596, COL.mute, 3);
+      chip(G, 480, 570, 'hai mươi lăm tháng mười hai', {size: 28, weight: 700, color: COL.i, stroke: COL.i});
+      arrow(960, 640, 960, 670, COL.mute, 3);
+      const syl = [['h a i', '¯'], ['m ư ơ i', '¯'], ['l ă m', '¯'], ['th a ng', '´'], ['m ư ơ i', '`'], ['h a i', '¯']], xs = UI.chipXs(G, syl.map(s => `${s[0]} ${s[1]}`), {size: 24, weight: 700}, 14);
+      syl.forEach(([p, tone], j) => chip(G, xs[j], 680, `${p} ${tone}`, {size: 24, weight: 700, mono: true}));
+    });
+  });
+  fade(G, P(t, sa + 0.3, 0.5) * (1 - P(t, sv, 0.4)), () => {
+    card(240, 470, 1440, 300, {stroke: COL.acc});
+    text('âm vị → Mel: mỗi âm dài bao nhiêu frame, formant ở đâu, f0 lên xuống ra sao', 280, 520, {size: 26, weight: 700, color: COL.acc});
+    mel(300, 570, 700, 170);
+    text('"đọc thế nào": trang 14, 15', 1080, 650, {size: 26, weight: 700, color: COL.acc});
+  });
+  fade(G, P(t, sv + 0.3, 0.5), () => {
+    card(240, 470, 1440, 300, {stroke: COL.frame});
+    text('Mel → sóng âm: 80 số/frame thành ~220 mẫu, và phải tự tạo pha', 280, 520, {size: 26, weight: 700, color: COL.frame});
+    mel(300, 580, 300, 150);
+    arrow(630, 655, 720, 655, COL.mute, 3);
+    const xs = [], ys = [];
+    for (let k = 0; k <= 300; k++) { xs.push(740 + k * 2.8); ys.push(655 + 60 * Math.sin(k * 0.9) * Math.abs(Math.sin(k * 0.03))); }
+    poly(xs, ys, COL.frame, 1.5);
+    text('phần 3, 4, 5', 1620, 520, {size: 22, color: COL.mute, align: 'right'});
+  });
+}
+
+function shotWhy(G, t) {
+  const sw = S('why'), dw = D('why'), sc = S('cost'), ss = S('split');
+  heading(t < ss ? 'Vì sao đi qua Mel?' : 'Mỗi khối học riêng, thay riêng');
+  if (t < ss) {
+    fade(G, P(t, sw + 0.3, 0.5), () => {
+      card(220, 260, 700, 380, {stroke: COL.ok});
+      text('✓ Mel gọn', 250, 310, {size: 30, weight: 700, color: COL.ok});
+      text('80 số mỗi frame (thay vì 220 mẫu sóng)', 250, 370, {size: 24});
+      text('✓ mượt', 250, 440, {size: 30, weight: 700, color: COL.ok});
+      text('✓ bỏ chi tiết tai không quan tâm', 250, 510, {size: 30, weight: 700, color: COL.ok});
+      text('→ mô hình âm học dễ học hơn nhiều', 250, 590, {size: 24, weight: 700, color: COL.acc});
+    });
+    fade(G, P(t, sc + 0.3, 0.5), () => {
+      card(1000, 260, 700, 380, {stroke: COL.hl});
+      text('✗ cái giá', 1030, 310, {size: 30, weight: 700, color: COL.hl});
+      text('đã mất thông tin (trang 04: lossy)', 1030, 380, {size: 26});
+      text('không có pha', 1030, 440, {size: 26, weight: 700});
+      text('→ vocoder phải đoán lại phần đã mất', 1030, 520, {size: 24, weight: 700, color: COL.frame});
+    });
+    return;
+  }
+  fade(G, P(t, ss + 0.3, 0.5), () => {
+    BLK.forEach(([l, c], j) => { const x = 300 + j * 480; rrect(x, 340, 360, 120, 16, c + '18', c, 3); text(l, x + 180, 400, {size: 30, weight: 700, color: c, align: 'center'}); });
+    text('đổi vocoder không cần học lại mô hình âm học, và ngược lại', 960, 560, {size: 28, weight: 700, color: COL.ok, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  BLK.forEach(([l, c], j) => fade(G, P(t, s + 0.3 + j * 0.8, 0.5), () => {
+    const x = 300 + j * 480; rrect(x, 300, 360, 100, 16, c + '18', c, 3); text(l, x + 180, 350, {size: 28, weight: 700, color: c, align: 'center'});
+    if (j < 2) arrow(x + 370, 350, x + 470, 350, COL.mute, 3);
+  }));
+  fade(G, P(t, s + 3, 0.5), () => text('Mel gọn nhưng mất pha', 960, 500, {size: 32, weight: 700, color: COL.frame, align: 'center'}));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 860, 640, 'Phần 3: pha  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 2', [
+  ['khối xử lý chữ', 'text frontend', 'chuẩn hóa, G2P, thanh điệu'],
+  ['đổi số, viết tắt thành chữ đọc', 'chuẩn hóa văn bản (text normalization)', '25/12 → hai mươi lăm tháng mười hai'],
+  ['đổi chữ thành âm vị', 'G2P (grapheme-to-phoneme)', ''],
+  ['âm vị → Mel', 'mô hình âm học (acoustic model)', 'trang 14, 15'],
+  ['Mel → sóng âm', 'vocoder', 'phải tạo pha'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'pipe', to: 'pipe', draw: shotPipe},
+    {from: 'front', to: 'voc', draw: shotBlocks},
+    {from: 'why', to: 'split', draw: shotWhy},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/tts-2-khung.wav');
+</script>
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Đánh giá · 6: WER và chuẩn hóa</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../lib/evalx.js"></script>
+<script src="../build/eval-6-wer.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Quy tắc', '3 Chọn epoch', '4 Tin cậy', '5 Rò rỉ', '6 WER'];
+
+// Both sentences have 7 words in the same order, so position-wise comparison equals the edit distance here.
+function rows(G, t, s, normed) {
+  const a = normed ? EVX.norm(EVX.REF) : EVX.raw(EVX.REF), b = normed ? EVX.norm(EVX.HYP) : EVX.raw(EVX.HYP);
+  const W = 220, x0 = 960 - W * 3.5;
+  text('câu đúng', x0 - 20, 360, {size: 22, weight: 700, color: COL.mute, align: 'right'});
+  text('câu ASR', x0 - 20, 500, {size: 22, weight: 700, color: COL.mute, align: 'right'});
+  a.forEach((w, i) => {
+    const x = x0 + i * W, bad = w !== b[i], show = P(t, s + 0.3 + i * 0.25, 0.4);
+    if (show <= 0) return;
+    G.globalAlpha = show;
+    const c = bad ? COL.hl : COL.ok;
+    rrect(x + 8, 320, W - 16, 64, 8, c + '18', c, 2);
+    text(w, x + W / 2, 362, {size: 26, weight: 700, mono: true, align: 'center', maxW: W - 24});
+    rrect(x + 8, 460, W - 16, 64, 8, c + '18', c, 2);
+    text(b[i], x + W / 2, 502, {size: 26, weight: 700, mono: true, align: 'center', maxW: W - 24});
+    text(bad ? '≠' : '=', x + W / 2, 432, {size: 30, weight: 700, color: c, align: 'center'});
+    G.globalAlpha = 1;
+  });
+  const wer = Math.round(EVX.wer(EVX.REF, EVX.HYP, normed) * 100), bad = a.filter((w, i) => w !== b[i]).length;
+  fade(G, P(t, s + 2.6, 0.5), () => {
+    text(`${bad}/${a.length} từ sai`, 960, 640, {size: 30, color: COL.mute, align: 'center'});
+    text(`WER ${wer}%`, 960, 730, {size: 64, weight: 700, color: wer ? COL.hl : COL.ok, align: 'center'});
+  });
+}
+
+const shotIntro = UI.introShot('Đánh giá cho đúng', 'Phần 6/6: WER phụ thuộc cách chuẩn hóa', 5, PARTS);
+
+function shotPair(G, t) {
+  const sp = S('pair'), sr = S('raw'), sn = S('norm');
+  heading(t < sr ? 'Nghe thì hoàn toàn đúng' : t < sn ? 'Không chuẩn hóa' : 'Chuẩn hóa: chữ thường, bỏ dấu câu, số và viết tắt thành chữ');
+  if (t < sr) {
+    fade(G, P(t, sp + 0.3, 0.5), () => {
+      text('câu đúng', 300, 360, {size: 24, weight: 700, color: COL.mute});
+      text(EVX.REF, 300, 420, {size: 40, weight: 700, mono: true});
+    });
+    fade(G, P(t, sp + D('pair') * 0.45, 0.5), () => {
+      text('câu ASR', 300, 540, {size: 24, weight: 700, color: COL.mute});
+      text(EVX.HYP, 300, 600, {size: 40, weight: 700, mono: true});
+    });
+    return;
+  }
+  rows(G, t, t < sn ? sr : sn, t >= sn);
+}
+
+function shotRule(G, t) {
+  const sw = S('whisper'), sr = S('rule');
+  heading(t < sr ? 'Bản rút gọn, còn bản đầy đủ' : 'Quy tắc');
+  if (t < sr) {
+    fade(G, P(t, sw + 0.3, 0.5), () => {
+      card(300, 300, 1320, 300, {stroke: COL.acc});
+      text('bộ chuẩn hóa tiếng Anh của Whisper', 960, 390, {size: 34, weight: 700, color: COL.acc, align: 'center'});
+      text('làm kỹ hơn nhiều (chính tả Anh-Mỹ, số, đơn vị, từ đệm...)', 960, 460, {size: 24, align: 'center'});
+      text('lựa chọn phổ biến để so sánh giữa các hệ', 960, 530, {size: 26, weight: 700, align: 'center'});
+    });
+    return;
+  }
+  fade(G, P(t, sr + 0.3, 0.5), () => {
+    [['cùng một bộ', 'cho mọi hệ'], ['áp cho cả hai', 'câu đúng và câu ASR'], ['ghi rõ', 'trong báo cáo']].forEach(([a, b], j) => {
+      const x = 200 + j * 520;
+      card(x, 260, 480, 200, {stroke: COL.ok});
+      text(a, x + 240, 340, {size: 32, weight: 700, color: COL.ok, align: 'center'});
+      text(b, x + 240, 400, {size: 24, align: 'center'});
+    });
+  });
+  fade(G, P(t, sr + D('rule') * 0.55, 0.5), () => {
+    rrect(260, 560, 1400, 110, 10, COL.hlSoft, COL.hl, 2);
+    text('WER do code của một bài báo tự tính cách khác: không so trực tiếp', 960, 625, {size: 28, weight: 700, color: COL.hl, align: 'center'});
+  });
+}
+
+function shotPage(G, t) {
+  const sp = S('page'), se = S('end'), dp = D('page');
+  heading(t < se ? 'Tóm tắt trang' : 'Hết lộ trình');
+  if (t < se) {
+    [['chọn mọi thứ trên dev · chạm test một lần · tách theo người nói', 0], ['nhiều seed, trung bình ± độ lệch · chênh < khoảng tin cậy: chưa kết luận', 0.3], ['zero-shot cao bất thường: nghi rò rỉ', 0.55], ['cùng một bộ chuẩn hóa cho WER', 0.75]].forEach(([a, f], j) =>
+      fade(G, P(t, sp + 0.3 + dp * f, 0.5), () => {
+        text('✓', 220, 300 + j * 110, {size: 32, weight: 700, color: COL.ok});
+        text(a, 270, 300 + j * 110, {size: 29, maxW: 1450});
+      }));
+    return;
+  }
+  fade(G, P(t, se + 0.3, 0.6), () => {
+    const labels = ['MFCC', 'GMM', 'HMM', 'DNN', 'CTC', 'attention', 'SSL', 'TTS', 'SER', 'đánh giá'];
+    const xs = UI.chipXs(G, labels, {size: 24, weight: 700}, 36);
+    labels.forEach((l, j) => {
+      chip(G, xs[j], 360, l, {size: 24, weight: 700, color: j === 9 ? COL.hl : COL.acc, stroke: j === 9 ? COL.hl : COL.acc});
+      if (j) arrow(xs[j] - 32, 380, xs[j] - 6, 380, COL.mute, 2, 8);
+    });
+  });
+  fade(G, P(t, se + D('end') * 0.5, 0.6), () => text('một con số đúng quan trọng ngang một mô hình tốt', 960, 560, {size: 36, weight: 700, color: COL.frame, align: 'center'}));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 6', [
+  ['tỉ lệ lỗi từ', 'WER (word error rate)', '(thay + xóa + chèn) / số từ đúng'],
+  ['chuẩn hóa văn bản', 'text normalization', 'chữ thường, bỏ dấu câu, số thành chữ'],
+  ['bộ chuẩn hóa của Whisper', 'Whisper EnglishTextNormalizer', ''],
+  ['khoảng cách sửa', 'edit distance (Levenshtein)', ''],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'pair', to: 'norm', draw: shotPair},
+    {from: 'whisper', to: 'rule', draw: shotRule},
+    {from: 'page', to: 'end', draw: shotPage},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/eval-6-wer.wav');
+</script>
+</body>
+</html>

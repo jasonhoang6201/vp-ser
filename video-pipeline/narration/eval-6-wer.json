@@ -1,0 +1,33 @@
+{
+  "clip": "eval-6-wer",
+  "title": "Đánh giá cho đúng · Phần 6: WER và chuẩn hóa",
+  "segments": [
+    {"id": "intro",
+     "sub": "Đánh giá cho đúng, phần 6: WER phụ thuộc cách chuẩn hóa.",
+     "say": "Đánh giá cho đúng, phần sáu: tỉ lệ lỗi từ phụ thuộc cách chuẩn hóa."},
+    {"id": "pair",
+     "sub": "Câu đúng: \"Mr. Smith has 2 cats, doesn't he?\". Câu ASR: \"mister smith has two cats doesn't he\". Nghe hoàn toàn đúng.",
+     "say": "Câu đúng viết là: Mr chấm Smith has số hai cats, dấu phẩy, doesn't he, dấu hỏi. Còn máy chép: mister smith has two cats doesn't he, chữ thường, không dấu câu. Nghe thì hoàn toàn đúng."},
+    {"id": "raw",
+     "sub": "Không chuẩn hóa: \"Mr.\" ≠ \"mister\", \"Smith\" ≠ \"smith\", \"2\" ≠ \"two\", \"cats,\" ≠ \"cats\", \"he?\" ≠ \"he\": 5 trên 7 từ sai, WER 71%.",
+     "say": "Không chuẩn hóa thì viết tắt khác viết đủ, chữ hoa khác chữ thường, số hai khác chữ two, và dấu phẩy, dấu hỏi dính vào từ cũng thành khác. Năm trên bảy từ bị tính sai, tỉ lệ lỗi bảy mươi mốt phần trăm."},
+    {"id": "norm",
+     "sub": "Chuẩn hóa (chữ thường, bỏ dấu câu, số và từ viết tắt thành chữ): hai câu giống hệt, WER 0%.",
+     "say": "Chuẩn hóa, gồm đưa về chữ thường, bỏ dấu câu, đổi số và từ viết tắt thành chữ: hai câu giống hệt nhau, tỉ lệ lỗi bằng không."},
+    {"id": "whisper",
+     "sub": "Đây là bản rút gọn. Bộ chuẩn hóa tiếng Anh của Whisper làm kỹ hơn nhiều, và là lựa chọn phổ biến để so sánh giữa các hệ.",
+     "say": "Đây chỉ là bản rút gọn. Bộ chuẩn hóa tiếng Anh của Uýt spơ làm kỹ hơn nhiều, và là lựa chọn phổ biến để so sánh giữa các hệ."},
+    {"id": "rule",
+     "sub": "Quy tắc: cùng một bộ chuẩn hóa cho mọi hệ, áp cho cả câu đúng lẫn câu ASR, ghi rõ trong báo cáo. WER do code của một bài báo tự tính bằng cách khác thì không so trực tiếp được.",
+     "say": "Quy tắc: dùng cùng một bộ chuẩn hóa cho mọi hệ, áp cho cả câu đúng lẫn câu máy chép, và ghi rõ trong báo cáo. Tỉ lệ lỗi từ do code của một bài báo tự tính bằng cách khác thì không so trực tiếp được."},
+    {"id": "page",
+     "sub": "Tóm tắt trang: chọn mọi thứ trên dev, chạm test một lần, tách theo người nói. Nhiều seed, báo trung bình ± độ lệch; chênh nhỏ hơn khoảng tin cậy thì chưa kết luận. Nghi rò rỉ khi zero-shot cao bất thường. Cùng một bộ chuẩn hóa cho WER.",
+     "say": "Tóm tắt cả trang: chọn mọi thứ trên tập kiểm, chạm tập thử một lần, và tách theo người nói. Chạy nhiều xít, báo trung bình cộng trừ độ lệch. Chênh nhỏ hơn khoảng tin cậy thì chưa kết luận. Nghi rò rỉ khi điểm dùng ngay cao bất thường. Và dùng cùng một bộ chuẩn hóa cho tỉ lệ lỗi từ."},
+    {"id": "end",
+     "sub": "Hết lộ trình: từ MFCC đến đánh giá SER. Con số đúng quan trọng ngang mô hình tốt.",
+     "say": "Đến đây là hết lộ trình, từ em ép xi xi đến đánh giá nhận dạng cảm xúc. Một con số đúng quan trọng ngang một mô hình tốt."},
+    {"id": "terms",
+     "sub": "Thuật ngữ của phần này.",
+     "say": "Các thuật ngữ của phần này."}
+  ]
+}

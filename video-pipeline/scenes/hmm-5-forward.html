@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>HMM 5: Forward và Baum-Welch</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../lib/hmm.js"></script>
+<script src="../build/hmm-5-forward.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Thành phần', '3 Tự lặp, độ dài', '4 Viterbi', '5 Forward, Baum-Welch'];
+const TR = HMM.TRUTH, PE = 0.9, SC = HMM.scores(5, 1.0);
+const BX = {x: 260, y: 250, w: 1520, h: 300};
+// Word models reuse the same per-frame scores, with the states in the word's order.
+const WORDS = [['mai', [0, 1, 2]], ['ma', [0, 1]], ['ami', [1, 0, 2]], ['mi', [0, 2]]].map(([w, st]) => {
+  const Es = SC.map(r => st.map(s => r[s]));
+  return {w, fwd: HMM.forward(Es, PE).total, vit: HMM.viterbi(Es, PE).best};
+});
+const POST = HMM.posterior(SC, PE);
+const fmt = v => v.toFixed(1).replace('.', ',').replace('-', '−');
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('HMM', 'Phần 5/5: Forward và Baum-Welch', 4, PARTS);
+
+function shotQ(G, t) {
+  const s = S('q'), d = D('q');
+  heading('Câu hỏi mới: đây là từ nào?');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    for (let k = 0; k < 40; k++) rrect(BX.x + k * 38, 330, 34, 44, 5, COL.soft, COL.line2, 1.5);
+    text('40 frame', 960, 410, {size: 24, color: COL.mute, align: 'center'});
+  });
+  WORDS.forEach((o, j) => fade(G, P(t, s + 1.2 + j * 0.5, 0.5), () => chip(G, 560 + j * 220, 480, `"${o.w}" ?`, {size: 30, weight: 700})));
+  fade(G, P(t, s + d * 0.6, 0.5), () => text('cần một điểm cho cả từ, để so các từ với nhau', 960, 640, {size: 30, weight: 700, color: COL.acc, align: 'center'}));
+}
+
+function allEdges(tr, cols) {
+  for (let t = 1; t < cols; t++) for (let s = 0; s < 3; s++) {
+    line(tr.cx(t - 1) + 6, tr.cy(s), tr.cx(t) - 8, tr.cy(s), '#00000022', 1.2);
+    if (s > 0) line(tr.cx(t - 1) + 6, tr.cy(s - 1), tr.cx(t) - 8, tr.cy(s), '#00000022', 1.2);
+  }
+}
+
+function shotForward(G, t) {
+  const sf = S('forward'), df = D('forward'), sw = S('why'), dw = D('why');
+  heading('Forward: cùng lưới, tổng thay cho max');
+  const cols = Math.ceil(40 * P(t, sf + 0.5, df * 0.6));
+  const tr = HMM.trellis({x: BX.x, y: 220, w: BX.w, h: 240}, SC, {cols});
+  allEdges(tr, cols);
+  fade(G, P(t, sf + 0.8, 0.5), () => {
+    card(260, 520, 700, 150);
+    text('Viterbi', 300, 565, {size: 26, weight: 700, color: COL.mute});
+    text('ô = GMM + max(ở lại, đi xuống)', 300, 620, {size: 28});
+    card(1000, 520, 780, 150, {stroke: COL.acc, lw: 3});
+    text('Forward', 1040, 565, {size: 26, weight: 700, color: COL.acc});
+    text('ô = GMM + tổng(ở lại, đi xuống)', 1040, 620, {size: 28, weight: 700, color: COL.acc});
+  });
+  fade(G, P(t, sf + df * 0.7, 0.5) * (1 - P(t, sw, 0.4)), () => {
+    text('ô cuối = p(40 frame | "mai"): tổng điểm của mọi cách chia', 960, 730, {size: 28, weight: 700, color: COL.acc, align: 'center'});
+  });
+  fade(G, P(t, sw + 0.3, 0.5), () => {
+    text('không chắc ranh giới ở đâu → cộng mọi khả năng', 960, 715, {size: 28, weight: 700, align: 'center'});
+  });
+  fade(G, P(t, sw + dw * 0.55, 0.5), () => {
+    text('trong log: log(eᵃ + eᵇ), gọi là log-sum-exp', 960, 775, {size: 26, color: COL.mute, align: 'center'});
+  });
+}
+
+function shotCompare(G, t) {
+  const s = S('compare'), d = D('compare');
+  heading('Chạy Forward với mỗi từ');
+  const x0 = 520, Xv = v => x0 + (v + 30) / 30 * 1000;
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    line(Xv(-30), 730, Xv(0), 730, COL.line2, 2);
+    [-30, -20, -10, 0].forEach(v => text(String(v).replace('-', '−'), Xv(v), 760, {size: 20, color: COL.mute, align: 'center'}));
+    text('log p(40 frame | từ)', Xv(0), 800, {size: 20, color: COL.mute, align: 'right'});
+  });
+  WORDS.forEach((o, j) => fade(G, P(t, s + 0.6 + j * d * 0.16, 0.5), () => {
+    const y = 260 + j * 110, best = j === 0, u = P(t, s + 0.6 + j * d * 0.16, 0.8);
+    text(`"${o.w}"`, x0 - 30, y + 30, {size: 32, weight: 700, color: best ? COL.ok : COL.ink, align: 'right'});
+    const xe = Xv(-30) + (Xv(o.fwd) - Xv(-30)) * u;
+    rrect(Xv(-30), y, xe - Xv(-30), 60, 8, best ? COL.ok : COL.line2);
+    text(fmt(o.fwd), xe + 16, y + 30, {size: 28, weight: 700, color: best ? COL.ok : COL.mute});
+  }));
+  fade(G, P(t, s + d * 0.8, 0.5), () => chip(G, 1560, 268, 'nhận ra "mai"', {fill: '#e8f3ec', stroke: COL.ok, color: COL.ok, weight: 700}));
+}
+
+function shotTable(G, t) {
+  const s = S('table'), d = D('table');
+  heading('Viterbi và Forward');
+  const cx = [560, 960, 1400];
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    ['', 'Viterbi', 'Forward'].forEach((h, j) => text(h, cx[j], 270, {size: 32, weight: 700, color: j === 2 ? COL.acc : COL.ink, align: 'center'}));
+    line(320, 300, 1640, 300, COL.line2, 2);
+  });
+  [['phép tính', 'max', 'tổng'], ['cho ra', 'đường đi tốt nhất', 'điểm của cả từ'], ['dùng để', 'biết frame nào là âm nào', 'so các từ với nhau']].forEach((r, i) =>
+    fade(G, P(t, s + 0.8 + i * d * 0.2, 0.5), () => {
+      const y = 360 + i * 80;
+      r.forEach((c, j) => text(c, cx[j], y, {size: 28, weight: j ? 700 : 400, color: j ? (j === 2 ? COL.acc : COL.ink) : COL.mute, align: 'center'}));
+      line(320, y + 40, 1640, y + 40, '#ecebe8', 1.5);
+    }));
+  fade(G, P(t, s + d * 0.75, 0.5), () => {
+    const y = 360 + 3 * 80;
+    text('"mai"', cx[0], y, {size: 28, color: COL.mute, align: 'center'});
+    text(fmt(WORDS[0].vit), cx[1], y, {size: 30, weight: 700, align: 'center'});
+    text(fmt(WORDS[0].fwd), cx[2], y, {size: 30, weight: 700, color: COL.acc, align: 'center'});
+    text('thường khá gần nhau', 960, 700, {size: 26, color: COL.mute, align: 'center'});
+  });
+}
+
+function shotLearnQ(G, t) {
+  const s = S('learnq'), d = D('learnq');
+  heading('Câu hỏi cuối: học từ đâu?');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    [0, 1, 2].forEach(k => {
+      HMM.stateBox(560 + k * 300, 330, k, {loop: true});
+      text('GMM ?', 620 + k * 300, 470, {size: 26, weight: 700, color: COL.hl, align: 'center'});
+      text('p ?', 620 + k * 300, 262, {size: 24, weight: 700, color: COL.hl, align: 'center'});
+      if (k < 2) arrow(690 + k * 300, 375, 850 + k * 300, 375, COL.mute, 3);
+    });
+  });
+  fade(G, P(t, s + d * 0.45, 0.5), () => {
+    card(360, 560, 560, 160, {stroke: COL.ok});
+    text('có: bản ghi âm + câu chữ', 400, 620, {size: 28, weight: 700, color: COL.ok});
+    text('"mai"', 400, 675, {size: 26, color: COL.mute});
+    card(1000, 560, 560, 160, {stroke: COL.hl});
+    text('không có: nhãn từng frame', 1040, 620, {size: 28, weight: 700, color: COL.hl});
+    text('frame 11 là "m" hay "a"?', 1040, 675, {size: 26, color: COL.mute});
+  });
+}
+
+function shotBw(G, t) {
+  const sb = S('bw'), db = D('bw'), sp = S('post'), dp = D('post');
+  heading('Baum-Welch = EM cho HMM');
+  fade(G, P(t, sb + 0.3, 0.5), () => {
+    chip(G, 460, 200, 'bước E: forward-backward', {fill: COL.accSoft, stroke: COL.acc, color: COL.acc, weight: 700});
+    arrow(1000, 226, 1240, 226, COL.acc, 3);
+    arrow(1480, 250, 1240, 250, COL.frame, 3);
+    text('forward', 1120, 206, {size: 20, color: COL.acc, align: 'center'});
+    text('backward', 1360, 274, {size: 20, color: COL.frame, align: 'center'});
+  });
+  const B = {x: 260, y: 320, w: 1520, h: 240}, cw = B.w / 40, ch = B.h / 3;
+  fade(G, P(t, sb + db * 0.45, 0.6), () => {
+    const cols = Math.ceil(40 * P(t, sb + db * 0.45, 1.5));
+    for (let f = 0; f < 40; f++) for (let s = 0; s < 3; s++) {
+      const v = f < cols ? POST[f][s] : 0, c = HMM.stateCol(s);
+      rrect(B.x + f * cw + 1, B.y + s * ch + 1, cw - 2, ch - 2, 3, '#f4f3f0');
+      if (v > 0.005) { Clip.g.save(); Clip.g.globalAlpha *= v; rrect(B.x + f * cw + 1, B.y + s * ch + 1, cw - 2, ch - 2, 3, c); Clip.g.restore(); }
+    }
+    [0, 1, 2].forEach(s => text(HMM.STATES[s], B.x - 18, B.y + (s + 0.5) * ch, {size: 28, weight: 700, color: HMM.stateCol(s), align: 'right'}));
+    text('đậm = xác suất frame thuộc trạng thái đó', B.x, B.y + B.h + 30, {size: 22, color: COL.mute});
+  });
+  fade(G, P(t, sb + db * 0.75, 0.5) * (1 - P(t, sp, 0.4)), () => text('giống responsibility của GMM, nhưng có tính thứ tự', 960, 680, {size: 28, weight: 700, color: COL.acc, align: 'center'}));
+  fade(G, P(t, sp + dp * 0.45, 0.5), () => {
+    rrect(B.x + 10 * cw - 3, B.y - 6, cw + 6, B.h + 12, 6, null, COL.ink, 3);
+    card(B.x + 10 * cw - 200, 640, 440, 110, {stroke: COL.ink});
+    text('frame 11', B.x + 10 * cw + 20, 675, {size: 24, weight: 700, align: 'center'});
+    text(`${Math.round(POST[10][0] * 100)}% m · ${Math.round(POST[10][1] * 100)}% a`, B.x + 10 * cw + 20, 718, {size: 28, weight: 700, color: COL.acc, align: 'center'});
+    text('giữa âm: gần như chắc chắn', 1200, 690, {size: 24, color: COL.mute});
+    text('ranh giới: chia mềm', 1200, 730, {size: 24, color: COL.mute});
+  });
+}
+
+function shotMstep(G, t) {
+  const s = S('mstep'), d = D('mstep');
+  heading('Bước M: học lại GMM và p');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    [0, 1, 2].forEach(k => {
+      const x = 300 + k * 460, c = HMM.stateCol(k);
+      card(x, 260, 400, 180, {stroke: c});
+      text(`GMM "${HMM.STATES[k]}"`, x + 200, 310, {size: 30, weight: 700, color: c, align: 'center'});
+      text('học từ mọi frame,', x + 200, 360, {size: 24, color: COL.mute, align: 'center'});
+      text('có trọng số hậu nghiệm', x + 200, 395, {size: 24, color: COL.mute, align: 'center'});
+    });
+  });
+  fade(G, P(t, s + d * 0.35, 0.5), () => {
+    card(560, 480, 800, 110, {stroke: COL.frame});
+    text('p mới = số lần ở lại / (ở lại + sang tiếp)', 960, 535, {size: 30, weight: 700, color: COL.frame, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.65, 0.5), () => {
+    chip(G, 640, 660, 'bước E', {fill: COL.accSoft, stroke: COL.acc, color: COL.acc, weight: 700});
+    arrow(780, 686, 1000, 686, COL.mute, 3);
+    chip(G, 1020, 660, 'bước M', {fill: COL.frameSoft, stroke: COL.frame, color: COL.frame, weight: 700});
+    const g = Clip.g;
+    g.beginPath(); g.moveTo(1080, 716); g.quadraticCurveTo(900, 800, 700, 716); g.strokeStyle = COL.mute; g.lineWidth = 3; g.stroke();
+    arrow(712, 722, 700, 716, COL.mute, 3);
+    text('lặp vài lần: ranh giới rõ dần', 1220, 760, {size: 24, weight: 700, color: COL.ok});
+  });
+}
+
+function shotBig(G, t) {
+  const s = S('big'), d = D('big');
+  heading('Điều quan trọng nhất');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    card(300, 280, 600, 280, {stroke: COL.ok, lw: 3});
+    text('✓ cần', 340, 340, {size: 30, weight: 700, color: COL.ok});
+    text('bản ghi âm', 340, 410, {size: 28});
+    text('câu chữ của nó', 340, 470, {size: 28});
+    card(1020, 280, 600, 280, {stroke: COL.line2});
+    text('✗ không cần', 1060, 340, {size: 30, weight: 700, color: COL.mute});
+    text('nhãn cho từng frame', 1060, 410, {size: 28, color: COL.mute});
+    text('(ranh giới từng âm)', 1060, 470, {size: 26, color: COL.mute});
+  });
+  fade(G, P(t, s + d * 0.55, 0.5), () => text('→ HMM huấn luyện được trên hàng nghìn giờ ghi âm', 960, 650, {size: 32, weight: 700, color: COL.acc, align: 'center'}));
+}
+
+function shotConcat(G, t) {
+  const s = S('concat'), d = D('concat');
+  heading('Ghép lên: âm vị → từ → câu');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    text('từ "mai" =', 300, 300, {size: 28, weight: 700});
+    [0, 1, 2].forEach(k => {
+      const x = 480 + k * 420;
+      rrect(x, 260, 360, 80, 12, HMM.stateCol(k) + '18', HMM.stateCol(k), 2);
+      [1, 2, 3].forEach(j => {
+        rrect(x + 20 + (j - 1) * 112, 276, 96, 48, 8, COL.card, HMM.stateCol(k), 1.5);
+        text(`${HMM.STATES[k]}${j}`, x + 68 + (j - 1) * 112, 300, {size: 22, weight: 700, color: HMM.stateCol(k), align: 'center'});
+      });
+      if (k < 2) arrow(x + 364, 300, x + 416, 300, COL.mute, 2.5, 10);
+    });
+  });
+  fade(G, P(t, s + d * 0.4, 0.5), () => {
+    text('câu =', 300, 470, {size: 28, weight: 700});
+    ['sáng', 'mai', 'đi', 'học'].forEach((w, j) => {
+      const x = 480 + j * 320, on = w === 'mai';
+      rrect(x, 430, 260, 80, 12, on ? COL.accSoft : COL.soft, on ? COL.acc : COL.line2, on ? 3 : 1.5);
+      text(`HMM "${w}"`, x + 130, 470, {size: 26, weight: 700, color: on ? COL.acc : COL.mute, align: 'center'});
+      if (j < 3) arrow(x + 264, 470, x + 316, 470, COL.mute, 2.5, 10);
+    });
+    line(1300 - 400 + 0, 344, 800 + 130, 428, COL.acc + '66', 2, [6, 6]);
+  });
+  fade(G, P(t, s + d * 0.75, 0.5), () => chip(G, 700, 620, 'Trang sau: ghép thành cả một hệ nhận dạng  →', HOT));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['Forward = Viterbi, nhưng tổng thay max: điểm của cả từ'],
+   ['so điểm Forward của các từ: chọn từ cao nhất'],
+   ['Baum-Welch = EM: E bằng forward-backward, M học lại GMM và p'],
+   ['chỉ cần câu chữ, không cần nhãn từng frame']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.8, 0.6), () => {
+      text('✓', 340, 300 + j * 84, {size: 34, weight: 700, color: COL.ok});
+      text(a, 390, 300 + j * 84, {size: 32});
+    }));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 5', [
+  ['tổng mọi đường', 'Forward algorithm', 'p(chuỗi frame | từ)'],
+  ['cộng trong log', 'log-sum-exp', 'log(eᵃ + eᵇ), tránh tràn số'],
+  ['chạy hai chiều', 'forward-backward', 'xác suất mỗi frame thuộc mỗi trạng thái'],
+  ['xác suất hậu nghiệm', 'posterior (state occupancy)', 'chia mềm frame cho trạng thái'],
+  ['EM cho HMM', 'Baum-Welch', 'học GMM và p chỉ từ câu chữ'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'q', to: 'q', draw: shotQ},
+    {from: 'forward', to: 'why', draw: shotForward},
+    {from: 'compare', to: 'compare', draw: shotCompare},
+    {from: 'table', to: 'table', draw: shotTable},
+    {from: 'learnq', to: 'learnq', draw: shotLearnQ},
+    {from: 'bw', to: 'post', draw: shotBw},
+    {from: 'mstep', to: 'mstep', draw: shotMstep},
+    {from: 'big', to: 'big', draw: shotBig},
+    {from: 'concat', to: 'concat', draw: shotConcat},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/hmm-5-forward.wav');
+</script>
+</body>
+</html>

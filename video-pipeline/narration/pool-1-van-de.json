@@ -1,0 +1,33 @@
+{
+  "clip": "pool-1-van-de",
+  "title": "Từ frame đến câu · Phần 1: Vấn đề",
+  "segments": [
+    {"id": "intro",
+     "sub": "Từ frame đến cả câu, phần 1: encoder ra quá nhiều vector, ở quá nhiều tầng.",
+     "say": "Từ frame đến cả câu, phần một: en cô đơ cho ra quá nhiều véc tơ, ở quá nhiều tầng."},
+    {"id": "place",
+     "sub": "Trang 12 cho các encoder học sẵn (wav2vec 2.0, HuBERT, WavLM): một vector mỗi frame. SER cần một nhãn cho cả câu. Trang này nối hai đầu.",
+     "say": "Trang mười hai cho ta các en cô đơ học sẵn, như Ue tu véc hai chấm không, Hiu bơt, Quây vờ lờm. Chúng cho ra một véc tơ ở mỗi frame. Còn ét i a lại cần một nhãn cho cả câu. Trang này nối hai đầu đó."},
+    {"id": "p1",
+     "sub": "Vấn đề 1: một câu 3 giây ra 150 vector (mỗi 20 ms một vector), mà bộ phân loại cần đúng một vector.",
+     "say": "Vấn đề thứ nhất: một câu ba giây cho ra một trăm năm mươi véc tơ, cứ hai mươi mi li giây một véc tơ. Mà bộ phân loại cần đúng một véc tơ đầu vào."},
+    {"id": "p2",
+     "sub": "Vấn đề 2: cảm xúc có thể chỉ nằm ở một đoạn. \"Ừ… được thôi. NHƯNG LẦN SAU THÌ ĐỪNG!\": giận chỉ ở nửa sau.",
+     "say": "Vấn đề thứ hai: cảm xúc có thể chỉ nằm ở một đoạn. Ừ, được thôi. Nhưng lần sau thì đừng! Cơn giận chỉ nằm ở nửa sau."},
+    {"id": "p3",
+     "sub": "Vấn đề 3: encoder có 12 hoặc 24 tầng, mỗi tầng giữ thông tin khác nhau. Tầng cuối của mô hình học cho ASR thường giữ nội dung mà bớt đi cách nói.",
+     "say": "Vấn đề thứ ba: en cô đơ có mười hai hoặc hai mươi bốn tầng, mỗi tầng giữ thông tin khác nhau. Tầng cuối của mô hình học cho nhận dạng tiếng nói thường giữ nội dung, mà bớt đi cách nói."},
+    {"id": "p4",
+     "sub": "Vấn đề 4: huấn luyện lại cả encoder thì tốn. WavLM-large hơn 300 triệu tham số, IEMOCAP chỉ 5 531 câu: dễ học thuộc.",
+     "say": "Vấn đề thứ tư: huấn luyện lại cả en cô đơ thì tốn. Quây vờ lờm bản lớn có hơn ba trăm triệu tham số, trong khi I e mô cáp chỉ có năm nghìn năm trăm ba mươi mốt câu. Rất dễ học thuộc."},
+    {"id": "goal",
+     "sub": "Mục tiêu: gộp frame thành một vector câu mà không làm loãng đoạn có cảm xúc, chọn đúng tầng chứa cảm xúc, và quyết định huấn luyện bao nhiêu phần của encoder.",
+     "say": "Mục tiêu: gộp các frame thành một véc tơ câu mà không làm loãng đoạn có cảm xúc, chọn đúng tầng chứa thông tin cảm xúc, và quyết định nên huấn luyện bao nhiêu phần của en cô đơ."},
+    {"id": "result",
+     "sub": "Tóm lại: nhiều frame, cảm xúc cục bộ, nhiều tầng, encoder to. Phần 2: bốn công cụ.",
+     "say": "Tóm lại: nhiều frame, cảm xúc chỉ ở một đoạn, nhiều tầng, và en cô đơ quá to. Phần hai: bốn công cụ."},
+    {"id": "terms",
+     "sub": "Thuật ngữ của phần này.",
+     "say": "Các thuật ngữ của phần này."}
+  ]
+}

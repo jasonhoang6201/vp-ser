@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>DNN-HMM 4: Nhiều lớp</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../lib/nn.js"></script>
+<script src="../build/dnn-4-nhieu-lop.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, axes, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Mạng trong khung HMM', '3 Một nơ-ron', '4 Nhiều lớp', '5 Ghép vào HMM'];
+const CCOL = [COL.frame, COL.acc, COL.i], R = 2.2;
+const STEPS8 = [0, 5, 10, 20, 30, 50, 100];
+// Step counts checked in Chrome with tools/nncheck.mjs so the shown accuracies match the narration (80%, 87%).
+const T0 = NN.train(0, [3000])[3000], T2 = NN.train(2, [2000])[2000], T8 = NN.train(8, STEPS8);
+const pct = v => `${Math.round(v * 100)}%`, f2 = v => v.toFixed(2).replace('.', ',');
+
+const FIELDS = {};
+function plane(B, N, key, o = {}) {
+  const g = Clip.g;
+  if (N) { if (!FIELDS[key]) FIELDS[key] = NN.field(N, B, CCOL); g.drawImage(FIELDS[key], B.x, B.y); }
+  else rrect(B.x, B.y, B.w, B.h, 4, COL.card);
+  rrect(B.x, B.y, B.w, B.h, 4, null, COL.line2, 2);
+  const n = Math.floor(NN.DATA.length * (o.upto == null ? 1 : o.upto));
+  NN.DATA.slice(0, n).forEach(({x, y}) => {
+    g.beginPath(); g.arc(B.x + (x[0] + R) / (2 * R) * B.w, B.y + B.h - (x[1] + R) / (2 * R) * B.h, 4, 0, Math.PI * 2);
+    g.fillStyle = CCOL[y]; g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 1; g.stroke();
+  });
+}
+
+function netDiagram(x, y, sizes, labels, o = {}) {
+  const g = Clip.g, w = o.w || 600, h = o.h || 360, cx = sizes.map((_, l) => x + l * w / (sizes.length - 1));
+  const cy = (n, k) => y + h / 2 + (k - (n - 1) / 2) * Math.min(48, h / n);
+  for (let l = 0; l + 1 < sizes.length; l++) for (let a = 0; a < sizes[l]; a++) for (let b = 0; b < sizes[l + 1]; b++)
+    line(cx[l], cy(sizes[l], a), cx[l + 1], cy(sizes[l + 1], b), (o.back ? COL.hl : COL.acc) + '40', 1.5);
+  sizes.forEach((n, l) => {
+    for (let k = 0; k < n; k++) {
+      const c = l === sizes.length - 1 ? CCOL[k] : COL.acc;
+      g.beginPath(); g.arc(cx[l], cy(n, k), 16, 0, Math.PI * 2); g.fillStyle = COL.card; g.fill(); g.strokeStyle = c; g.lineWidth = 3; g.stroke();
+    }
+    text(labels[l], cx[l], y + h + 40, {size: 24, weight: 700, color: COL.mute, align: 'center'});
+  });
+  return {cx, cy};
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('DNN-HMM', 'Phần 4/5: nhiều lớp, tự học ranh giới cong', 3, PARTS);
+
+function shotData(G, t) {
+  const sd = S('data'), sn = S('net'), dn = D('net');
+  heading(t < sn ? 'Bài toán minh họa: 330 điểm, 3 loại' : 'Mạng: 2 → H nơ-ron tanh → softmax 3');
+  fade(G, P(t, sd + 0.3, 0.5), () => plane({x: 260, y: 230, w: 540, h: 540}, null, '', {upto: P(t, sd + 0.4, 2)}));
+  fade(G, P(t, sd + 2, 0.5), () => {
+    text('cam: vùng giữa', 880, 300, {size: 26, weight: 700, color: COL.frame});
+    text('xanh: nửa vòng trái', 880, 350, {size: 26, weight: 700, color: COL.acc});
+    text('tím: nửa vòng phải', 880, 400, {size: 26, weight: 700, color: COL.i});
+  });
+  fade(G, P(t, sn + 0.3, 0.5), () => netDiagram(1000, 430, [2, 6, 3], ['2 đầu vào', 'H nơ-ron tanh', 'softmax 3'], {w: 600, h: 300}));
+}
+
+function shotSoftmax(G, t) {
+  const s = S('softmax'), d = D('softmax');
+  heading('Softmax: điểm → xác suất');
+  const z = [2.0, 1.0, -1.0], e = z.map(Math.exp), sum = e.reduce((a, b) => a + b, 0), p = e.map(v => v / sum);
+  const cols = [['điểm z', z.map(v => v.toFixed(1).replace('.', ',').replace('-', '−'))], ['eᶻ', e.map(v => v.toFixed(2).replace('.', ','))], ['÷ tổng ' + sum.toFixed(2).replace('.', ','), p.map(v => v.toFixed(2).replace('.', ','))]];
+  cols.forEach(([h, vs], j) => fade(G, P(t, s + 0.4 + j * d * 0.25, 0.5), () => {
+    const x = 420 + j * 420;
+    text(h, x, 280, {size: 26, weight: 700, color: COL.mute, align: 'center'});
+    vs.forEach((v, k) => {
+      rrect(x - 110, 320 + k * 100, 220, 76, 12, CCOL[k] + '18', CCOL[k], 2);
+      text(v, x, 358 + k * 100, {size: 32, weight: 700, color: CCOL[k], align: 'center'});
+    });
+    if (j < 2) arrow(x + 130, 458, x + 290, 458, COL.mute, 3);
+  }));
+  fade(G, P(t, s + d * 0.8, 0.5), () => text('dương, cộng lại bằng 1', 1260, 660, {size: 26, weight: 700, color: COL.ok, align: 'center'}));
+}
+
+function shotCe(G, t) {
+  const s = S('ce'), d = D('ce');
+  heading('Cross-entropy: phạt khi đáp án đúng có xác suất thấp');
+  const B = {x: 360, y: 250, w: 800, h: 440};
+  const {X, Y} = axes(B, [0, 1], [0, 3], {gridY: [0, 1, 2, 3], fmtY: v => String(v), ticksX: [0, 0.33, 1], fmtX: v => (v === 0.33 ? '1/3' : String(v)), xlabel: 'xác suất mạng gán cho đáp án đúng', ylabel: '−log(p)'});
+  const ps = Array.from({length: 96}, (_, k) => 0.05 + k * 0.01);
+  poly(ps.map(X), ps.map(p => Y(-Math.log(p))), COL.hl, 4, null, P(t, s + 0.4, 1.5));
+  [[0.98, 'đúng chắc chắn ≈ 0', COL.ok, 0.3, -80], [1 / 3, 'phân vân đều 3 loại: log 3 ≈ 1,10', COL.frame, 0.6, -30]].forEach(([p, l, c, at, dy]) =>
+    fade(G, P(t, s + d * at, 0.5), () => {
+      Clip.g.beginPath(); Clip.g.arc(X(p), Y(-Math.log(p)), 10, 0, Math.PI * 2); Clip.g.fillStyle = c; Clip.g.fill();
+      text(l, X(p) + (p > 0.5 ? -10 : 20), Y(-Math.log(p)) + dy, {size: 24, weight: 700, color: c, align: p > 0.5 ? 'right' : 'left'});
+    }));
+  fade(G, P(t, s + 1, 0.5), () => {
+    card(1240, 300, 480, 200, {stroke: COL.hl});
+    text('loss = trung bình của', 1270, 355, {size: 24, color: COL.mute});
+    text('−log P(đáp án đúng)', 1270, 410, {size: 30, weight: 700, color: COL.hl});
+    text('trên mọi điểm', 1270, 460, {size: 24, color: COL.mute});
+  });
+}
+
+function shotGd(G, t) {
+  const s = S('gd'), d = D('gd');
+  heading('Gradient descent và backpropagation');
+  const B = {x: 220, y: 260, w: 700, h: 420}, f = w => 0.35 * (w - 1.2) ** 2 + 0.25 * Math.sin(2.2 * w) + 0.6;
+  const {X, Y} = axes(B, [-2, 3.5], [0, 4], {xlabel: 'một trọng số w', ylabel: 'loss'});
+  const ws = Array.from({length: 111}, (_, k) => -2 + k * 0.05);
+  fade(G, P(t, s + 0.3, 0.5), () => poly(ws.map(X), ws.map(w => Y(f(w))), COL.ink, 3));
+  const path = [-1.6];
+  for (let k = 0; k < 14; k++) { const w = path[path.length - 1], gr = (f(w + 1e-3) - f(w - 1e-3)) / 2e-3; path.push(w - 0.35 * gr); }
+  const u = P(t, s + 1, d * 0.4), n = Math.floor(u * (path.length - 1));
+  for (let k = 0; k <= n; k++) {
+    Clip.g.beginPath(); Clip.g.arc(X(path[k]), Y(f(path[k])), k === n ? 12 : 6, 0, Math.PI * 2); Clip.g.fillStyle = k === n ? COL.frame : COL.frame + '66'; Clip.g.fill();
+    if (k) arrow(X(path[k - 1]), Y(f(path[k - 1])), X(path[k]), Y(f(path[k])) , COL.frame + '88', 2, 8);
+  }
+  fade(G, P(t, s + 1, 0.5), () => text('mỗi bước: dịch w một chút theo hướng loss giảm', 570, 790, {size: 24, weight: 700, color: COL.frame, align: 'center'}));
+  fade(G, P(t, s + d * 0.55, 0.5), () => {
+    const {cx, cy} = netDiagram(1100, 300, [2, 5, 3], ['', '', ''], {w: 520, h: 280, back: true});
+    arrow(cx[2] - 10, 260, cx[0] + 10, 260, COL.hl, 4, 16);
+    text('backpropagation: truyền lỗi ngược từ đầu ra', 1360, 650, {size: 24, weight: 700, color: COL.hl, align: 'center'});
+    text('Rumelhart, Hinton, Williams 1986', 1360, 690, {size: 22, color: COL.mute, align: 'center'});
+  });
+}
+
+function resultPanel(G, t, s0, B, res, key, label) {
+  fade(G, P(t, s0, 0.5), () => {
+    plane(B, res.net, key);
+    text(label, B.x + B.w / 2, B.y - 26, {size: 28, weight: 700, align: 'center'});
+    text(`đúng ${pct(res.acc)}`, B.x + B.w / 2, B.y + B.h + 36, {size: 30, weight: 700, color: res.acc > 0.95 ? COL.ok : COL.hl, align: 'center'});
+  });
+}
+
+function shotH(G, t) {
+  const s0 = S('h0'), s2 = S('h2'), s8 = S('h8'), d8 = D('h8');
+  heading('Thêm nơ-ron ẩn');
+  const B = k => ({x: 160 + k * 560, y: 260, w: 480, h: 480});
+  resultPanel(G, t, s0 + 0.3, B(0), T0, 'h0', 'H = 0: chỉ softmax');
+  fade(G, P(t, s0 + D('h0') * 0.5, 0.5), () => text('chỉ đường thẳng', B(0).x + 240, 830, {size: 22, color: COL.mute, align: 'center'}));
+  resultPanel(G, t, s2 + 0.3, B(1), T2, 'h2', 'H = 2');
+  fade(G, P(t, s2 + D('h2') * 0.5, 0.5), () => text('cong, chưa đủ nét', B(1).x + 240, 830, {size: 22, color: COL.mute, align: 'center'}));
+  if (t >= s8) {
+    // Step shown follows the narration: 0 → 10 → 30 → 100.
+    const marks = [[0, 0], [0.25, 10], [0.5, 30], [0.75, 100]];
+    let step = 0;
+    marks.forEach(([at, st]) => { if (t >= s8 + d8 * at) step = st; });
+    const snap = T8[step];
+    fade(G, P(t, s8 + 0.3, 0.5), () => {
+      plane(B(2), snap.net, 'h8_' + step);
+      text('H = 8, đang học', B(2).x + 240, B(2).y - 26, {size: 28, weight: 700, align: 'center'});
+      text(`bước ${step}: đúng ${pct(snap.acc)}, loss ${f2(snap.loss)}`, B(2).x + 240, B(2).y + B(2).h + 36, {size: 26, weight: 700, color: snap.acc > 0.95 ? COL.ok : COL.frame, align: 'center'});
+    });
+  }
+}
+
+function shotWhy(G, t) {
+  const s = S('why'), d = D('why');
+  heading('Mỗi nơ-ron ẩn vẽ một đường; lớp sau ghép lại');
+  const B = {x: 660, y: 230, w: 600, h: 600}, N = T8[100].net;
+  plane(B, N, 'why');
+  const X = v => B.x + (v + R) / (2 * R) * B.w, Y = v => B.y + B.h - (v + R) / (2 * R) * B.h, g = Clip.g;
+  const n = Math.ceil(8 * P(t, s + 0.5, d * 0.45));
+  g.save(); g.beginPath(); g.rect(B.x, B.y, B.w, B.h); g.clip();
+  for (let j = 0; j < n; j++) {
+    const a = N.W1[2 * j], b = N.W1[2 * j + 1], c = N.b1[j], nn = Math.hypot(a, b), p0 = [-c * a / nn ** 2, -c * b / nn ** 2], dir = [-b / nn, a / nn];
+    line(X(p0[0] - 6 * dir[0]), Y(p0[1] - 6 * dir[1]), X(p0[0] + 6 * dir[0]), Y(p0[1] + 6 * dir[1]), COL.ink + '99', 2.5, [8, 6]);
+  }
+  g.restore();
+  fade(G, P(t, s + d * 0.6, 0.5), () => {
+    text('8 đường thẳng mềm', 380, 400, {size: 28, weight: 700, align: 'center'});
+    text('→ ranh giới cong', 1560, 400, {size: 28, weight: 700, color: COL.ok, align: 'center'});
+    text('không ai chỉ hình dạng:', 1560, 470, {size: 24, color: COL.mute, align: 'center'});
+    text('mạng tự tìm', 1560, 510, {size: 24, color: COL.mute, align: 'center'});
+  });
+}
+
+function shotReal(G, t) {
+  const s = S('real'), d = D('real');
+  heading('Mạng thật trong DNN-HMM');
+  [['đầu vào', '11 × 40 = 440', 'số log-Mel', COL.acc], ['lớp ẩn', '4–7 lớp', '1000–2000 nơ-ron mỗi lớp', COL.frame], ['đầu ra', 'vài nghìn', 'senone (softmax)', COL.i]].forEach(([a, b, c, col], j) =>
+    fade(G, P(t, s + 0.6 + j * d * 0.22, 0.5), () => {
+      const x = 220 + j * 520;
+      card(x, 300, 440, 280, {stroke: col, lw: 2.5});
+      text(a, x + 220, 360, {size: 26, color: COL.mute, align: 'center'});
+      text(b, x + 220, 440, {size: 44, weight: 700, color: col, align: 'center'});
+      text(c, x + 220, 510, {size: 24, align: 'center'});
+      if (j < 2) arrow(x + 450, 440, x + 510, 440, COL.mute, 3);
+    }));
+  fade(G, P(t, s + d * 0.8, 0.5), () => text('cùng nguyên lý với mạng minh họa, chỉ to hơn', 960, 680, {size: 30, weight: 700, color: COL.acc, align: 'center'}));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['nhiều lớp + hàm kích hoạt: ranh giới cong'], ['softmax: ra xác suất cho mỗi trạng thái'], ['cross-entropy: phạt khi đáp án đúng thấp'], ['gradient descent + backpropagation: chỉnh trọng số']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text('✓', 400, 290 + j * 84, {size: 34, weight: 700, color: COL.ok});
+      text(a, 450, 290 + j * 84, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 800, 680, 'Phần 5: ghép vào HMM  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 4', [
+  ['các lớp ở giữa', 'lớp ẩn (hidden layer)', 'H nơ-ron'],
+  ['đổi điểm thành xác suất', 'softmax', 'mũ rồi chia tổng'],
+  ['điểm phạt khi đoán sai', 'hàm mất mát (loss), cross-entropy', '−log P(đáp án đúng)'],
+  ['dịch trọng số theo hướng giảm lỗi', 'gradient descent', 'mỗi bước một chút'],
+  ['cách tính hướng đó', 'backpropagation', 'truyền lỗi ngược qua các lớp'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'data', to: 'net', draw: shotData},
+    {from: 'softmax', to: 'softmax', draw: shotSoftmax},
+    {from: 'ce', to: 'ce', draw: shotCe},
+    {from: 'gd', to: 'gd', draw: shotGd},
+    {from: 'h0', to: 'h8', draw: shotH},
+    {from: 'why', to: 'why', draw: shotWhy},
+    {from: 'real', to: 'real', draw: shotReal},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/dnn-4-nhieu-lop.wav');
+</script>
+</body>
+</html>

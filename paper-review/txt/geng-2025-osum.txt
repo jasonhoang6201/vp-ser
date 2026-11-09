@@ -1,0 +1,958 @@
+=== page 1 ===
+OSUM: Advancing Open Speech Understanding Models
+with Limited Resources in Academia
+Audio, Speech and Language Processing Group (ASLP@NPU)
+School of Computer Science, Northwestern Polytechnical University
+http://www.npu-aslp.org
+Code & Demo & Models:
+https://github.com/ASLP-lab/OSUM ∗
+Abstract
+Large Language Models (LLMs) have made significant progress in various downstream
+tasks, inspiring the development of Speech Understanding Language Models (SULMs) to
+enable comprehensive speech-based interactions. However, most advanced SULMs are de-
+veloped by the industry, leveraging large-scale datasets and computational resources that
+are not readily available to the academic community. Moreover, the lack of transparency
+in training details creates additional barriers to further innovation. In this study, we
+present OSUM, an Open Speech Understanding Model designed to explore the potential
+of training SLUMs under constrained academic resources. The OSUM model combines
+a Whisper encoder with a Qwen2 LLM and supports a wide range of speech tasks, in-
+cluding speech recognition (ASR), speech recognition with timestamps (SRWT), vocal
+event detection (VED), speech emotion recognition (SER), speaking style recognition
+(SSR), speaker gender classification (SGC), speaker age prediction (SAP), and speech-
+to-text chat (STTC). By employing an ASR+X training strategy, OSUM achieves efficient
+and stable multi-task training by simultaneously optimizing ASR alongside target tasks.
+Beyond delivering strong performance, OSUM emphasizes transparency by providing
+openly available data preparation and training methodologies, offering valuable insights
+and practical guidance for the academic community. By doing so, we aim to accelerate
+research and innovation in advanced SULM technologies.
+1
+Introduction
+Large language models (LLMs) have shown tremendous progress towards Artificial General Intelligence
+(AGI) in recent years. Given the inherent human preference for speech-based interaction, there has been
+growing interest in extending LLMs with speech capabilities to develop Speech LLMs. To generate fluent
+and expressive text or speech responses, Speech LLMs must fully comprehend input speech, including both
+its semantic content and paralinguistic information, like emotion, speaking style, speaker gender, and age.
+Moreover, this comprehension ability is also crucial for audio data labeling. Currently, the mainstream
+multi-label generation approach is to use multiple models to label each task separately, which consumes
+extremely high computational resources. A labeling model capable of accurately generating multiple labels
+simultaneously holds broad application prospects.
+The area which focuses on Speech Understanding Language Models (SULMs), has seen notable advancements
+through projects such as Qwen-Audio(Chu et al., 2023), Qwen2-Audio(Chu et al., 2024), PandGPT(Su et al.,
+2023), and SALMONN (Tang et al., 2024). Whisper (Radford et al., 2023) marks a pioneering exploration
+∗This is the v2 version of the technical report. The experimental results reported herein differ from those in v1 because of adding
+new data and training in more steps.
+1
+arXiv:2501.13306v2  [cs.SD]  16 Feb 2025
+
+=== page 2 ===
+Figure 1: Comparison of Qwen2-Audio and our OSUM model. In most tasks, OSUM achieves a better
+performance than Qwen2-Audio despite using significantly fewer computational resources and training data.
+The values for each model’s task in the radar chart are based on the average results on the public and internal
+test sets, as shown in Table 4 and Table 5.
+of speech understanding independent of LLMs, utilizing an encoder-decoder Transformer (Vaswani, 2017)
+architecture to tackle a variety of speech tasks, such as automatic speech recognition (ASR), speech translation
+(ST), language identification (LID), and voice activity detection (VAD). Building on Whisper’s design,
+SenseVoice (An et al., 2024) and TouchASP (Song et al., 2024) expand more tasks like speech emotion
+recognition (SER) and audio event detection (AED), further enriching their ability to process and comprehend
+human speech. Qwen-Audio integrates Whisper’s encoder with the text-based Qwen LLM (Bai et al., 2023),
+enabling the latter to understand speech. Compared to Whisper, Qwen-Audio leverages a more powerful
+LLM decoder and performs over 30 speech-related tasks, making it a representative model in the field of
+SULMs. Its successor, Qwen2-Audio, further enhances these capabilities by supporting natural language
+prompts and achieving superior performance across various benchmarks (Chu et al., 2024).
+Although these advanced SULMs have achieved remarkable progress, most of them are developed by
+industry, leveraging millions of hours of training data and massive GPU resources. For instance, TouchASP
+and SenseVoice utilized 1,000,000 and 400,000 hours of training data, respectively. Such large-scale resources
+are typically beyond the reach of academia institutions. Furthermore, while inference models are often open-
+sourced, essential details regarding data preparation, training strategies, codebases, and hyper-parameters
+configurations are rarely disclosed. These limitations hinder academic community efforts to further optimize
+and expand SULM research. Recently, a growing movement advocating for open science in Speech LLM
+research has emerged. This movement emphasizes the importance of releasing comprehensive training
+2
+
+=== page 3 ===
+Figure 2: The overview of the architecture and tasks of OSUM.
+frameworks, datasets, and methodological details to promote research and innovation. A notable example is
+the Open Whisper-style Speech Model (OWSM) series (Peng et al., 2023), which replicates Whisper-style
+training using open-sourced tools and publicly available data, significantly advancing public understanding
+and research on speech understanding models.
+In this study, we aim to foster broader academic exploration of SULMs with limited resource demands,
+encouraging wider research community participation. To this end, we introduce OSUM, an open SULM with
+its data processing pipeline and training details publicly available. The OSUM model integrates a Whisper
+speech encoder, fine-tuned on a multi-task dataset, with a Qwen2 LLM. It is capable of performing a wide
+range of speech tasks, including automatic speech recognition (ASR), speech recognition with timestamps
+(SRWT), vocal event detection (VED), speech emotion recognition (SER), speaking style recognition (SSR),
+speaker gender classification (SGC), speaker age prediction (SAP), and speech-to-text chat (STTC). Notably,
+SSR is a distinctive feature of our OSUM model and serves as a vital component of speech understanding.
+It enhances the model’s capability by improving contextual comprehension and boosting performance
+across various downstream speech tasks. Furthermore, it establishes a foundation for enabling more natural
+and context-aware speech-based interactions. We adopt an ASR+X training strategy to enhance training
+stability and reduce resource consumption for our SLUM model, wherein an auxiliary ASR task is optimized
+alongside the primary target task (denoted as “X”). For instance, during the training of the SER task, we
+concurrently train the ASR task (ASR+SER) by predicting both transcription and emotion labels for each
+speech sample. This multi-task training accelerates modality alignment, enabling the LLM to effectively
+utilize both textual and acoustic modalities. Our OSUM model utilizes only 50,500 hours of training data
+and achieves comparable or superior performance to other SULMs. The overall performance of OSUM is
+illustrated in Fig. 1. The model is trained on Nvidia A6000 GPUs and Huawei Ascend NPUs, supporting
+inference on both platforms. The goal of this study is to foster transparency and accelerate progress in the
+field of SULMs by providing accessible tools and resources for the broader research community.
+2
+Methodology
+This section introduces our proposed OSUM, a model designed for comprehensive speech understanding.
+Section 2.1 presents its architecture;.Section 2.2 details its multitask training process. Section 2.3 and Section 2.4
+provide an overview of the training data and processing pipeline, respectively.
+3
+
+=== page 4 ===
+2.1
+Model Architecture
+As shown in Figure 2, our OSUM model comprises a speech encoder, an adaptor, and an LLM. During
+the training, all of the parameters in the encoder and adaptor are updated, while the LLM is fine-tuned
+with LoRA (Hu et al., 2022). The input of our model consists of a speech and a natural language prompt.
+Unlink Whisper (Radford et al., 2023) and Qwen-audio (Bai et al., 2023), which rely on instruct tags, the
+OSUM employs descriptive text, converting all eight supported tasks as shown in Fig. 2. Currently, our
+model supports only text-based responses, but audio output capabilities are under active development. The
+following sections describe each sub-module in detail.
+Speech Encoder
+Our OSUM utilizes the Whisper-Medium 1 model as its speech encoder, which consists
+of 2 one-dimensional convolutional layers with 2 times downsampling, and 24 Transformer layers with
+1024 hidden state dimensions and 16-headed self-attention. The encoder has approximately 300 million
+parameters, which makes it take into account both speech comprehension ability and inference efficiency.
+Adaptor
+The adaptor module features a hybrid architecture combining 3-layer 1D convolutional layers
+(Conv1D) and 4-layer Transformer. The Conv1D layers use kernel widths of (3, 3, 3) and strides of (1, 2, 2),
+achieving an overall 4 times downsampling. The Transformer layers have a model dimension of 1,280, an
+inner dimension of 2,560, and 4 attention heads. This architecture bridges the output of the speech encoder
+with the input requirements of the LLM, enabling efficient modality alignment.
+LLM with LoRA
+The Qwen2-7B-Instruct is selected as our LLM. Qwen2-7B-Instruct 2 is a general-purpose
+LLM with a parameter scale of 7 billion, specifically designed for multi-task instruction optimization. In
+our work, we fine-tune the Qwen2-7B-Instruct model using LoRA (Low-Rank Adaptation) technology. The
+LoRA hyperparameters-α, rank, and dropout ratio are set to 32, 8, and 0.1, respectively.
+2.2
+Multitask Supervised Training
+The training procedure includes two stages. First, we perform multi-task supervised fine-tuning on the
+original Whisper model without an LLM. Second, we integrate the fine-tuned Whisper encoder with the
+Qwen2 LLM to create the complete OSUM system, then conduct further supervised training using a larger
+dataset.
+Whisper Fine-tuning
+The original Whisper model supports a limited scope of speech-understanding tasks,
+which makes the direct integration of the Whisper with an LLM for multi-task training risky when data
+and computation resources are constrained. Therefore, we first fine-tune the Whisper via multi-task data to
+ensure faster convergence of the OSUM model. Furthermore, this stage allows us to verify the reliability of
+our multi-task data. Specifically, we expand Whisper’s instruction tag set to accommodate more tasks. Each
+forward pass executes only a single task.
+OSUM Training
+Training SULMs typically begins with pre-training on an ASR task, which serves as a
+foundation for incorporating additional speech tasks to enable LLMs to process semantic content from the
+speech encoder. Given computational constraints, we introduce an ASR+X paradigm for OSUM’s multi-
+task training. It concurrently trains ASR and a secondary task “X”, accelerating training while allowing
+the “X” task to utilize both textual and acoustic features, thereby potentially improving performance The
+ASR+X paradigm follows a two-step process: first, transcribing speech to text (ASR); then, integrating
+1https://huggingface.co/openai/whisper-medium
+2https://huggingface.co/Qwen/Qwen2-7B-Instruct
+4
+
+=== page 5 ===
+Table 1: Example of prompts and ASR+X labels in OSUM multitask training.
+Task
+Input
+Prompt
+Label
+ASR
+转录这段音频中的语音内容为文字。
+播放小梦想大梦想
+SRWT
+请将以下音频进行转录，同时标记出每个英文
+单词及对应中文字符的起始与结束时间，时间
+单位精确到0.1秒，并用<>来表示这些时间范围。
+<0.21>父<0.47> <0.46>母<0.60> <0.60>的
+<0.73><0.72>坏<0.86> <0.86>话<1.09>
+VED
+请将以下音频进行转录，并在结尾处给出<音频
+事件>标签，音频事件分为8类：laugh，
+cough，cry，screaming，sigh，
+throat clearing，sneeze，other。
+我的属性为了完成我的使命everyday
+每个流血不止<SCREAMING>
+SER
+请将以下音频内容进行转录，并在结尾处给出
+<情感>标签，情感共分为8类：sad，anger，neutral，
+happy，surprise，fear，disgust，以及other。
+你一个享受者你有什么跟这个复仇
+者去叫板呢<ANGER>
+SSR
+请将以下音频内容进行转录，并在结尾处给出<风格>
+标签，风格共分为8类：新闻科普，恐怖故事，童话
+故事，客服，诗歌散文，有声书，日常口语，其他。
+小猪皮革恍然大悟赶紧把这颗白色
+的小药片吞进肚子里<童话故事>
+SGC
+请将这段音频进行转录，并在文本末尾附加<性别>
+标签。性别分为两种：female，male。
+帮我调大声音<MALE>
+SAP
+请将以下音频内容转录成文字，并在文字的最后
+加上<年龄>标签，标明是child、adult还是old。
+在黑板上写字的老师一转身<CHILD>
+STTC
+首先将语音转化为书面语，随后以<开始回答>
+作分隔，最后对语音内容做出答复。
+我感觉不太满意<开始回答>
+抱歉，我们会让你满意的。
+this transcription with acoustic features to execute the target task (X). This is achieved within the LLM’s
+autoregressive framework by adjusting predicted labels, without modifications to the model architectures
+or loss functions. We implemented the ASR+X paradigm by prompting the LLLM with natural language
+prompts. ChatGPT3 is used to generate 5 candidate prompts for each task, one of which is randomly selected
+during training. Table 1 shows examples of the prompts and ASR+X prediction labels.
+2.3
+Training Data
+Our OSUM is designed to perform multi-task training using diverse speech datasets, with the goal of
+building a unified model capable of comprehensively understanding input speech in conversational scenarios.
+The multi-task training process enables tasks to benefit from shared learning, enhancing overall model
+performance. Upon completion of training, OSUM can be utilized for speech data annotation or further
+extended into a conversational Speech LLM. Detailed information about the datasets used for training is
+provided in Table 2.
+2.4
+Data Processing Pipe-line
+The data processing pipeline is crucial for training multi-task SULMs. In this section, we reveal the data
+processing schemes used for each task in the OSUM project, with the aim of providing a valuable reference
+for academic research.
+ASR
+The training data include publicly available resources like Wenetspeech (Zhang et al., 2022), AISHELL-
+1 (Bu et al., 2017), AISHELL-2 (Du et al., 2018), and LibriSpeech (Panayotov et al., 2015), along with our
+internal ASR dataset, resulting in a total of 24,000 hours.
+3https://openai.com/index/chatgpt/
+5
+
+=== page 6 ===
+Table 2: Details of the multi-task training data for OSUM. The total duration is 50,500 hours. The total training
+data includes both open-sourced datasets and the data we processed.
+Task
+Total Hours
+Language
+Classification
+Open-sourced Dataset
+Processed Data
+ASR
+24k
+EN, CN
+—
+Wenetspeech (Zhang et al., 2022),
+AISHELL-l (Bu et al., 2017),
+AISHELL-2 (Du et al., 2018),
+LibriSpeech (Panayotov et al., 2015)
+No
+SRWT
+3k
+EN, CN
+—
+Wenetspeech (Zhang et al., 2022),
+AISHELL-1 (Bu et al., 2017),
+AISHELL-2 (Du et al., 2018),
+LibriSpeech (Panayotov et al., 2015)
+Yes
+VED
+2.5k
+CN
+Sign, Cry, Screaming, Laugh, Cough,
+Throat Clearing, Sneeze, Other
+Audioset (Gemmeke et al., 2017),
+ESC-50 (Piczak, 2015),
+Vocal Sound (Gong et al., 2022),
+Nonspeech7k (Rashid et al., 2023),
+AISHELL-2 (Du et al., 2018)
+Yes
+SER
+1k
+EN, CN
+Neutral, Happy, Anger, Sad,
+Disgust, Fear, Surprise, Other
+ESD (Zhou et al., 2021),
+IEMOCAP (Busso et al., 2008),
+MSP-Podcast (Martinez-Lucas et al., 2020),
+MER2023 (Lian et al., 2023),
+MELD (Poria et al., 2019),
+BIIC-Podcast (Upadhyay et al., 2023)
+Yes
+SSR
+2.2k
+CN
+新闻科普，恐怖故事，童话故事，客服，
+诗歌散文，有声书，日常口语，其他
+Only internal datasets are used.
+Yes
+SGC
+7.5k
+EN, CN
+Male, Female
+KeSpeech (Tang et al., 2021),
+Datatang-Kid (Datatang Tech Co Ltd, 2024),
+Magicdata-Read (OpenSLR, 2019),
+AISHELL-l (Bu et al., 2017),
+AISHELL-2 (Du et al., 2018),
+LibriSpeech (Panayotov et al., 2015),
+Kaggle-CommonVoice (Kaggle Community, 2017)
+No
+SAP
+6.8k
+EN, CN
+Child, Adult, Old
+KeSpeech (Tang et al., 2021),
+Datatang-Kid (Datatang Tech Co Ltd, 2024),
+Magicdata-Read (OpenSLR, 2019),
+AISHELL-ASR0060 (AISHELL Tech Co Ltd, 2024),
+AISHELL-ASR0018 (AISHELL Tech Co Ltd, 2024),
+Kaggle-CommonVoice (Kaggle Community, 2017)
+No
+STTC
+3.5k
+CN
+—
+LCCC (Wang et al., 2020)
+Wenetspeech (Zhang et al., 2022)
+Databaker-Conversation (Databaker Tech Co Ltd, 2024)
+Yes
+SRWT
+For the SRWT task, a Gaussian Mixture Model - Hidden Markov Model (GMM-HMM) based
+conventional ASR model, is used to conduct force alignment and obtain word-level timestampes. This model
+is trained on the 54,000-hour proprietary ASR dataset. To evaluate its performance, we establish an internal
+SRWT test set and assess alignment quality using the Average Alignment Score (AAS) metric (Shi et al.,
+2022). The GMM-HMM model achieves an AAS of 7.55, demonstrating its efficacy in generating reliable
+word-level timestamps.
+SSR
+Given the absence of open-sourced tools for annotating style labels directly from audio data, we
+leverage two text-based LLMs-Qwen2.5-14B 4 and GLM-4-9B-Chat 5- to annotate speech transcriptions using
+carefully designed prompts. To enhance annotation accuracy and reliability, we retain only the intersection
+of labeling results from both models. This intersection-based approach ensures high-quality annotations for
+training the SSR task.
+VED
+We have attempted to train a vocal event labeling tool; however, due to the limited availability of
+training data, its classification performance is suboptimal, especially when vocal events and speech occur
+within the same audio segment. Therefore, we employ a Voice Conversion (VC) tool to modify the timbre of
+vocal event audio and insert it randomly into speech audio, creating a dataset of ASR+VED format. We find
+4https://huggingface.co/Qwen/Qwen2.5-14B-Instruct
+5https://huggingface.co/THUDM/glm-4-9b-chat
+6
+
+=== page 7 ===
+that this approach effectively mitigates the overfitting problems caused by the scarcity of vocal event training
+data with the assistance of VC. The open-source vocal event datasets we use include Audioset (Gemmeke
+et al., 2017), ESC-50 (Piczak, 2015), Vocal Sound (Gong et al., 2022), and Nonspeech7k (Rashid et al., 2023),
+while the ASR data consists solely of AISHELL-2 (Du et al., 2018).
+SER
+Emotion2Vec (Ma et al., 2024) is the first universal speech emotion representation model. Without
+additional fine-tuning, we directly apply the pre-trained Emotion2Vec+ Large model 6, which is trained on
+40,000 hours of emotional speech data, to annotate the audio with emotion labels. Additionally, we leverage
+the GLM-4-9B-Chat model to generate emotion labels from the textual transcriptions of the speech. By
+intersecting these annotations, we generate high-quality emotional labels for the entire dataset.
+SGC
+Efforts to train a speaker gender classification model to label web-sourced data yield unsatisfactory
+performance. Consequently, we discard the pseudo-labeled data and relied solely exclusively on manually
+labeled datasets for training. For the SGC task, we select KeSpeech (Tang et al., 2021), Datatang-Kid (Datatang
+Tech Co Ltd, 2024), AISHELL-1 (Bu et al., 2017), AISHELL-2 (Du et al., 2018), LibriSpeech (Panayotov et al.,
+2015), Kaggle-CommonVoice (Kaggle Community, 2017), and Magicdata-Read OpenSLR (2019) as training
+dataset, as they include reliable speaker gender labels. In addition, we employ a noisy data augmentation
+strategy.
+SAP
+Similar to the SGC task, due to the poor performance of the automated labeling model, only manually
+labeled data is used for training. We use KeSpeech (Tang et al., 2021), Datatang-Kid (Datatang Tech Co Ltd,
+2024), Magicdata-Read (OpenSLR, 2019), Kaggle-CommonVoice (Kaggle Community, 2017), AISHELL-
+ASR0060 (AISHELL Tech Co Ltd, 2024), and AISHELL-ASR0018 (AISHELL Tech Co Ltd, 2024) as the training
+dataset for the SAP task, as these datasets provide reliable speaker age labels. Noisy data augmentation is
+also utilized in this task.
+STTC
+For the STTC task, we use three types of data. First, we utilize a human-recorded audio question-
+answer dataset Databacker-Conversation (Databaker Tech Co Ltd, 2024). Then, we use a text-based dialogue
+dataset LCCC (Wang et al., 2020) and the ChatTTS 7 system with random speaker capabilities to generate the
+utterances of the questioner in the dialogue, thus obtaining the speech-text pairs for the dialogue task. Finally,
+we filter suitable response sentences from the Wenetspeech (Zhang et al., 2022) dataset using Qwen2.5-7B 8,
+guiding the LLM to generate text answers.
+3
+Experiments
+This section begins by presenting our training setup in Section 3.1. Subsequently, to conduct a more com-
+prehensive evaluation of OSUM, we establish a series of complete internal evaluation sets, as detailed in
+Section 3.2. Finally, we report the performance of OSUM on both public and internal test sets, accompanied
+by an analysis in Section 3.3.
+3.1
+Training Setup
+The two-stage training process for OSUM is detailed as follows:
+6https://huggingface.co/emotion2vec/emotion2vec_plus_large
+7https://github.com/2noise/ChatTTS
+8https://huggingface.co/Qwen/Qwen2.5-7B
+7
+
+=== page 8 ===
+Whisper Fine-tuning
+In the first stage, we fine-tune the Whisper-Medium model on the multi-task datasets
+described in Table 2. This stage is conducted on 8 Nvidia A6000 GPUs. A warm-up scheduler is employed to
+adjust the learning rate, peaking at 5e-5. The multitask Whisper is trained for 150,000 steps, which takes
+approximately 15.3 days.
+OSUM Training
+In the second stage, we conduct experiments on 24 Huawei Ascend NPUs, using a learning
+rate of 5e-5. The process completes a total of 704,000 training steps and consumes 10 days.
+Table 3: Details of the internal multi-task test sets. The categories in the classification task are balanced.
+Task
+Name
+Description
+Item Number
+ASR
+Test1−5
+asr
+SpeechIO 9 is a widely used Chinese ASR leaderboard that includes
+various scenarios such as TV programs, speeches, and news.
+We use SpeechIO 0-4 as our ASR test set.
+11932
+SRWT
+Testsrwt
+This test set features human-recorded audio from ten individuals, encompassing
+adult male and female voices as well as children’s voices. It includes both
+storytelling and reading styles, accompanied by meticulously
+annotated word-level timestamps.
+494
+VED
+Testved
+The test set consists of internally human-recorded audio from ten
+adult male and female speakers, all reading in Chinese Mandarin, with the
+insertion of speech events occurring at random positions.
+400
+SER
+Testser
+Test data is selected from five publicly available emotional evaluation sets:
+IEMOCAP (Busso et al., 2008), MER2023 (Lian et al., 2023), M3ED (Zhao et al., 2022),
+MSP-IMPROV (Busso et al., 2017), and ESD (Zhou et al., 2021), including both
+Chinese and English, encompassing eight types of emotions.
+3885
+SSR
+Testssr
+This test set comprises two components: web-crawled data annotated
+with style labels and highly expressive data intended for TTS training.
+It encompasses eight speaking styles, predominantly in Chinese.
+3000
+SGC
+Testsgc
+The internal test set includes data from two age categories, with a female-to-male
+ratio of 2:3. All recordings are from human-recorded dialogue scenarios.
+3000
+SAP
+Testsap
+The internal test set includes three age categories: child, adult, and old, with an
+equal distribution of 1:1:1. All data consists of human-recorded dialogue scene data.
+3000
+STTC
+Teststtc
+This test set is generated from a Chinese text dialogue dataset. Specifically,
+we synthesize the question text into audio using the Cosyvoice2 TTS model,
+while the answers remain in text form. The text dialogue dataset used for the
+test set is derived from the same source as the training set.
+200
+3.2
+Internal Test Sets
+Currently, most SULMs evaluate multi-task performance using publicly available English datasets (Chu et al.,
+2023, 2024; Radford et al., 2023; Song et al., 2024). However, as OSUM training incorporates a substantial
+amount of Chinese data, we have developed a series of internal multi-task test sets tailored for Chinese 10.
+These complement the publicly available English test sets, creating a more comprehensive evaluation frame-
+work. To support the ASR+X paradigm, we further enhance the test sets with speech transcripts. However,
+ASR metrics are used solely for internal reference to assess model convergence and will not be publicly
+reported. Table 3 presents a description of our internal multi-task test sets.
+9https://github.com/SpeechColab/Leaderboard
+10We plan to make the internal test sets publicly available in the future
+8
+
+=== page 9 ===
+3.3
+Main Results
+Table 4 and Table 5 show the experimental results of our OSUM across various tasks. The results reveal that our
+approach achieves performance that is comparable to, and in many cases superior to, speech understanding
+models such as Qwen-audio, Qwen2-audio, Whisper, and SenseVoice. Furthermore, in this section, we will
+highlight the performance disparities between our model and other comparable approaches, while providing
+a detailed analysis of the challenges SULMs face in these tasks. We hope that these experiences can provide
+useful references for researchers.
+Table 4: Evaluation results of ASR tasks on public and internal test sets. The bold font represents the best
+result among the same test set. All internal results are inferred by ourselves.
+Task
+Model
+Metric
+Public
+Test Set
+Public
+Result
+Internal
+Test Set
+Internal
+Result
+ASR
+Whisper-L-v3
+WER/CER
+(%, ↓)
+WenetSpeech
+test-net/test-meeting
+AISHELL2
+mic/ios/android
+Librispeech
+test-clean/test-other
+10.48/18.87
+-/4.96/-
+1.82/3.50
+Test1−3
+asr
+Test4−5
+asr
+11.91/5.24/8.22
+6.82/6.24
+TouchASP
+5.52/5.94
+-/-/-
+2.03/4.38
+—
+Qwen-Audio
+-/-
+3.3/3.1/3.3
+2.0/4.2
+4.84/1.18/4.98
+2.40/3.57
+Qwen2-Audio
+-/-
+3.0/3.0/2.9
+1.6/3.6
+2.70/1.08/4.34
+1.40/3.10
+Sensevoice-S
+7.84/7.44
+-/3.80/-
+3.15/7.18
+4.47/4.47/5.53
+5.21/5.16
+Sensevoice-L
+6.01/6.73
+-/3.04/-
+2.57/4.28
+—
+OSUM
+6.46/5.34
+2.81/2.75/2.73
+2.19/5.53
+2.53/0.60/4.07
+1.46/3.04
+ASR
+As illustrated in Table 4, our approach reveals obvious advantages in the ASR task on the Chinese test
+sets. Notably, the proposed OSUM consistently outperforms other models on the WenetSpeech test-meeting
+set, three AISHELL-2 sub-test sets, and four internally used SpeechIO test sets. While OSUM does not
+surpass the top-performing method on the English test set, it rivals performance comparable to SenseVoice-
+S. These results are achieved, remarkably, with substantially less training data. In addition, we find that
+OSUM exhibits a surprisingly impressive ability to recognize Chinese-English code-mixed speech, even
+though such code-mixed datasets are not included during training. To be specific, the MER/CER/WER is
+3.89%/2.41%/19.30% on the ASRU code-switching test set (Shi et al., 2020). Going forward, we will enhance
+this function. Overall, these results underscore that our ASR+X task paradigm effectively enhances model
+convergence in ASR tasks, significantly minimizing the data and computational resources required for SULMs
+training.
+SRWT
+Table 5 presents the SRWT evaluation results for our proposed OSUM model compared to Whisper-
+Large-v3, Qwen-Audio, and the GMM-HMM model used for generating annotated data in SRWT tasks. Our
+OSUM model significantly outperforms Whisper-Large-v3 by relative 36.70% and also surpasses Qwen-Audio.
+9
+
+=== page 10 ===
+Additionally, our OSUM’s performance in the SRWT task even slightly surpasses that of the GMM-HMM
+model, which is widely recognized for its high accuracy in timestamp prediction. These results underscore
+the effectiveness of OSUM in the SRWT task. Additionally, OSUM’s high performance in the SRWT task
+not only enables it to predict timestamps in an end-to-end manner but, more importantly, simplifies its
+integration with other tasks, such as speaker diarization.
+VED
+We first evaluate OSUM’s performance on the public test sets ESC-50 and VocalSound. However,
+since the event categories in these two datasets do not completely align with those in OSUM, the comparison
+to other approaches should only serve as a rough assessment. Specifically, the ESC-50 contains a substantial
+number of non-vocal audio events, we categorize them as "other." The experimental results on this test set
+demonstrate that our model successfully classifies these non-vocal audio events as "other." Additionally, on
+the VocalSound set, we select the categories supported by OSUM and calculate the average accuracy across
+these categories. This result reveals that our OSUM exhibits a gap compared to Qwen2-audio, primarily due
+to our training data consisting of concatenated speech and vocal events. In contrast, the VocalSound test set
+includes only the latter, resulting in a significant mismatch. Nevertheless, our OSUM achieves a norm level,
+successfully identifying the most independent vocal events. In our internal human-recoded ASR+VED test
+set, PANNs become unusable due to similar mismatches, particularly because their design treats speech as
+a standalone event, exacerbating accuracy degradation. Qwen2-audio performs relatively better but also
+experiences a performance decline in our test set, likely due to overfitting. In contrast, our model demonstrates
+balanced results in both the public and internal test sets, showcasing enhanced generalization. This indicates
+that using VC to augment data for vocal events can effectively mitigate overfitting in VED tasks.
+SER
+For the SER task, we extract the categories supported by OSUM from the public datasets MELD and
+MER2023 for testing, followed by a comprehensive evaluation on our internal test set. In the experiments
+with the public datasets, OSUM demonstrates superior performance on the MER2023 test set, outperforming
+several recent public benchmark models. On the MELD dataset, OSUM’s performance ranks just below the
+SenseVoice-L model, likely due to the latter’s additional training on a larger-scale speech emotion dataset.
+In addition, while OSUM’s result on the internal test set is comparable to that of the EmoBox model, it
+significantly surpasses other comparative approaches. Furthermore, we observe that among the eight
+emotions supported, disgust and fear are particularly challenging to recognize, a difficulty partly attributed
+to the scarcity of training data for these two emotions. In our future work, we plan to enhance the model’s
+performance and generalization capability by utilizing OSUM for labeling, thereby obtaining a larger and
+more balanced emotion dataset.
+SSR
+The acoustic-text dual-modal style classification employed by our OSUM significantly outperforms
+the single-text modality of GLM-4-9B-Chat. It demonstrates a strong ability to distinguish among eight
+styles: news and science reporting, horror stories, fairy tales, customer service, poetry and prose, audiobooks,
+spontaneous conversation, and others. Notably, the classification performance for news science communica-
+tion, audiobooks, fairy tales, and customer service styles is commendable; however, there remains room for
+improvement in the categorization of poetry and prose, horror stories, and other styles. Moving forward, we
+leverage OSUM to label additional data, aiming to enhance data quality and optimize the distribution across
+categories.
+SGC
+In the SGC task, we evaluate Qwen2-Audio and OSUM. The results demonstrate that OSUM achieves
+an 100% accuracy on the AISHELL-1 test set. While this result is commendable, we suspect it may indicate
+some degree of overfitting. Furthermore, on the Kaggle test set, our approach slightly outperforms Qwen2-
+Audio, yet it falls short on our internal test set. This indicates that Qwen2-Audio has strong robustness in the
+SGC task, which may be due to the fact that they have used a wider range of data. In the follow-up, we plan
+to continue to increase the training data for this task. Overall, OSUM exhibits its value in the SGC task.
+10
+
+=== page 11 ===
+Table 5: Evaluation results of multi-tasking on public and internal test sets. The best results for each test set
+are highlighted in bold font. Results shown in blue font, as well as those on internal test sets, are inferred
+using the original released model by ourselves.
+Task
+Model
+Metric
+Public
+Test Set
+Public
+Result
+Internal
+Test Set
+Internal
+Result
+SRWT
+Whisper-L-v3
+AAS(ms, ↓)
+(Shi et al., 2022)
+The comparison plan test
+set is not open source.
+—
+Testsrwt
+11.09
+Qwen-Audio
+—
+9.17
+GMM-HMM
+—
+7.55
+OSUM
+—
+7.02
+VED
+Qwen2-Audio
+ACC
+(%, ↑)
+ESC-50
+VocalSound
+-
+93.3
+Testved
+33.25
+TouchASP
+85.7
+-
+—
+PANNs
+83.3
+-
+3.25
+OSUM
+96.60
+82.58
+78.25
+SER
+Qwen2-Audio
+ACC
+(%, ↑)
+MELD
+test
+MER2023
+test
+55.3
+-
+Testser
+38.04
+TouchASP
+50.5
+-
+—
+Sensevoice-L
+63.1
+69.2
+—
+Sensevoice-S
+57.8
+68.3
+40.77
+Emotion2Vec
+51.88
+—
+51.14
+EmoBox
+51.89
+65.23
+74.54
+OSUM
+53.38
+86.43
+72.33
+SSR
+GLM-4
+ACC
+(%, ↑)
+The comparison plan test
+set is not open source.
+—
+Testssr
+53.97
+OSUM
+—
+67.34
+SGC
+Qwen2-Audio
+ACC
+(%, ↑)
+AISHELL-1
+test
+Kaggle-CommonVoice
+valid-test
+97.36
+97.25
+Testsgc
+98.43
+OSUM
+100
+99.41
+96.79
+SAP
+Qwen2-Audio
+ACC
+(%, ↑)
+Kaggle-CommonVoice
+valid-test
+35.53
+Testsap
+49.52
+OSUM
+76.52
+67.36
+STTC
+Qwen2-Audio
+GPT-3.5-Turbo
+Scoring
+AirBench
+speech
+6.77
+Teststtc
+6.91
+ASLP-Audio
+5.98
+7.04
+SAP
+We also compare our OSUM with Qwen2-Audio on the SAP task. During our previous experiments,
+we found that the acoustic similarity between teenagers and adults is remarkably high, complicating effective
+differentiation. Consequently, we categorize age into three groups: child, adult, and old. Curiously, despite
+11
+
+=== page 12 ===
+our efforts to debug the prompts, Qwen2-Audio demonstrates a lower age classification accuracy on both the
+Kaggle test set and our internal test set. This may stem from their overly detailed age categorization, which
+hinders the model’s training accuracy. Our model significantly surpasses Qwen2-Audio on the Kaggle test set,
+achieving an accuracy of 76.52%. Although the classification accuracy slightly declines on our proprietary
+test set, it still outperforms Qwen2-Audio. This indicates that our model exhibits strong generalization
+capabilities on different data.
+STTC
+In the STTC task, we follow AirBench’s evaluation protocol across all test sets. This involves providing
+the text of audio queries along with the text of two distinct answers, allowing a text-based LLM to assign
+subjective scores from 1 to 10. The two answers consist of a real response and the answer generated by
+SULMs. While AirBench employs GPT-4 as the scoring LLM, it is currently inaccessible, so we instead utilize
+GPT-3.5-Turbo. The test results presented in Table 5 indicate that, on AirBench’s official speech sub-test set,
+our score is lower than that of Qwen2-Audio, suggesting that our model’s capabilities in English conversation
+and audio description lag behind those of Qwen2-Audio. This is primarily because we do not use English
+conversational data for training; the current score relies entirely on the LLM’s performance. However, on our
+internal Chinese conversational test set, OSUM outperforms Qwen2-Audio, which indicates that our strategy
+of performing ASR before chat is beneficial. Overall, our OSUM model is comparable to Qwen2-Audio in
+terms of conversational ability. We will not be content with this achievement. Our future work will mainly
+focus on the conversation task.
+4
+Future Works
+While OSUM demonstrates commendable performance, our research remains an ongoing endeavor to push
+the boundaries of academic exploration in Speech LLMs. In the coming months, we aim to address several
+key areas for improvement and innovation:
+• Expanding OSUM’s Functionalities. We plan to enhance OSUM with additional capabilities, such
+as language and accent identification, to broaden its applicability in multilingual and diverse speech
+scenarios.
+• Enabling Multi-Task Capability. We aim to activate OSUM’s ability to perform multiple tasks simul-
+taneously, such as identifying the emotion, age, gender, and speaking style in a single inference pass.
+Leveraging this multi-task capability, we plan to develop a versatile data labeling tool to streamline
+audio data processing pipelines.
+• Incorporating Full-Duplex Voice Interaction. To improve naturalness and responsiveness, we plan to
+integrate full-duplex voice interaction capabilities into OSUM. This enhancement will allow OSUM to
+generate context-aware, natural responses, such as matching the questioner’s emotion or mimicking
+specific speaking styles, like that of a child.
+• Open Science Contributions. As part of our commitment to advancing academic research, we will
+continue to share detailed training methodologies, data pipelines, and model updates. Our aim is to
+foster collaboration, provide valuable resources for researchers, and democratize access to cutting-edge
+Speech LLM technologies.
+Through these efforts, we seek to extend OSUM’s capabilities, establish new benchmarks for Speech LLMs,
+and contribute meaningfully to the academic study and practical applications of speech understanding.
+5
+Conclusion
+In this study, we propose OSUM, an open-source Speech understanding language model. The OSUM model
+integrates a Whisper encoder with a Qwen2 LLM, supporting eight speech tasks. By employing an ASR+X
+12
+
+=== page 13 ===
+training strategy, OSUM achieves efficient and stable multi-task training, simultaneously optimizing ASR
+alongside target tasks. Beyond delivering robust performance, OSUM prioritizes transparency by providing
+openly accessible data preparation and training methodologies, offering valuable insights and practical
+guidance for the academic community.
+6
+Acknowledgment
+We appreciate that AISHELL 11, Databaker 12, MagicData 13, and DataTang 14 generously provide some
+training data. Most of our model components are trained using Huawei 15 Ascend NPUs.
+7
+Authors
+The ranking is from top to bottom and then from left to right. ∗indicates equal contribution.
+† indicates the
+corresponding author.
+• Xuelong Geng
+• Kun Wei
+• Qijie Shao
+• Shuiyun Liu∗
+• Zhennan Lin∗
+• Zhixian Zhao∗
+• Guojian Li∗
+• Wenjie Tian∗
+• Peikun Chen
+• Yangze Li
+• Pengcheng Guo
+• Mingchen Shao
+• Shuiyuan Wang
+• Yuang Cao
+• Chengyou Wang
+• Tianyi Xu
+• Yuhang Dai
+• Xinfa Zhu
+• Yue Li
+• Li Zhang
+• Lei Xie †
+11https://www.aishelltech.com
+12https://www.data-baker.com
+13https://www.magicdatatech.com
+14https://www.datatang.com
+15https://www.huawei.com
+13
+
+=== page 14 ===
+References
+AISHELL Tech Co Ltd. Data Products, 2024. https://www.aishelltech.com/General_Datasets, Last
+accessed on 2025-1-9.
+Keyu An, Qian Chen, Chong Deng, Zhihao Du, Changfeng Gao, Zhifu Gao, Yue Gu, Ting He, Hangrui
+Hu, Kai Hu, et al. FunaudioLLM: Voice understanding and generation foundation models for natural
+interaction between humans and LLMs. arXiv preprint arXiv:2407.04051, 2024.
+Jinze Bai, Shuai Bai, Yunfei Chu, Zeyu Cui, Kai Dang, Xiaodong Deng, Yang Fan, Wenbin Ge, Yu Han, Fei
+Huang, et al. Qwen technical report. arXiv preprint arXiv:2309.16609, 2023.
+Hui Bu, Jiayu Du, Xingyu Na, Bengu Wu, and Hao Zheng. AISHELL-1: An open-source mandarin speech
+corpus and a speech recognition baseline. In Proceedings of the Conference of the Oriental Chapter of the Inter-
+national Coordinating Committee on Speech Databases and Speech I/O Systems and Assessment (O-COCOSDA),
+2017.
+Carlos Busso, Murtaza Bulut, Chi-Chun Lee, Abe Kazemzadeh, Emily Mower, Samuel Kim, Jeannette N
+Chang, Sungbok Lee, and Shrikanth S Narayanan. IEMOCAP: Interactive emotional dyadic motion capture
+database. Language Resources and Evaluation (LREC), 42:335–359, 2008.
+Carlos Busso, Srinivas Parthasarathy, Alec Burmania, Mohammed AbdelWahab, Najmeh Sadoughi, and
+Emily Mower Provost. MSP-IMPROV: An acted corpus of dyadic interactions to study emotion perception.
+IEEE Transactions on Affective Computing, 8:67–80, 2017.
+Yunfei Chu, Jin Xu, Xiaohuan Zhou, Qian Yang, Shiliang Zhang, Zhijie Yan, Chang Zhou, and Jingren Zhou.
+Qwen-Audio: Advancing universal audio understanding via unified large-scale audio-language models.
+arXiv preprint arXiv:2311.07919, 2023.
+Yunfei Chu, Jin Xu, Qian Yang, Haojie Wei, Xipin Wei, Zhifang Guo, Yichong Leng, Yuanjun Lv, Jinzheng He,
+Junyang Lin, et al. Qwen2-Audio technical report. arXiv preprint arXiv:2407.10759, 2024.
+Databaker Tech Co Ltd. Data products, 2024. https://www.data-baker.com, Last accessed on 2025-1-9.
+Datatang Tech Co Ltd. Data products, 2024. https://www.datatang.com/speechRecognition, Last accessed
+on 2025-1-9.
+Jiayu Du, Xingyu Na, Xuechen Liu, and Hui Bu. AISHELL-2: Transforming Mandarin ASR research into
+industrial scale. arXiv preprint arXiv:1808.10583, 2018.
+Jort F. Gemmeke, Daniel P. W. Ellis, Dylan Freedman, Aren Jansen, Wade Lawrence, R. Channing Moore,
+Manoj Plakal, and Marvin Ritter. Audio Set: An ontology and human-labeled dataset for audio events. In
+Proceedings of the IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), pages
+776–780, 2017.
+Yuan Gong, Jin Yu, and James Glass. Vocalsound: A dataset for improving human vocal sounds recognition.
+In Proceedings of the IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), pages
+151–155, 2022.
+Edward Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu
+Chen. LoRA: Low-rank adaptation of large language models. In Proceedings of the International Conference
+on Learning Representations (ICLR), pages 1–26, 2022.
+Kaggle Community. Datasets, 2017. https://www.kaggle.com/datasets/mozillaorg/common-voice, Last
+accessed on 2025-1-9.
+Zheng Lian, Haiyang Sun, Licai Sun, Kang Chen, Mngyu Xu, Kexin Wang, Ke Xu, Yu He, Ying Li, Jinming
+Zhao, Ye Liu, Bin Liu, Jiangyan Yi, Meng Wang, Erik Cambria, Guoying Zhao, Björn W. Schuller, and
+Jianhua Tao. MER 2023: Multi-label learning, modality robustness, and semi-supervised learning. In
+Proceedings of the ACM International Conference on Multimedia (ACM MM), page 9610–9614, 2023.
+14
+
+=== page 15 ===
+Ziyang Ma, Zhisheng Zheng, Jiaxin Ye, Jinchao Li, Zhifu Gao, ShiLiang Zhang, and Xie Chen. Emotion2vec:
+Self-supervised pre-training for speech emotion representation. In Proceedings of the Findings of the Association
+for Computational Linguistics (ACL), pages 15747–15760, 2024.
+Luz Martinez-Lucas, Mohammed Abdelwahab, and Carlos Busso. The MSP-conversation corpus. Proceedings
+of the Conference of the International Speech Communication Association (Interspeech), 2020.
+OpenSLR. MAGICDATA mandarin Chinese read speech corpus, 2019. https://openslr.org/68/, Last
+accessed on 2025-1-9.
+Vassil Panayotov, Guoguo Chen, Daniel Povey, and Sanjeev Khudanpur. Librispeech: An ASR corpus based
+on public domain audio books. In Proceedings of the IEEE International Conference on Acoustics, Speech and
+Signal Processing (ICASSP), pages 5206–5210, 2015.
+Yifan Peng, Jinchuan Tian, Brian Yan, Dan Berrebbi, Xuankai Chang, Xinjian Li, Jiatong Shi, Siddhant Arora,
+William Chen, Roshan Sharma, et al. Reproducing whisper-style training using an open-source toolkit and
+publicly available data. In Proceedings of the IEEE Automatic Speech Recognition and Understanding Workshop
+(ASRU), pages 1–8, 2023.
+Karol J. Piczak. ESC: Dataset for environmental sound classification. In Proceedings of the Annual ACM
+Conference on Multimedia (ACM MM), pages 1015–1018, 2015.
+Soujanya Poria, Devamanyu Hazarika, Navonil Majumder, Gautam Naik, Erik Cambria, and Rada Mihalcea.
+MELD: A multimodal multi-party dataset for emotion recognition in conversations. In Proceedings of the
+Annual Meeting of the Association for Computational Linguistics (ACL), pages 527–536, 2019.
+Alec Radford, Jong Wook Kim, Tao Xu, Greg Brockman, Christine McLeavey, and Ilya Sutskever. Robust
+speech recognition via large-scale weak supervision. In Proceedings of the International Conference on Machine
+Learning (ICML), pages 28492–28518, 2023.
+Muhammad Mamunur Rashid, Guiqing Li, and Chengrui Du. Nonspeech7k dataset: Classification and
+analysis of human non-speech sound. IET Signal Processing, page e12233, 2023.
+Xian Shi, Qiangze Feng, and Lei Xie. The ASRU 2019 Mandarin-English code-switching speech recognition
+challenge: Open datasets, tracks, methods and results. arXiv preprint arXiv:2007.05916, 2020.
+Xian Shi, Yanni Chen, Shiliang Zhang, and Zhijie Yan. Achieving timestamp prediction while recognizing
+with non-autoregressive end-to-end ASR model. In Proceedings of the National Conference on Man-Machine
+Speech Communication (NCMMSC), pages 89–100, 2022.
+Xingchen Song, Chengdong Liang, Binbin Zhang, Pengshen Zhang, ZiYu Wang, Youcheng Ma, Menglong
+Xu, Lin Wang, Di Wu, Fuping Pan, et al. TouchASP: Elastic automatic speech perception that everyone can
+touch. arXiv preprint arXiv:2412.15622, 2024.
+Yixuan Su, Tian Lan, Huayang Li, Jialu Xu, Yan Wang, and Deng Cai. PandaGPT: One model to instruction-
+follow them all. In Proceedings of the Workshop on Taming Large Language Models (TLLM), pages 11–23,
+2023.
+Changli Tang, Wenyi Yu, Guangzhi Sun, Xianzhao Chen, Tian Tan, Wei Li, Lu Lu, MA Zejun, and Chao
+Zhang. SALMONN: Towards generic hearing abilities for large language models. In Proceedings of the
+International Conference on Learning Representations (ICLR), pages 1–23, 2024.
+Zhiyuan Tang, Dong Wang, Yanguang Xu, Jianwei Sun, Xiaoning Lei, Shuaijiang Zhao, Cheng Wen, Xingjun
+Tan, Chuandong Xie, Shuran Zhou, et al. Kespeech: An open source speech dataset of Mandarin and
+its eight subdialects. In Proceedings of the Conference on Neural Information Processing Systems Datasets and
+Benchmarks Track (Round 2), 2021.
+Shreya G. Upadhyay, Woan-Shiuan Chien, Bo-Hao Su, Lucas Goncalves, Ya-Tse Wu, Ali N. Salman, Carlos
+Busso, and Chi-Chun Lee. An intelligent infrastructure toward large scale naturalistic affective speech
+corpora collection. In Proceedings of the International Conference on Affective Computing and Intelligent Interaction
+(ACII), pages 1–8, 2023.
+15
+
+=== page 16 ===
+A Vaswani. Attention is all you need. In Proceedings of the Annual Conference on Neural Information Processing
+Systems (NeurIPS), pages 1–17, 2017.
+Yida Wang, Pei Ke, Yinhe Zheng, Kaili Huang, Yong Jiang, Xiaoyan Zhu, and Minlie Huang. A large-scale
+Chinese short-text conversation dataset. In Proceedings of the Natural Language Processing and Chinese
+Computing International Conference (NLPCC), volume 12430, pages 91–103, 2020.
+Binbin Zhang, Hang Lv, Pengcheng Guo, Qijie Shao, Chao Yang, Lei Xie, Xin Xu, Hui Bu, Xiaoyu Chen,
+Chenchen Zeng, Di Wu, and Zhendong Peng. WENETSPEECH: A 10000+ hours multi-domain Mandarin
+corpus for speech recognition. In Proceedings of the IEEE International Conference on Acoustics, Speech and
+Signal Processing (ICASSP), 2022.
+Jinming Zhao, Tenggan Zhang, Jingwen Hu, Yuchen Liu, Qin Jin, Xinchao Wang, and Haizhou Li. M3ED:
+Multi-modal multi-scene multi-label emotional dialogue database. In Proceedings of the Annual Meeting of
+the Association for Computational Linguistics (ACL), pages 5699–5710, 2022.
+Kun Zhou, Berrak Sisman, Rui Liu, and Haizhou Li. Seen and unseen emotional style transfer for voice
+conversion with a new emotional speech dataset. In Proceedings of the IEEE International Conference on
+Acoustics, Speech and Signal Processing (ICASSP), pages 920–924, 2021.
+16
+

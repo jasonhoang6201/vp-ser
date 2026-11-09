@@ -1,0 +1,72 @@
+{
+  "name": "combined_gt_f2",
+  "dataset": "iemocap",
+  "split": "test",
+  "notes": "SenseVoice-FT ASR + roberta-large fine-tuned (5 ep, lr 1e-05); train text gt, eval text gt, ctx 0, audio none; 1-seed ensemble; GROUND-TRUTH text (upper bound)",
+  "ser": {
+    "wa": 0.7360703812316716,
+    "ua": 0.7606599960420758,
+    "macro_f1": 0.7396950471837563,
+    "weighted_f1": 0.7352143572805415,
+    "recall_by_emotion": {
+      "neutral": 0.6685082872928176,
+      "joy": 0.7339449541284404,
+      "anger": 0.8686131386861314,
+      "sadness": 0.7715736040609137
+    },
+    "n": 1023,
+    "n_invalid_pred": 0,
+    "labels": [
+      "neutral",
+      "joy",
+      "anger",
+      "sadness"
+    ],
+    "confusion": [
+      [
+        242,
+        58,
+        28,
+        34
+      ],
+      [
+        45,
+        240,
+        16,
+        26
+      ],
+      [
+        13,
+        1,
+        119,
+        4
+      ],
+      [
+        22,
+        10,
+        13,
+        152
+      ]
+    ]
+  },
+  "seeds": [
+    {
+      "seed": 0,
+      "best_epoch": 4,
+      "dev_ua": 0.7161518687449538,
+      "test_ua": 0.7606599960420758,
+      "test_wf1": 0.7352143572805415,
+      "gate": null
+    }
+  ],
+  "config": {
+    "train": "gt",
+    "eval": "gt",
+    "ctx": 0,
+    "audio": false
+  },
+  "ua_mean": 0.7606599960420758,
+  "ua_std": NaN,
+  "wf1_mean": 0.7352143572805415,
+  "wf1_std": NaN
+}

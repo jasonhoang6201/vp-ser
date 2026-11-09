@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Học ASR và SER cùng lúc</title>
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="pn"></nav>
+<h1>Học ASR và SER cùng lúc: một encoder, hai việc</h1>
+<p class="sub">Multi-task learning (MTL, học đa nhiệm). Đây là chữ "joint" trong "joint ASR + SER": thay vì hai hệ thống rời, dùng <b>một</b> mô hình vừa chép lời vừa đoán cảm xúc.</p>
+
+<section>
+<h2><span class="n">1</span>Vấn đề: hai hệ thống rời thì tốn, và không giúp nhau</h2>
+<div class="tablewrap"><table>
+<tr><th>Vướng của cách nối tiếp (ASR rồi SER)</th><th>Ví dụ</th></tr>
+<tr><td>hai mô hình lớn chạy nối tiếp</td><td>Whisper rồi RoBERTa rồi emotion2vec: chậm, tốn bộ nhớ</td></tr>
+<tr><td>lỗi truyền theo dây chuyền</td><td>ASR chép sai thì nhánh chữ đoán sai (trang 20)</td></tr>
+<tr><td>không chia sẻ kiến thức</td><td>ASR biết "từ nào được nói", SER biết "nói thế nào"; học riêng thì không ai dùng được cái của người kia</td></tr>
+</table></div>
+<p>Hy vọng khi học chung: ASR ép encoder chú ý vào <b>nội dung</b>, giúp SER hiểu lời; SER ép encoder giữ lại <b>cách nói</b>, giúp ASR với giọng có cảm xúc. Nhưng cũng có nguy cơ ngược lại: hai việc <b>giành nhau</b> cùng một encoder.</p>
+<div class="note blue"><b>Mục tiêu:</b> một encoder chung, hai đầu ra, sao cho mỗi việc ít nhất không tệ hơn học riêng, và nếu được thì tốt hơn.</div>
+</section>
+
+<section>
+<h2><span class="n">2</span>Các thành phần</h2>
+<div class="pipe"><span class="done">âm thanh</span><i>→</i><span class="new">encoder chung</span><i>→</i><span class="new">đầu ASR (CTC, mỗi frame)</span><i>+</i><span class="new">đầu SER (pooling → lớp)</span></div>
+<div class="tablewrap"><table>
+<tr><th>Thành phần</th><th>Là gì</th><th>Ở mục</th></tr>
+<tr><td><b>encoder chung + hai đầu</b> (hard parameter sharing)</td><td>đầu ASR dùng CTC trên từng frame (trang 10); đầu SER pooling rồi phân loại (trang 19)</td><td>3</td></tr>
+<tr><td><b>loss có trọng số</b></td><td><span class="mono">L = α · L_ASR + (1 − α) · L_SER</span>; α quyết định ưu tiên việc nào</td><td>3</td></tr>
+<tr><td><b>xung đột gradient</b> (gradient conflict)</td><td>hai việc muốn kéo tham số chung theo hai hướng ngược nhau; đo bằng cosine giữa hai gradient</td><td>3</td></tr>
+<tr><td><b>cách gỡ xung đột</b></td><td>chỉnh α, học hai giai đoạn (ASR trước rồi SER), chiếu bỏ phần xung đột (PCGrad), cân loss theo độ bất định</td><td>3</td></tr>
+<tr><td><b>token chỉ việc</b></td><td>thay vì hai đầu riêng, thêm token "hãy đoán cảm xúc" vào chuỗi vào hoặc ra (SenseVoice, Whisper)</td><td>4</td></tr>
+<tr><td><b>transducer có cảm xúc</b></td><td>gắn đoán cảm xúc vào chính lưới căn của RNN-T (ENT)</td><td>5</td></tr>
+</table></div>
+</section>
+
+<section>
+<h2><span class="n">3</span>Hai việc kéo một bộ tham số: thử tay</h2>
+<p>Mặt phẳng là không gian tham số của encoder chung (thật ra hàng trăm triệu chiều). Vòng xanh: loss ASR, tâm là chỗ tốt nhất cho ASR. Vòng cam: loss SER. Điểm đen là tham số đang có (khởi đầu từ mô hình học sẵn). Bấm <b>Học</b>: mỗi bước đi theo gradient của loss tổng.</p>
+<div class="ctrl">
+  <span class="grp">α (phần cho ASR) <input type="range" id="al" min="0" max="1" step="0.05" value="0.5"> <b id="alv"></b></span>
+  <span class="grp">Cách cộng gradient: <button data-pc="0" class="on">cộng thường</button><button data-pc="1">PCGrad</button></span>
+  <button id="run">▶ Học</button>
+</div>
+<div class="fig"><canvas id="c3"></canvas></div>
+<div class="readout" id="r3"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Lúc đầu hai mũi tên gradient cùng hướng lên (cosine dương): hai việc <b>giúp nhau</b>, vì cả hai đều cần rời khỏi điểm khởi đầu.
+<br>• Tới gần chỗ dừng thì hai mũi tên <b>ngược chiều</b> (cosine gần −1): mỗi bước tốt cho việc này là xấu cho việc kia. Điểm dừng là một <b>thỏa hiệp</b>, không phải tốt nhất cho ai.
+<br>• α = 1 (chỉ ASR) hay α = 0 (chỉ SER): đi thẳng tới tâm của một việc, việc kia bị bỏ mặc. Đó là hiện tượng "quên" ASR khi chỉ fine-tune cho SER.
+<br>• <b>PCGrad</b>: khi hai gradient xung đột (cosine âm), chiếu mỗi cái lên mặt phẳng vuông góc với cái kia trước khi cộng, để không bước nào đẩy lùi việc còn lại. Ở mô hình đồ chơi này điểm dừng gần như không đổi; lợi ích của nó thể hiện rõ hơn khi xung đột xảy ra sớm và nhiều.
+<br>• Trong mô hình thật, gradient của hai việc thường gần <b>vuông góc</b> (cosine quanh 0): chúng ít giúp mà cũng ít hại nhau. Encoder đủ lớn có thể chứa cả hai loại thông tin.</div>
+</section>
+
+<section>
+<h2><span class="n">4</span>Token chỉ việc: SenseVoice</h2>
+<p>SenseVoice-Small (Alibaba, 2024) không dùng hai đầu riêng. Nó là encoder không tự hồi quy, huấn luyện bằng CTC, và thêm <b>4 vector "câu hỏi"</b> vào đầu chuỗi đầu vào:</p>
+<div class="formula">[LID] [SER] [AED] [ITN] [frame 1] [frame 2] … [frame T] &nbsp;→&nbsp; &lt;|vi|&gt; &lt;|HAPPY|&gt; &lt;|Speech|&gt; &lt;|withitn|&gt; h ô m · n a y …</div>
+<p>Ở 4 vị trí đầu, mô hình ra lần lượt: ngôn ngữ (LID), cảm xúc (SER), sự kiện âm thanh như tiếng cười, vỗ tay (AED), và có chuẩn hóa chữ số, dấu câu hay không (ITN). Các vị trí còn lại ra chữ bằng CTC. Ý tưởng giống token chỉ việc của Whisper (trang 12), nhưng chạy song song nên nhanh hơn nhiều.</p>
+<div class="note"><b>Khoanh vùng:</b> cảm xúc ở đây là <b>một token</b> cho cả câu, đoán cùng lúc với chữ, bởi cùng một mạng. Fine-tune SenseVoice cho dữ liệu mới thì chỉ cần cập nhật nhãn của token cảm xúc và chữ trong file huấn luyện.</div>
+</section>
+
+<section>
+<h2><span class="n">5</span>Transducer có cảm xúc: ENT</h2>
+<p><b>RNN-T</b> (transducer) là kiểu ASR thứ ba bên cạnh CTC và attention: một encoder nghe âm thanh, một mạng dự đoán nhìn các chữ đã viết, và một mạng "joint" kết hợp hai bên để quyết định ở mỗi (frame, vị trí chữ): viết chữ tiếp hay đi sang frame sau. Nó có ưu điểm của cả hai: căn đơn điệu như CTC, nhìn chữ đã viết như attention, và chạy được trực tuyến.</p>
+<p><b>ENT</b> (Emotion Neural Transducer, Shen và cộng sự, ICASSP 2024) thêm một mạng joint thứ hai cho <b>cảm xúc</b> trên cùng lưới căn đó. Nhờ vậy cảm xúc được đoán <b>theo từng bước</b> dọc câu (chi tiết hơn một nhãn cho cả câu), rồi gộp lại thành nhãn câu. Bản trong bài báo dùng encoder wav2vec 2.0 base đóng băng.</p>
+</section>
+
+<section>
+<h2>Tóm tắt</h2>
+<ul>
+<li>MTL: encoder chung + đầu CTC (ASR) + đầu pooling (SER); loss = α · ASR + (1 − α) · SER.</li>
+<li>Hai việc có thể giúp nhau lúc đầu và xung đột về sau; đo bằng cosine gradient. Gỡ bằng chỉnh α, hai giai đoạn, PCGrad.</li>
+<li>Thay cho hai đầu: token chỉ việc (SenseVoice, Whisper), hoặc gắn cảm xúc vào lưới của transducer (ENT).</li>
+</ul>
+<h3>Thuật ngữ mới</h3>
+<div class="tablewrap"><table>
+<tr><th>Nói thường</th><th>Thuật ngữ</th></tr>
+<tr><td>một mô hình học nhiều việc</td><td>multi-task learning (MTL), joint training</td></tr>
+<tr><td>dùng chung encoder, mỗi việc một đầu</td><td>hard parameter sharing, task head</td></tr>
+<tr><td>việc chính / việc phụ để hỗ trợ</td><td>main task / auxiliary task</td></tr>
+<tr><td>hai việc kéo ngược hướng</td><td>gradient conflict, negative transfer</td></tr>
+<tr><td>chiếu bỏ phần xung đột</td><td>PCGrad (projecting conflicting gradients)</td></tr>
+<tr><td>vector câu hỏi thêm vào đầu chuỗi</td><td>task embedding, task/query token</td></tr>
+<tr><td>ASR có encoder + mạng dự đoán + mạng joint</td><td>RNN-T, neural transducer</td></tr>
+</table></div>
+<div class="note exp"><b>Gắn với thực nghiệm:</b> notebook 11 (wav2vec2-large + CTC + SER, MELD) đo cosine giữa gradient CTC và gradient SER: trong khoảng [−0.11, 0.14], trung bình ≈ −0.01, tức <b>gần vuông góc, hơi xung đột</b>. Joint α = 0,5: WER 39.8, UA 32.4; chỉ ASR: WER 38.4; chỉ SER: UA 34.5 nhưng WER 52.4 (quên ASR). SenseVoice fine-tune: WER 27.4, UA 31.3 trên MELD; WER 9.8, UA 73.7 trên IEMOCAP. ENT (10 epoch, epoch cuối): UA 26.6 trên MELD.</div>
+</section>
+<nav class="pn"></nav>
+</div>
+<script src="assets/learn.js"></script>
+<script>
+const A = [1.6, 1.3], SA = [1, 2.2], Bm = [-1.3, 1.5], SB = [1.6, 0.6], START = [0.1, -1.6];
+const lossA = p => 0.5 * (SA[0] * (p[0] - A[0]) ** 2 + SA[1] * (p[1] - A[1]) ** 2);
+const lossB = p => 0.5 * (SB[0] * (p[0] - Bm[0]) ** 2 + SB[1] * (p[1] - Bm[1]) ** 2);
+const gA = p => [SA[0] * (p[0] - A[0]), SA[1] * (p[1] - A[1])], gB = p => [SB[0] * (p[0] - Bm[0]), SB[1] * (p[1] - Bm[1])];
+const dotv = (u, v) => u[0] * v[0] + u[1] * v[1], norm = u => Math.hypot(u[0], u[1]);
+let AL = 0.5, PC = 0, PATH = [START.slice()], runT;
+function step(p) {
+  let a = gA(p).map(v => AL * v), b = gB(p).map(v => (1 - AL) * v);
+  if (PC && dotv(a, b) < 0) {
+    const a0 = a.slice(), b0 = b.slice();
+    if (norm(b0) > 1e-9) a = a0.map((v, i) => v - dotv(a0, b0) / dotv(b0, b0) * b0[i]);
+    if (norm(a0) > 1e-9) b = b0.map((v, i) => v - dotv(b0, a0) / dotv(a0, a0) * a0[i]);
+  }
+  const lr = 0.08;
+  return [p[0] - lr * (a[0] + b[0]), p[1] - lr * (a[1] + b[1])];
+}
+function draw3() {
+  document.getElementById('alv').textContent = r2(AL);
+  const R = setup('c3', 340), g = R.g, S = Math.min(R.w - 260, 420), B = {l: 30, t: 10, w: S, h: 320}, xr = [-3, 3], yr = [-2.2, 2.6];
+  const X = v => B.l + (v - xr[0]) / (xr[1] - xr[0]) * B.w, Y = v => B.t + B.h - (v - yr[0]) / (yr[1] - yr[0]) * B.h;
+  g.strokeStyle = C.line; g.strokeRect(B.l + .5, B.t + .5, B.w, B.h);
+  const ell = (c, s, col) => { [0.3, 1, 2.2, 4].forEach(L => { const xs = [], ys = []; for (let t = 0; t <= 60; t++) { const u = 2 * Math.PI * t / 60; xs.push(X(c[0] + Math.sqrt(2 * L / s[0]) * Math.cos(u))); ys.push(Y(c[1] + Math.sqrt(2 * L / s[1]) * Math.sin(u))); } poly(g, xs, ys, alpha(col, 0.45), 1.2); }); };
+  ell(A, SA, C.acc); ell(Bm, SB, C.frame);
+  dot(g, X(A[0]), Y(A[1]), 5, C.acc); text(g, 'tốt nhất cho ASR', X(A[0]) + 8, Y(A[1]) - 10, C.acc, 'left', true, true);
+  dot(g, X(Bm[0]), Y(Bm[1]), 5, C.frame); text(g, 'tốt nhất cho SER', X(Bm[0]) - 8, Y(Bm[1]) - 10, C.frame, 'right', true, true);
+  poly(g, PATH.map(p => X(p[0])), PATH.map(p => Y(p[1])), C.ink, 2);
+  const p = PATH[PATH.length - 1];
+  dot(g, X(START[0]), Y(START[1]), 4, C.grey); text(g, 'khởi đầu', X(START[0]) + 8, Y(START[1]), C.mute, 'left');
+  dot(g, X(p[0]), Y(p[1]), 6, C.ink, '#fff');
+  const ga = gA(p), gb = gB(p), arrow = (v, col) => { const n = norm(v) || 1, L = 40; poly(g, [X(p[0]), X(p[0]) - L * v[0] / n], [Y(p[1]), Y(p[1]) + L * v[1] / n], col, 3); };
+  arrow(ga, C.acc); arrow(gb, C.frame);
+  const cos = dotv(ga, gb) / (norm(ga) * norm(gb) + 1e-12);
+  const P = {l: B.l + B.w + 40, t: 30, w: R.w - (B.l + B.w + 60), h: 200}, mx = Math.max(lossA(START), lossB(START));
+  [['loss ASR', lossA(p), C.acc], ['loss SER', lossB(p), C.frame]].forEach(([lab, v, col], j) => {
+    const h = v / mx * P.h;
+    box(g, P.l + j * (P.w / 2) + 10, P.t + P.h - h, P.w / 2 - 20, h, alpha(col, 0.85));
+    text(g, lab, P.l + (j + 0.5) * (P.w / 2), P.t + P.h + 14, col, 'center', true);
+    text(g, r2(v), P.l + (j + 0.5) * (P.w / 2), P.t + P.h - h - 9, C.ink, 'center');
+  });
+  text(g, 'loss hiện tại', P.l, P.t - 14, C.mute, 'left');
+  document.getElementById('r3').innerHTML = `Bước <b>${PATH.length - 1}</b>. Cosine giữa gradient ASR và SER tại điểm hiện tại: <b>${r2(cos)}</b> ` +
+    (cos > 0.3 ? '(cùng hướng: giúp nhau)' : cos < -0.3 ? '(<b style="color:#d44c47">ngược hướng: xung đột</b>)' : '(gần vuông góc)') + '. Mũi tên chỉ hướng đi xuống của từng loss.';
+}
+const stop = () => { clearInterval(runT); runT = null; };
+const reset = () => { stop(); PATH = [START.slice()]; draw3(); };
+document.getElementById('al').addEventListener('input', e => { AL = +e.target.value; reset(); });
+document.getElementById('run').addEventListener('click', () => {
+  reset();
+  runT = setInterval(() => { PATH.push(step(PATH[PATH.length - 1])); draw3(); if (PATH.length > 120) stop(); }, 40);
+});
+document.addEventListener('click', e => {
+  const b = e.target.closest('button[data-pc]');
+  if (b) { PC = +b.dataset.pc; toggle('pc', b.dataset.pc); reset(); }
+});
+draw3();
+onResize(draw3);
+</script>
+</body>
+</html>

@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Học ASR và SER cùng lúc · 5: ENT</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/mtl-5-ent.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Thành phần', '3 Kéo một bộ tham số', '4 SenseVoice', '5 ENT'];
+const L = {x: 300, y: 260, cw: 80, rh: 80, T: 9, U: 4};
+const CH = ['', 'x', 'i', 'n'];
+// One monotonic path through the (frame, label) lattice: 'r' = next frame, 'u' = emit the next character.
+const MOVES = ['r', 'u', 'r', 'r', 'u', 'r', 'u', 'r', 'r', 'r', 'r'];
+const EMO = [0.2, 0.3, 0.5, 0.7, 0.75, 0.8, 0.8, 0.85, 0.8, 0.82, 0.8, 0.8];
+
+function lattice(n, emo) {
+  for (let i = 0; i < L.T; i++) for (let j = 0; j < L.U; j++) {
+    const cx = L.x + i * L.cw, cy = L.y + (L.U - 1 - j) * L.rh;
+    const g = Clip.g; g.beginPath(); g.arc(cx, cy, 8, 0, 2 * Math.PI); g.fillStyle = COL.line2; g.fill();
+  }
+  for (let i = 0; i < L.T; i++) text(`f${i + 1}`, L.x + i * L.cw, L.y + L.U * L.rh - 20, {size: 18, color: COL.mute, align: 'center'});
+  CH.forEach((c, j) => text(c || '∅', L.x - 40, L.y + (L.U - 1 - j) * L.rh, {size: 22, weight: 700, color: COL.acc, align: 'center'}));
+  text('frame →', L.x + L.T * L.cw - 40, L.y + L.U * L.rh + 14, {size: 20, color: COL.mute});
+  text('chữ đã viết ↑', L.x - 80, L.y - 50, {size: 20, color: COL.acc});
+  let i = 0, j = 0;
+  const pts = [[i, j]];
+  MOVES.slice(0, n).forEach(m => { if (m === 'r') i++; else j++; pts.push([i, j]); });
+  pts.forEach(([a, b], k) => {
+    const cx = L.x + a * L.cw, cy = L.y + (L.U - 1 - b) * L.rh;
+    if (k) { const [pa, pb] = pts[k - 1]; arrow(L.x + pa * L.cw, L.y + (L.U - 1 - pb) * L.rh, cx, cy, MOVES[k - 1] === 'u' ? COL.acc : COL.ink, 4, 12); }
+    if (emo) { const g = Clip.g; g.beginPath(); g.arc(cx, cy, 14, 0, 2 * Math.PI); g.fillStyle = `rgba(212,76,71,${EMO[k] * 0.85})`; g.fill(); }
+  });
+  return pts;
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Học ASR và SER cùng lúc', 'Phần 5/5: transducer có cảm xúc, ENT', 4, PARTS);
+
+function shotRnnt(G, t) {
+  const sr = S('rnnt'), sl = S('lattice'), dl = D('lattice'), sp = S('pro'), se = S('ent'), ss = S('step'), ds = D('step');
+  heading(t < sl ? 'RNN-T: encoder + mạng dự đoán + mạng joint' : t < sp ? 'Lưới căn: viết chữ (↑) hay sang frame (→)' : t < se ? 'Ưu điểm của cả CTC lẫn attention' : 'ENT: thêm joint thứ hai cho cảm xúc');
+  if (t < sl) {
+    fade(G, P(t, sr + 0.3, 0.5), () => {
+      rrect(300, 520, 360, 100, 14, COL.frameSoft, COL.frame, 2); text('encoder: nghe âm thanh', 480, 570, {size: 24, weight: 700, color: COL.frame, align: 'center'});
+      rrect(1260, 520, 360, 100, 14, COL.accSoft, COL.acc, 2); text('mạng dự đoán: chữ đã viết', 1440, 570, {size: 24, weight: 700, color: COL.acc, align: 'center'});
+      arrow(480, 514, 840, 400, COL.mute, 3); arrow(1440, 514, 1080, 400, COL.mute, 3);
+      rrect(780, 300, 360, 100, 14, COL.card, COL.ink, 3); text('joint', 960, 350, {size: 30, weight: 700, align: 'center'});
+      text('kiểu ASR thứ ba, bên cạnh CTC và attention', 960, 720, {size: 26, color: COL.mute, align: 'center'});
+    });
+    return;
+  }
+  const n = t < sl + 0.5 ? 0 : t >= sp ? MOVES.length : Math.floor(P(t, sl + 0.5, dl * 0.7) * MOVES.length);
+  fade(G, P(t, sl + 0.3, 0.5), () => lattice(n, t >= ss ? P(t, ss + 0.3, 1) : 0));
+  const x = 1100;
+  if (t >= sp && t < se) fade(G, P(t, sp + 0.3, 0.5), () => {
+    ['căn đơn điệu như CTC', 'nhìn chữ đã viết như attention', 'chạy được trực tuyến'].forEach((l, j) => {
+      text('✓', x, 320 + j * 70, {size: 30, weight: 700, color: COL.ok});
+      text(l, x + 44, 320 + j * 70, {size: 28});
+    });
+  });
+  if (t >= se) fade(G, P(t, se + 0.3, 0.5), () => {
+    text('Emotion Neural Transducer', x, 290, {size: 28, weight: 700, color: COL.hl});
+    text('Shen và cộng sự, ICASSP 2024', x, 330, {size: 22, color: COL.mute});
+    text('joint chữ + joint cảm xúc', x, 400, {size: 26});
+    text('trên cùng lưới căn', x, 440, {size: 26});
+  });
+  if (t >= ss) fade(G, P(t, ss + 0.3, 0.5), () => {
+    text('● cảm xúc theo từng bước (đỏ đậm dần)', x, 520, {size: 24, weight: 700, color: COL.hl});
+    text('→ gộp thành nhãn câu', x, 560, {size: 24});
+    fade(G, P(t, ss + ds * 0.6, 0.5), () => text('bài báo: encoder wav2vec 2.0 base đóng băng', x, 620, {size: 22, color: COL.mute}));
+  });
+}
+
+function shotPage(G, t) {
+  const s = S('page'), d = D('page');
+  heading('Tóm tắt trang');
+  fade(G, P(t, s + 0.3, 0.5), () => text('MTL: encoder chung + CTC + pooling · loss = α · ASR + (1 − α) · SER', 960, 290, {size: 28, weight: 700, align: 'center'}));
+  fade(G, P(t, s + d * 0.35, 0.5), () => text('giúp nhau lúc đầu, xung đột về sau · giải quyết: α, hai giai đoạn, PCGrad', 960, 380, {size: 28, align: 'center'}));
+  fade(G, P(t, s + d * 0.65, 0.5), () => {
+    const labels = ['token chỉ việc (SenseVoice, Whisper)', 'cảm xúc trên lưới transducer (ENT)'], xs = UI.chipXs(G, labels, {size: 26, weight: 700}, 50);
+    text('thay cho hai đầu:', 960, 470, {size: 24, color: COL.mute, align: 'center'});
+    labels.forEach((l, j) => chip(G, xs[j], 500, l, {size: 26, weight: 700, color: COL.frame, stroke: COL.frame}));
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['RNN-T: encoder + dự đoán + joint, lưới căn đơn điệu'], ['ENT: thêm joint cảm xúc trên cùng lưới'], ['cảm xúc theo từng bước, gộp thành nhãn câu']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.4, 0.6), () => {
+      text('✓', 380, 300 + j * 90, {size: 34, weight: 700, color: COL.ok});
+      text(a, 430, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 730, 640, 'Trang sau: mô hình ngôn ngữ lớn nghe âm thanh  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 5', [
+  ['ASR có encoder + mạng dự đoán + joint', 'RNN-T, neural transducer', ''],
+  ['mạng kết hợp hai bên', 'joint network', ''],
+  ['transducer có cảm xúc', 'ENT (Emotion Neural Transducer)', 'ICASSP 2024'],
+  ['chạy ngay khi nghe', 'streaming (trực tuyến)', ''],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'rnnt', to: 'step', draw: shotRnnt},
+    {from: 'page', to: 'page', draw: shotPage},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/mtl-5-ent.wav');
+</script>
+</body>
+</html>

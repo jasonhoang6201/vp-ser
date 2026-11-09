@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>FastSpeech 2 · 4: Cao độ và năng lượng</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/fs.js"></script>
+<script src="../build/fs-4-cao-do.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Cách làm', '3 Bộ điều chỉnh độ dài', '4 Cao độ, năng lượng'];
+const B = {x: 340, y: 230, w: 1280, h: 360};
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('FastSpeech 2', 'Phần 4/4: cao độ và năng lượng, các tham số vặn còn lại', 3, PARTS);
+
+function shotCurves(G, t) {
+  const sc = S('curves'), st = S('tone'), sh = S('hoi'), sf = S('flat'), ss = S('shift'), ds = D('shift');
+  const mode = t >= ss ? 'tone' : t >= sf ? 'flat' : t >= sh ? 'hoi' : 'tone';
+  const shift = t >= ss ? 4 * P(t, ss + 0.5, 1.5) : 0, en = t >= ss ? lerp(1, 1.4, P(t, ss + ds * 0.55, 1.2)) : 1;
+  heading(t < st ? 'f0 và năng lượng theo từng frame' : t < sh ? 'Thanh huyền: "xin chào"' : t < sf ? 'Thanh hỏi: "xin chảo"' : t < ss ? 'f0 phẳng: mất thanh điệu' : 'Dịch cao độ, nhân năng lượng');
+  fade(G, P(t, sc + 0.3, 0.5), () => {
+    const Dd = FS.durs();
+    if (t >= st && t < sf) {
+      const x0 = B.x + 33 / 71 * B.w;
+      rrect(x0, B.y - 10, B.w - (x0 - B.x), B.h + 10, 10, COL.frameSoft);
+      text('"chào" / "chảo"', x0 + 12, B.y + 14, {size: 22, weight: 700, color: COL.frame});
+    }
+    FS.drawCurves(B, Dd, {mode, shift, en, upto: t < st ? P(t, sc + 0.6, 2.5) : 1});
+    text('● f0 (chỉ ở âm hữu thanh)', B.x, B.y - 34, {size: 22, weight: 700, color: COL.frame});
+    text('- - năng lượng', B.x + 360, B.y - 34, {size: 22, weight: 700, color: COL.acc});
+    if (t < st) fade(G, P(t, sc + D('curves') * 0.6, 0.5), () => text('x, ch vô thanh: không f0, năng lượng thấp', 960, 700, {size: 26, weight: 700, color: COL.mute, align: 'center'}));
+    if (t >= sh && t < sf) fade(G, P(t, sh + D('hoi') * 0.5, 0.5), () => text('đổi đường f0 = đổi nghĩa', 960, 700, {size: 28, weight: 700, color: COL.hl, align: 'center'}));
+    if (t >= sf && t < ss) fade(G, P(t, sf + 0.5, 0.5), () => text('như robot đọc', 960, 700, {size: 28, weight: 700, color: COL.hl, align: 'center'}));
+    if (t >= ss) text(`cao độ +${shift.toFixed(1).replace('.', ',')} nửa cung · năng lượng × ${en.toFixed(2).replace('.', ',')}`, 960, 700, {size: 28, weight: 700, color: COL.ok, align: 'center'});
+  });
+}
+
+function shotUse(G, t) {
+  const st = S('train'), su = S('use'), sw = S('weak'), dw = D('weak');
+  heading(t < su ? 'Khi huấn luyện: đưa f0, năng lượng thật' : t < sw ? 'Khi dùng: dự đoán, rồi sửa được' : 'Điểm yếu: dự đoán trung bình');
+  if (t < sw) {
+    fade(G, P(t, st + 0.3, 0.5), () => {
+      chip(G, 220, 300, 'vector frame', {size: 26, weight: 700});
+      const train = t < su;
+      rrect(560, 270, 440, 120, 16, train ? COL.ok + '22' : COL.frameSoft, train ? COL.ok : COL.frame, 3);
+      text(train ? 'f0, năng lượng THẬT' : 'bộ dự đoán f0, năng lượng', 780, 330, {size: 26, weight: 700, color: train ? COL.ok : COL.frame, align: 'center', maxW: 400});
+      arrow(460, 326, 550, 326, COL.mute, 3);
+      arrow(1010, 330, 1300, 330, COL.mute, 3);
+      text('+', 1150, 300, {size: 30, weight: 700, align: 'center'});
+      rrect(1310, 270, 300, 120, 16, COL.card, COL.ok, 2);
+      text('decoder', 1460, 330, {size: 28, weight: 700, color: COL.ok, align: 'center'});
+      if (!train) fade(G, P(t, su + 0.8, 0.5), () => {
+        const labels = ['đổi thanh', 'dịch cao độ', 'nhấn một từ'], xs = UI.chipXs(G, labels, {size: 24, weight: 700}, 24);
+        text('sửa ở đây trước khi vào decoder ↓', 1050, 440, {size: 24, color: COL.mute});
+        labels.forEach((l, j) => chip(G, xs[j], 500, l, {size: 24, weight: 700, color: COL.frame, stroke: COL.frame}));
+      });
+    });
+    if (t < su) fade(G, P(t, st + D('train') * 0.5, 0.5), () => text('decoder không phải tự đoán "đọc cao hay thấp": một chữ nhiều cách đọc nhẹ đi', 960, 560, {size: 26, weight: 700, color: COL.ok, align: 'center', maxW: 1500}));
+    return;
+  }
+  fade(G, P(t, sw + 0.3, 0.5), () => {
+    const Bc = {x: 360, y: 250, w: 1200, h: 340}, xs = Array.from({length: 101}, (_, k) => k / 100);
+    const X = u => Bc.x + u * Bc.w, Y = v => Bc.y + Bc.h - v * Bc.h;
+    const ways = [0.6, -0.5, 0.35, -0.25, 0.45].map(a => u => 0.5 + a * Math.sin(Math.PI * u));
+    line(Bc.x, Bc.y + Bc.h, Bc.x + Bc.w, Bc.y + Bc.h, COL.line2, 2);
+    ways.forEach((f, j) => fade(G, P(t, sw + 0.5 + j * 0.3, 0.4), () => poly(xs.map(X), xs.map(u => Y(f(u))), COL.line2, 2.5)));
+    text('các lần đọc thật: lên, xuống, mỗi lần một khác', X(0), Y(-0.1), {size: 22, color: COL.mute});
+    fade(G, P(t, sw + dw * 0.4, 0.5), () => {
+      poly(xs.map(X), xs.map(u => Y(ways.reduce((a, f) => a + f(u), 0) / ways.length)), COL.hl, 5, [12, 8]);
+      text('học bằng sai lệch bình phương → đoán trung bình: gần phẳng, lần nào cũng y hệt', 960, 680, {size: 26, weight: 700, color: COL.hl, align: 'center', maxW: 1500});
+    });
+  });
+}
+
+function shotPage(G, t) {
+  const s = S('page'), d = D('page');
+  heading('Còn vấn đề gì?');
+  [['vẫn cần vocoder riêng'], ['cần công cụ căn ngoài (MFA)'], ['ngữ điệu dễ phẳng']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.2, 0.5), () => {
+      text('✗', 560, 290 + j * 80, {size: 32, weight: 700, color: COL.hl});
+      text(a, 610, 290 + j * 80, {size: 30});
+    }));
+  fade(G, P(t, s + d * 0.5, 0.5), () => {
+    card(360, 560, 1200, 130, {stroke: COL.frame});
+    text('trang sau, VITS: gộp vocoder, tự học độ dài, ngẫu nhiên có kiểm soát', 960, 625, {size: 28, weight: 700, color: COL.frame, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['✓', 'f0, năng lượng là tham số vặn: đổi thanh, dịch cao độ, nhấn mạnh', COL.ok], ['✓', 'học: cho giá trị thật · dùng: dự đoán rồi sửa', COL.ok], ['✗', 'dự đoán trung bình: ngữ điệu phẳng', COL.hl]].forEach(([m, a, c], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text(m, 330, 300 + j * 90, {size: 34, weight: 700, color: c});
+      text(a, 380, 300 + j * 90, {size: 30});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 760, 640, 'Trang sau: VITS  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 4', [
+  ['cao độ theo frame', 'f0 / pitch contour', 'tiếng Việt: mang thanh điệu'],
+  ['độ to theo frame', 'energy', 'năng lượng của frame'],
+  ['khối đoán f0, năng lượng', 'pitch / energy predictor', 'trong variance adaptor'],
+  ['ngữ điệu: cao độ, độ dài, độ to', 'prosody', 'dễ phẳng khi đoán trung bình'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'curves', to: 'shift', draw: shotCurves},
+    {from: 'train', to: 'weak', draw: shotUse},
+    {from: 'page', to: 'page', draw: shotPage},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/fs-4-cao-do.wav');
+</script>
+</body>
+</html>

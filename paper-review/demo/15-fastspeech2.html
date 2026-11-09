@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FastSpeech 2</title>
+<link rel="stylesheet" href="assets/learn.css">
+<style>
+.durs{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0;font-size:14px}
+.durs label{display:flex;flex-direction:column;align-items:center;gap:2px}
+.durs input{width:90px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="pn"></nav>
+<h1>FastSpeech 2: biết trước độ dài, sinh mọi frame cùng lúc</h1>
+<p class="sub">FastSpeech (Ren và cộng sự, 2019) và FastSpeech 2 (2021). Vẫn là mô hình âm học (âm vị → Mel), nhưng <b>không tự hồi quy</b> và <b>không cần attention</b> giữa chữ và frame.</p>
+
+<section>
+<h2><span class="n">1</span>Vấn đề: Tacotron chậm, hay hỏng, khó điều khiển</h2>
+<div class="tablewrap"><table>
+<tr><th>Vướng của Tacotron 2</th><th>Gốc rễ</th></tr>
+<tr><td>chậm: sinh từng frame một</td><td>frame sau cần frame trước, không chạy song song được</td></tr>
+<tr><td>lặp chữ, bỏ chữ, không dừng</td><td>attention tự tìm đường căn, không có gì bắt buộc đi đều từ trái sang phải</td></tr>
+<tr><td>khó điều khiển tốc độ, cao độ</td><td>độ dài và cao độ nằm ẩn trong attention và LSTM, không có "núm" nào để vặn</td></tr>
+</table></div>
+<div class="note blue"><b>Mục tiêu:</b> tách riêng câu hỏi <b>"mỗi âm dài bao nhiêu frame"</b> ra thành một con số dự đoán trước. Biết độ dài rồi thì kéo giãn chuỗi âm vị cho bằng số frame, và sinh <b>mọi frame cùng lúc</b>. Cao độ, độ to cũng tách ra thành con số để vặn được.</div>
+</section>
+
+<section>
+<h2><span class="n">2</span>Cách FastSpeech 2 làm</h2>
+<div class="pipe"><span class="done">âm vị</span><i>→</i><span class="new">encoder</span><i>→</i><span class="new">variance adaptor: độ dài, cao độ, năng lượng</span><i>→</i><span class="new">decoder song song</span><i>→</i><span class="done">Mel</span><i>→</i><span class="done">vocoder</span></div>
+<div class="tablewrap"><table>
+<tr><th>Thành phần</th><th>Là gì</th><th>Gỡ vướng gì</th><th>Ở mục</th></tr>
+<tr><td><b>encoder, decoder</b></td><td>các khối Transformer (self-attention + convolution 1 chiều). Encoder chạy trên âm vị, decoder chạy trên frame, cả hai song song</td><td>chậm</td><td></td></tr>
+<tr><td><b>dự đoán độ dài</b> (duration predictor)</td><td>mạng nhỏ đoán mỗi âm vị dài bao nhiêu frame</td><td>bỏ attention, nên không lặp, không bỏ chữ</td><td>3</td></tr>
+<tr><td><b>bộ điều chỉnh độ dài</b> (length regulator)</td><td>lặp vector của mỗi âm vị đúng bằng số frame của nó</td><td>đổi chuỗi âm vị thành chuỗi frame</td><td>3</td></tr>
+<tr><td><b>dự đoán cao độ, năng lượng</b> (pitch, energy predictor)</td><td>đoán đường f0 và độ to theo từng frame, cộng vào vector frame</td><td>điều khiển được; bớt "một chữ nhiều cách đọc"</td><td>4</td></tr>
+<tr><td><b>nhãn độ dài từ forced alignment</b></td><td>khi huấn luyện, độ dài thật lấy từ Montreal Forced Aligner (một công cụ HMM, như trang 07)</td><td>có đáp án để dạy dự đoán độ dài</td><td>3</td></tr>
+</table></div>
+<p>Bản FastSpeech đầu tiên lấy độ dài từ ma trận attention của một mô hình Tacotron "thầy" và học lại Mel do thầy sinh ra (knowledge distillation). Theo bài báo FastSpeech, sinh Mel nhanh hơn mô hình tự hồi quy khoảng <b>270 lần</b>. FastSpeech 2 bỏ mô hình thầy, học thẳng từ Mel thật, và thêm cao độ, năng lượng.</p>
+</section>
+
+<section>
+<h2><span class="n">3</span>Bộ điều chỉnh độ dài</h2>
+<p>Câu "xin chào", 6 âm vị. Kéo số frame của từng âm vị, hoặc kéo <b>tốc độ</b> để nhân tất cả với cùng một hệ số. Mỗi ô màu là một frame (10 ms).</p>
+<div class="durs" id="durs"></div>
+<div class="ctrl"><span class="grp">Tốc độ đọc <input type="range" id="spd" min="0.5" max="2" step="0.05" value="1"> <b id="spdv"></b></span></div>
+<div class="fig"><canvas id="c3"></canvas></div>
+<div class="readout" id="r3"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Không còn attention: thứ tự âm vị cố định, mỗi âm vị chắc chắn được đọc đúng một lần. Lỗi lặp chữ, bỏ chữ của Tacotron biến mất.
+<br>• Tổng số frame biết ngay từ đầu, nên decoder tính <b>mọi frame cùng lúc</b>.
+<br>• Tốc độ chỉ là nhân độ dài với một hệ số: một "núm vặn" mà Tacotron không có.</div>
+</section>
+
+<section>
+<h2><span class="n">4</span>Cao độ và năng lượng: các núm vặn còn lại</h2>
+<p>Đường cam là f0 theo từng frame, đường xanh là năng lượng. Trong tiếng Việt, cao độ mang <b>thanh điệu</b>: đổi đường f0 là đổi nghĩa. Bấm nghe: âm thanh dưới đây là một giọng "robot" đơn giản tạo trực tiếp từ đường f0 và năng lượng, để nghe được tác dụng của từng núm.</p>
+<div class="ctrl">
+  <span class="grp">Đường f0: <button data-pc="tone" class="on">đúng thanh: xin chào</button><button data-pc="flat">phẳng (không thanh)</button><button data-pc="hoi">thanh hỏi: xin chảo</button></span>
+  <span class="grp">Dịch cao độ <input type="range" id="sh" min="-6" max="6" step="1" value="0"> <b id="shv"></b></span>
+  <span class="grp">Năng lượng × <input type="range" id="en" min="0.3" max="1.5" step="0.05" value="1"> <b id="env"></b></span>
+  <button id="play4">▶ Nghe</button>
+</div>
+<div class="fig"><canvas id="c4"></canvas></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Khi huấn luyện, f0 và năng lượng <b>thật</b> được đưa vào. Như vậy decoder không phải tự đoán "câu này đọc cao hay thấp": thông tin đã được cho sẵn, bài toán "một chữ nhiều cách đọc" nhẹ đi nhiều.
+<br>• Khi dùng, các bộ dự đoán đoán ra f0 và năng lượng; ta có thể sửa chúng trước khi đưa vào decoder (dịch cao độ, đổi thanh, nhấn mạnh một từ).
+<br>• Điểm yếu: các bộ dự đoán học bằng sai lệch bình phương, nên chúng đoán ra giá trị <b>trung bình</b>. Mỗi lần đọc một câu đều ra y hệt nhau, ngữ điệu hơi phẳng. Trang sau xử lý bằng cách cho phép ngẫu nhiên có kiểm soát.</div>
+</section>
+
+<section>
+<h2>Tóm tắt</h2>
+<ul>
+<li>FastSpeech 2: encoder âm vị → variance adaptor (độ dài, cao độ, năng lượng) → decoder song song → Mel.</li>
+<li>Length regulator lặp vector âm vị theo độ dài: không attention, không lặp/bỏ chữ, sinh mọi frame cùng lúc.</li>
+<li>Độ dài thật lấy từ forced alignment (Montreal Forced Aligner). Cao độ, năng lượng thật đưa vào khi huấn luyện; khi dùng thì dự đoán và chỉnh được.</li>
+<li>Điểm yếu: vẫn cần vocoder riêng; ngữ điệu dễ phẳng vì dự đoán trung bình; cần công cụ căn ngoài.</li>
+</ul>
+<h3>Thuật ngữ mới</h3>
+<div class="tablewrap"><table>
+<tr><th>Nói thường</th><th>Thuật ngữ</th></tr>
+<tr><td>sinh mọi frame cùng lúc</td><td>không tự hồi quy (non-autoregressive)</td></tr>
+<tr><td>lặp vector âm vị theo độ dài</td><td>length regulator</td></tr>
+<tr><td>khối đoán độ dài, cao độ, năng lượng</td><td>variance adaptor</td></tr>
+<tr><td>học lại đầu ra của mô hình thầy</td><td>knowledge distillation</td></tr>
+<tr><td>ngữ điệu: cao độ, độ dài, độ to</td><td>prosody</td></tr>
+<tr><td>công cụ chia frame cho âm vị</td><td>Montreal Forced Aligner (MFA)</td></tr>
+</table></div>
+<p class="muted">Giọng "robot" ở mục 4 chỉ là họa âm nhân với khuôn formant đơn giản theo từng âm vị, không phải đầu ra của FastSpeech 2.</p>
+</section>
+<nav class="pn"></nav>
+</div>
+<script src="assets/learn.js"></script>
+<script>
+const PH = [
+  {p: 'x', d: 9, v: false, f: [4500, 6500]}, {p: 'i', d: 12, v: true, f: [300, 2300, 3000]}, {p: 'n', d: 8, v: true, f: [250, 1500, 2500]},
+  {p: 'ch', d: 8, v: false, f: [3000, 4500]}, {p: 'a', d: 18, v: true, f: [800, 1250, 2600]}, {p: 'o', d: 16, v: true, f: [500, 900, 2500]},
+];
+const PCOL = [C.grey, C.acc, C.ok, C.grey, C.frame, C.i];
+let SPD = 1, PC = 'tone', SH = 0, EN = 1;
+const durs = () => PH.map(o => Math.max(1, Math.round(o.d / SPD)));
+document.getElementById('durs').innerHTML = PH.map((o, i) => `<label><b>${o.p}</b><input type="range" min="2" max="40" step="1" value="${o.d}" data-i="${i}"><span id="dv${i}"></span></label>`).join('');
+document.getElementById('durs').addEventListener('input', e => { const i = +e.target.dataset.i; PH[i].d = +e.target.value; drawAll(); });
+document.getElementById('spd').addEventListener('input', e => { SPD = +e.target.value; drawAll(); });
+function frames() { const D = durs(), out = []; D.forEach((n, i) => { for (let j = 0; j < n; j++) out.push({i, u: n > 1 ? j / (n - 1) : 0}); }); return out; }
+function draw3() {
+  const D = durs(), F = frames();
+  PH.forEach((o, i) => document.getElementById('dv' + i).textContent = `${o.d} frame`);
+  document.getElementById('spdv').textContent = '× ' + r2(SPD);
+  const R = setup('c3', 150), g = R.g, B = {l: 90, t: 14, w: R.w - 110}, n = PH.length, cwP = Math.min(60, B.w / n);
+  PH.forEach((o, i) => { box(g, B.l + i * cwP + 2, B.t, cwP - 4, 28, alpha(PCOL[i], 0.85)); text(g, o.p, B.l + (i + 0.5) * cwP, B.t + 14, '#fff', 'center', true, false, 13); });
+  text(g, 'âm vị (6)', B.l - 8, B.t + 14, C.mute, 'right');
+  const cw = B.w / Math.max(F.length, 60), y2 = B.t + 70;
+  F.forEach((f, t) => box(g, B.l + t * cw, y2, Math.max(1, cw - 0.6), 28, alpha(PCOL[f.i], 0.85)));
+  text(g, `frame (${F.length})`, B.l - 8, y2 + 14, C.mute, 'right');
+  let acc = 0;
+  D.forEach((d, i) => {
+    g.strokeStyle = alpha(PCOL[i], 0.5); g.lineWidth = 1; g.beginPath();
+    g.moveTo(B.l + (i + 0.5) * cwP, B.t + 28); g.lineTo(B.l + (acc + d / 2) * cw, y2); g.stroke(); acc += d;
+  });
+  document.getElementById('r3').innerHTML = `Độ dài sau điều chỉnh: <span class="mono">[${D.join(', ')}]</span> → tổng <b>${F.length}</b> frame = <b>${F.length * 10} ms</b>.`;
+}
+function f0At(i, u) {
+  const syl = i < 3 ? 0 : 1, su = syl === 0 ? (i - 0 + u) / 3 : (i - 3 + u) / 3;
+  let hz;
+  if (PC === 'flat') hz = 190;
+  else if (syl === 0) hz = 200;
+  else if (PC === 'tone') hz = 175 - 45 * su;
+  else hz = su < 0.55 ? 175 - 55 * su / 0.55 : 120 + 70 * (su - 0.55) / 0.45;
+  return hz * 2 ** (SH / 12);
+}
+const enAt = (i, u) => EN * (PH[i].v ? (i === 1 || i === 4 ? 1 : 0.8) * Math.min(1, 4 * u + 0.4, 4 * (1 - u) + 0.6) : 0.35);
+function draw4() {
+  document.getElementById('shv').textContent = (SH > 0 ? '+' : '') + SH + ' nửa cung';
+  document.getElementById('env').textContent = r2(EN);
+  const F = frames(), R = setup('c4', 220), g = R.g, B = {l: 50, t: 10, w: R.w - 70, h: 170}, cw = B.w / F.length;
+  const Yf = hz => B.t + B.h - (hz - 80) / (320 - 80) * B.h, Ye = e => B.t + B.h - e / 1.6 * B.h;
+  let acc = 0;
+  durs().forEach((d, i) => { box(g, B.l + acc * cw, B.t + B.h + 4, d * cw - 1, 14, alpha(PCOL[i], 0.8)); text(g, PH[i].p, B.l + (acc + d / 2) * cw, B.t + B.h + 11, '#fff', 'center', true); acc += d; });
+  [100, 200, 300].forEach(hz => { hline(g, B.l, B.l + B.w, Yf(hz), C.soft); text(g, hz + ' Hz', B.l - 6, Yf(hz), C.mute, 'right'); });
+  poly(g, F.map((_, t) => B.l + (t + 0.5) * cw), F.map(f => Ye(enAt(f.i, f.u))), C.acc, 2, [5, 4]);
+  F.forEach((f, t) => { if (PH[f.i].v) dot(g, B.l + (t + 0.5) * cw, Yf(f0At(f.i, f.u)), 2.2, C.frame); });
+  text(g, 'f0 (chỉ có ở âm hữu thanh)', B.l + 6, B.t + 8, C.frame, 'left', true);
+  text(g, 'năng lượng', B.l + 6, B.t + 24, C.acc, 'left', true);
+}
+const SR = 16000;
+function synth() {
+  const F = frames(), hop = SR / 100, x = new Float32Array(F.length * hop + 1), r = rng(3);
+  let ph = 0, lp = 0;
+  F.forEach((f, t) => {
+    const o = PH[f.i], amp = enAt(f.i, f.u);
+    for (let n = 0; n < hop; n++) {
+      let s = 0;
+      if (o.v) {
+        const f0 = f0At(f.i, f.u + n / hop / Math.max(1, durs()[f.i]));
+        ph += 2 * Math.PI * f0 / SR;
+        for (let k = 1; k * f0 < 4500; k++) {
+          const hz = k * f0, e = o.f.reduce((a, c, j) => a + (1 - 0.3 * j) * Math.exp(-0.5 * ((hz - c) / 120) ** 2), 0.04);
+          s += e / Math.sqrt(k) * Math.sin(k * ph);
+        }
+        s *= 0.5;
+      } else {
+        const w = 2 * r() - 1; lp = 0.6 * lp + 0.4 * w; s = (w - lp) * 0.6;
+      }
+      x[t * hop + n] = s * amp;
+    }
+  });
+  let mx = 0; for (const v of x) mx = Math.max(mx, Math.abs(v));
+  // Normalise by a fixed reference so that the energy slider is still audible.
+  const ref = Math.max(mx / EN, 1e-6);
+  for (let n = 0; n < x.length; n++) x[n] *= 0.6 / ref * Math.min(1, n / 200, (x.length - n) / 200);
+  return x;
+}
+document.getElementById('play4').addEventListener('click', () => play(synth()));
+document.getElementById('sh').addEventListener('input', e => { SH = +e.target.value; draw4(); });
+document.getElementById('en').addEventListener('input', e => { EN = +e.target.value; draw4(); });
+document.addEventListener('click', e => {
+  const b = e.target.closest('button[data-pc]');
+  if (b) { PC = b.dataset.pc; toggle('pc', PC); draw4(); }
+});
+function drawAll() { draw3(); draw4(); }
+drawAll();
+onResize(drawAll);
+</script>
+</body>
+</html>

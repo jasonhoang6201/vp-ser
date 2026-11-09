@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>HMM 3: Vòng tự lặp và độ dài</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../lib/hmm.js"></script>
+<script src="../build/hmm-3-tu-lap.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, axes, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Thành phần', '3 Tự lặp, độ dài', '4 Viterbi', '5 Forward, Baum-Welch'];
+// Seeds picked so the three runs read as fast (24 frames), medium (34) and slow (49).
+const RUNS = [20, 5, 18].map(sd => HMM.sampleDur(sd, 0.9, 3));
+const labelsOf = d => d.flatMap((n, s) => Array(n).fill(s));
+const geo = (d, p) => p ** (d - 1) * (1 - p);
+// Three states in a row, each geometric with p = 0.7: same 10-frame mean as one state with p = 0.9.
+const nb3 = (d, p) => (d < 3 ? 0 : (d - 1) * (d - 2) / 2 * (1 - p) ** 3 * p ** (d - 3));
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('HMM', 'Phần 3/5: vòng tự lặp, độ dài đến từ đâu?', 2, PARTS);
+
+function shotLoop(G, t) {
+  const s = S('loop'), d = D('loop');
+  heading('Vòng tự lặp');
+  fade(G, P(t, s + 0.3, 0.6), () => {
+    HMM.stateBox(560, 330, 1, {loop: true});
+    text('p', 620, 262, {size: 30, weight: 700, color: COL.acc, align: 'center'});
+    text('ở lại', 700, 270, {size: 24, color: COL.mute});
+    arrow(690, 375, 900, 375, COL.mute, 3);
+    text('1 − p', 795, 345, {size: 28, weight: 700, color: COL.mute, align: 'center'});
+    text('sang trạng thái kế', 795, 410, {size: 22, color: COL.mute, align: 'center'});
+    HMM.stateBox(920, 330, 2);
+  });
+  fade(G, P(t, s + d * 0.45, 0.5), () => {
+    text('mỗi frame tung một đồng xu lệch:', 300, 540, {size: 26, weight: 700});
+    const flips = [...Array(8).fill('ở'), 'sang'], u = P(t, s + d * 0.45 + 0.4, d * 0.45);
+    flips.forEach((f, j) => {
+      if (j >= Math.ceil(u * flips.length)) return;
+      const x = 300 + j * 140, on = f === 'sang';
+      rrect(x, 590, 120, 60, 30, on ? COL.frameSoft : COL.accSoft, on ? COL.frame : COL.acc, 2);
+      text(on ? 'sang' : 'ở lại', x + 60, 620, {size: 22, weight: 700, color: on ? COL.frame : COL.acc, align: 'center'});
+      if (!on) HMM.row(x + 41, 670, [1], {w: 42, h: 40, size: 20});
+    });
+  });
+}
+
+function shotSample(G, t) {
+  const s = S('sample'), sf = S('fastslow'), w = 26, x0 = 380;
+  heading('Cho mô hình "nói" ngẫu nhiên, p = 0,9');
+  RUNS.forEach((r, j) => fade(G, P(t, s + 0.6 + j * 1.2, 0.5), () => {
+    const y = 300 + j * 140, L = labelsOf(r);
+    text(`lần ${j + 1}`, x0 - 24, y + 20, {size: 24, weight: 700, color: COL.mute, align: 'right'});
+    HMM.row(x0, y, L, {w, h: 40, size: 16, upto: P(t, s + 0.6 + j * 1.2, 1)});
+    text(`m ${r[0]} · a ${r[1]} · i ${r[2]}  =  ${L.length} frame`, x0, y + 70, {size: 22, color: COL.mute});
+  }));
+  fade(G, P(t, sf + 0.4, 0.5), () => {
+    const tot = RUNS.map(r => r[0] + r[1] + r[2]);
+    chip(G, x0 + tot[0] * w + 20, 294, 'nói nhanh', HOT);
+    chip(G, x0 + tot[2] * w + 20, 574, 'nói chậm', HOT);
+  });
+  fade(G, P(t, sf + D('fastslow') * 0.5, 0.5), () => text('cùng một mô hình, cùng p', 960, 760, {size: 30, weight: 700, color: COL.acc, align: 'center'}));
+}
+
+function shotMean(G, t) {
+  const s = S('mean'), d = D('mean');
+  heading('Số frame trung bình = 1 / (1 − p)');
+  const B = {x: 360, y: 260, w: 900, h: 480};
+  const {X, Y} = axes(B, [0, 1], [0, 25], {gridY: [0, 5, 10, 15, 20, 25], fmtY: v => String(v), ticksX: [0, 0.5, 0.9], fmtX: v => String(v).replace('.', ','), xlabel: 'p (xác suất ở lại)', ylabel: 'số frame trung bình'});
+  const ps = Array.from({length: 97}, (_, k) => k / 100);
+  poly(ps.map(X), ps.map(p => Y(Math.min(25, 1 / (1 - p)))), COL.acc, 4, null, P(t, s + 0.6, 2));
+  [[0.5, 2, '2 frame'], [0.9, 10, '10 frame = 100 ms'], [0.95, 20, '20 frame']].forEach(([p, v, l], j) =>
+    fade(G, P(t, s + d * (0.35 + j * 0.2), 0.5), () => {
+      Clip.g.beginPath(); Clip.g.arc(X(p), Y(v), 9, 0, Math.PI * 2); Clip.g.fillStyle = COL.frame; Clip.g.fill();
+      text(l, X(p) - 16, Y(v) - 26, {size: 24, weight: 700, color: COL.frame, align: 'right'});
+    }));
+  fade(G, P(t, s + 1, 0.6), () => {
+    card(1340, 330, 380, 200, {stroke: COL.acc});
+    text('p = 0,9', 1380, 390, {size: 28, weight: 700});
+    text('ở lại 9 lần, sang 1 lần', 1380, 440, {size: 24, color: COL.mute});
+    text('→ trung bình 10 frame', 1380, 485, {size: 24, weight: 700, color: COL.acc});
+  });
+}
+
+function bars(B, f, maxD, maxV, color, u = 1, o = {}) {
+  const bw = B.w / maxD;
+  for (let dd = 1; dd <= maxD; dd++) {
+    const h = f(dd) / maxV * B.h * u;
+    rrect(B.x + (dd - 1) * bw + 2, B.y + B.h - h, bw - 4, h, 2, color + (o.alpha || 'cc'));
+  }
+  line(B.x, B.y + B.h, B.x + B.w, B.y + B.h, COL.line2, 2);
+  [1, 10, 20, 30, 40].filter(v => v <= maxD).forEach(v => text(String(v), B.x + (v - 0.5) * bw, B.y + B.h + 24, {size: 20, color: COL.mute, align: 'center'}));
+  text('số frame ở trạng thái', B.x + B.w, B.y + B.h + 56, {size: 20, color: COL.mute, align: 'right'});
+}
+
+function shotGeo(G, t) {
+  const s = S('geo'), d = D('geo');
+  heading('Phân bố hình học (geometric)');
+  const B = {x: 300, y: 280, w: 1000, h: 420};
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    bars(B, dd => geo(dd, 0.9), 40, 0.11, COL.acc, P(t, s + 0.4, 1.2));
+    text('p = 0,9', B.x + 20, B.y - 20, {size: 24, weight: 700, color: COL.acc});
+  });
+  fade(G, P(t, s + 2, 0.5), () => {
+    arrow(B.x + 120, B.y + 40, B.x + 22, B.y + B.h - 0.1 / 0.11 * B.h + 6, COL.frame, 2.5);
+    text('1 frame: cao nhất', B.x + 130, B.y + 40, {size: 24, weight: 700, color: COL.frame});
+  });
+  fade(G, P(t, s + d * 0.55, 0.6), () => {
+    card(1360, 330, 380, 230, {stroke: COL.hl});
+    text('âm thật', 1400, 390, {size: 28, weight: 700, color: COL.hl});
+    text('hiếm khi chỉ dài 10 ms', 1400, 440, {size: 24, color: COL.ink});
+    text('→ điểm yếu của HMM', 1400, 500, {size: 24, weight: 700, color: COL.hl});
+  });
+}
+
+function shotLtr(G, t) {
+  const s = S('ltr'), d = D('ltr');
+  heading('Trái sang phải (left-to-right, Bakis)');
+  fade(G, P(t, s + 0.3, 0.6), () => {
+    [0, 1, 2].forEach(k => { HMM.stateBox(560 + k * 300, 360, k, {loop: true}); if (k < 2) arrow(690 + k * 300, 405, 850 + k * 300, 405, COL.mute, 3); });
+  });
+  fade(G, P(t, s + d * 0.35, 0.5), () => {
+    const g = Clip.g;
+    [[1160, 620], [860, 620]].forEach(([a, b]) => {
+      g.save(); g.setLineDash([8, 6]); g.beginPath(); g.moveTo(a + 60, 460); g.quadraticCurveTo((a + b) / 2 + 60, 530, b + 60, 460);
+      g.strokeStyle = COL.hl; g.lineWidth = 2.5; g.stroke(); g.restore();
+    });
+    text('✗ không bao giờ quay lại', 960, 560, {size: 26, weight: 700, color: COL.hl, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.6, 0.6), () => {
+    arrow(500, 680, 1420, 680, COL.acc, 4, 18);
+    text('thời gian chỉ đi tới', 960, 720, {size: 28, weight: 700, color: COL.acc, align: 'center'});
+  });
+}
+
+function shotThree(G, t) {
+  const s3 = S('three'), d3 = D('three');
+  heading('Mỗi âm vị 3 trạng thái');
+  const names = ['đầu', 'giữa', 'cuối'];
+  fade(G, P(t, s3 + 0.3, 0.6), () => {
+    [0, 1, 2].forEach(p => {
+      const x0 = 200 + p * 540;
+      text(`âm "${HMM.STATES[p]}"`, x0 + 230, 250, {size: 28, weight: 700, color: HMM.stateCol(p), align: 'center'});
+      [0, 1, 2].forEach(k => {
+        const x = x0 + k * 160;
+        HMM.stateBox(x, 330, p, {loop: true, label: `${HMM.STATES[p]}${k + 1}`, size: 34});
+        text(names[k], x + 60, 450, {size: 22, color: COL.mute, align: 'center'});
+        if (k < 2) arrow(x + 126, 375, x + 154, 375, COL.mute, 2.5, 10);
+        else if (p < 2) arrow(x + 126, 375, x + 214, 375, COL.mute, 2.5, 10);
+      });
+    });
+  });
+  fade(G, P(t, s3 + d3 * 0.5, 0.6), () => {
+    card(400, 520, 1120, 170, {stroke: COL.acc});
+    text('đầu, cuối âm: chịu ảnh hưởng của âm bên cạnh', 440, 580, {size: 26});
+    text('giữa âm: ổn định', 440, 640, {size: 26, weight: 700, color: COL.acc});
+  });
+}
+
+function shotThree2(G, t) {
+  const s = S('three2'), d = D('three2');
+  heading('3 trạng thái: phân bố độ dài gần âm thật hơn');
+  const B = {x: 300, y: 280, w: 1000, h: 420};
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    bars(B, dd => geo(dd, 0.9), 40, 0.11, COL.line2, 1, {alpha: 'ff'});
+    text('1 trạng thái, p = 0,9', 1350, 320, {size: 24, weight: 700, color: COL.mute});
+  });
+  fade(G, P(t, s + d * 0.3, 0.5), () => {
+    const bw = B.w / 40, u = P(t, s + d * 0.3, 1.2);
+    const xs = [], ys = [];
+    for (let dd = 1; dd <= 40; dd++) { xs.push(B.x + (dd - 0.5) * bw); ys.push(B.y + B.h - nb3(dd, 0.7) / 0.11 * B.h); }
+    poly(xs, ys, COL.frame, 5, null, u);
+    text('3 trạng thái, mỗi cái p = 0,7', 1350, 370, {size: 24, weight: 700, color: COL.frame});
+    text('cùng trung bình 10 frame', 1350, 410, {size: 22, color: COL.mute});
+  });
+  fade(G, P(t, s + d * 0.55, 0.5), () => {
+    const bw = B.w / 40;
+    text('ngắn nhất 3 frame = 30 ms', 1350, 490, {size: 24, weight: 700, color: COL.ink});
+    text('đỉnh ở 7 frame, không ở 1', 1350, 530, {size: 24, weight: 700, color: COL.frame});
+    arrow(B.x + 6.5 * bw, B.y + B.h - nb3(7, 0.7) / 0.11 * B.h - 50, B.x + 6.5 * bw, B.y + B.h - nb3(7, 0.7) / 0.11 * B.h - 10, COL.frame, 2.5);
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['vòng tự lặp: mỗi âm dài bao nhiêu frame cũng được', COL.ink],
+   ['trung bình 1 / (1 − p) frame; phân bố hình học', COL.ink],
+   ['trái sang phải: giữ thứ tự m → a → i', COL.ink],
+   ['mỗi âm vị 3 trạng thái: đầu, giữa, cuối', COL.ink]].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text('✓', 420, 290 + j * 84, {size: 34, weight: 700, color: COL.ok});
+      text(a, 470, 290 + j * 84, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 820, 680, 'Phần 4: Viterbi  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 3', [
+  ['vòng tự lặp', 'self-loop', 'ở lại trạng thái với xác suất p'],
+  ['thời lượng trung bình', 'expected duration', '1 / (1 − p) frame'],
+  ['phân bố hình học', 'geometric distribution', '1 frame luôn có khả năng cao nhất'],
+  ['trái sang phải', 'left-to-right (Bakis) HMM', 'không quay lại trạng thái trước'],
+  ['3 trạng thái mỗi âm', '3-state phone model', 'đầu, giữa, cuối âm'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'loop', to: 'loop', draw: shotLoop},
+    {from: 'sample', to: 'fastslow', draw: shotSample},
+    {from: 'mean', to: 'mean', draw: shotMean},
+    {from: 'geo', to: 'geo', draw: shotGeo},
+    {from: 'ltr', to: 'ltr', draw: shotLtr},
+    {from: 'three', to: 'three', draw: shotThree},
+    {from: 'three2', to: 'three2', draw: shotThree2},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/hmm-3-tu-lap.wav');
+</script>
+</body>
+</html>

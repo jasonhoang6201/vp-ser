@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Học ASR và SER cùng lúc · 2: Các thành phần</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/mtl-2-thanh-phan.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Thành phần', '3 Kéo một bộ tham số', '4 SenseVoice', '5 ENT'];
+const INFO = {
+  share: ['encoder chung + hai đầu', 'hard parameter sharing: đầu ASR dùng CTC (trang 10), đầu SER pooling rồi phân loại (trang 19)', COL.acc],
+  loss: ['loss có trọng số', 'L = α · L_ASR + (1 − α) · L_SER | α quyết định ưu tiên việc nào', COL.i],
+  conflict: ['xung đột gradient', 'hai việc kéo tham số chung theo hai hướng ngược nhau | đo bằng cosine giữa hai gradient', COL.hl],
+  fix: ['cách giải quyết xung đột', 'chỉnh α · học hai giai đoạn (ASR trước) · PCGrad · cân loss theo độ bất định', COL.ok],
+  token: ['token chỉ việc', 'thêm token "hãy đoán cảm xúc" vào chuỗi (SenseVoice, Whisper) | phần 4', COL.frame],
+  ent: ['transducer có cảm xúc', 'gắn đoán cảm xúc vào lưới căn của RNN-T (ENT) | phần 5', COL.frame],
+};
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Học ASR và SER cùng lúc', 'Phần 2/5: các thành phần', 1, PARTS);
+
+function shotParts(G, t) {
+  const sp = S('pipe'), cur = Object.keys(INFO).find(id => t >= S(id) && t < E(id) + 0.3);
+  heading('âm thanh → encoder chung → đầu ASR + đầu SER');
+  fade(G, P(t, sp + 0.3, 0.5), () => {
+    chip(G, 150, 334, 'âm thanh', {size: 26, weight: 700});
+    arrow(300, 360, 380, 360, COL.mute, 3);
+    rrect(390, 300, 400, 120, 16, cur === 'share' ? COL.acc + '22' : COL.card, COL.acc, cur === 'share' ? 4 : 2);
+    text('encoder chung', 590, 360, {size: 30, weight: 700, color: COL.acc, align: 'center'});
+    arrow(796, 340, 960, 280, COL.mute, 3); arrow(796, 380, 960, 440, COL.mute, 3);
+    rrect(970, 230, 520, 100, 14, COL.card, COL.acc, 2);
+    text('đầu ASR: CTC, mỗi frame → chữ', 1230, 280, {size: 24, weight: 700, color: COL.acc, align: 'center'});
+    rrect(970, 400, 520, 100, 14, COL.card, COL.frame, 2);
+    text('đầu SER: pooling → lớp cảm xúc', 1230, 450, {size: 24, weight: 700, color: COL.frame, align: 'center'});
+    if (t >= S('loss')) fade(G, P(t, S('loss') + 0.3, 0.4), () => {
+      text('α', 1540, 280, {size: 34, weight: 700, color: COL.i});
+      text('1 − α', 1540, 450, {size: 30, weight: 700, color: COL.i});
+    });
+    if (t >= S('conflict')) fade(G, P(t, S('conflict') + 0.3, 0.4), () => {
+      arrow(500, 440, 420, 500, COL.acc, 4); arrow(680, 440, 760, 500, COL.frame, 4);
+      text('kéo ngược nhau', 590, 530, {size: 22, weight: 700, color: COL.hl, align: 'center'});
+    });
+  });
+  if (cur) fade(G, P(t, S(cur) + 0.3, 0.4), () => {
+    const [h, a, c] = INFO[cur];
+    card(240, 600, 1440, 190, {stroke: c});
+    text(h, 280, 650, {size: 30, weight: 700, color: c});
+    a.split(' | ').forEach((s, j) => text(s, 280, 705 + j * 40, {size: 25, maxW: 1360}));
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  Object.values(INFO).forEach(([l, , c], j) => fade(G, P(t, s + 0.3 + j * 0.5, 0.5), () => {
+    const x = 160 + (j % 3) * 540, y = 280 + Math.floor(j / 3) * 120;
+    rrect(x, y, 500, 90, 14, c + '18', c, 3); text(l, x + 250, y + 45, {size: 26, weight: 700, color: c, align: 'center'});
+  }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 720, 600, 'Phần 3: thử tay hai việc kéo một bộ tham số  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 2', [
+  ['dùng chung encoder, mỗi việc một đầu', 'hard parameter sharing, task head', ''],
+  ['hai việc kéo ngược hướng', 'gradient conflict, negative transfer', 'đo bằng cosine'],
+  ['chiếu bỏ phần xung đột', 'PCGrad', ''],
+  ['vector câu hỏi thêm vào đầu chuỗi', 'task embedding, task token', 'SenseVoice'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'pipe', to: 'ent', draw: shotParts},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/mtl-2-thanh-phan.wav');
+</script>
+</body>
+</html>

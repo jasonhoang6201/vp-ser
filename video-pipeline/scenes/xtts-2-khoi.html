@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>XTTS · 2: Bốn khối</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/xtts-2-khoi.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn khối', '3 Lượng tử hóa', '4 Nhiệt độ', '5 Nhân bản giọng'];
+// [segment id, label, colour, x, y, w]
+const BLK = [
+  ['spk', 'điều kiện giọng (Perceiver Resampler)', COL.i, 260, 240, 300],
+  ['gpt', 'GPT-2 (decoder-only)', COL.acc, 700, 240, 340],
+  ['dec', 'decoder HiFi-GAN', COL.frame, 1180, 240, 300],
+  ['tok', 'bộ token hóa (VQ-VAE): Mel → mã', COL.ok, 700, 480, 340],
+];
+const INFO = {
+  tok: ['khối 1 · bộ token hóa âm thanh', 'nén Mel thành chuỗi mã rời rạc, mỗi mã là số thứ tự trong codebook', 'giống HuBERT (trang 12) nhưng học bằng nén rồi dựng lại'],
+  spk: ['khối 2 · điều kiện giọng', 'Mel giọng mẫu → một số cố định vector: giọng, cách nói, chất âm', 'nói bằng giọng người lạ'],
+  gpt: ['khối 3 · GPT-2', 'đọc [vector giọng][token chữ], viết tiếp từng token âm thanh', 'học từ dữ liệu khổng lồ, đa dạng'],
+  dec: ['khối 4 · decoder HiFi-GAN', 'nhận vector ẩn của GPT (không phải mã rời rạc) + vector người nói', 'dựng thẳng sóng âm, bỏ Mel trung gian'],
+};
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('XTTS', 'Phần 2/5: bốn khối', 1, PARTS);
+
+function shotBlocks(G, t) {
+  const sp = S('pipe'), cur = ['tok', 'spk', 'gpt', 'dec'].find(id => t >= S(id) && t < E(id) + 0.3);
+  heading('giọng mẫu → vector giọng + chữ → GPT → HiFi-GAN → sóng âm');
+  fade(G, P(t, sp + 0.3, 0.5), () => {
+    chip(G, 40, 264, 'vài giây mẫu', {size: 22, weight: 700});
+    arrow(210, 290, 252, 290, COL.mute, 2.5);
+    chip(G, 300, 404, 'chữ: "xin chào"', {size: 22, weight: 700});
+    arrow(520, 430, 694, 330, COL.mute, 2.5);
+    arrow(566, 290, 694, 290, COL.mute, 2.5);
+    text('vector giọng', 630, 268, {size: 18, color: COL.i, align: 'center'});
+    arrow(1046, 290, 1174, 290, COL.mute, 2.5);
+    text('vector ẩn', 1110, 268, {size: 18, color: COL.acc, align: 'center'});
+    arrow(1486, 290, 1540, 290, COL.mute, 2.5);
+    chip(G, 1550, 264, 'sóng âm', {size: 22, weight: 700});
+    line(870, 474, 870, 346, COL.ok, 2.5, [7, 6]);
+    text('token âm thanh làm đáp án khi học', 890, 420, {size: 18, color: COL.ok});
+    BLK.forEach(([id, l, c, x, y, w], j) => fade(G, P(t, sp + 0.5 + j * 0.4, 0.4), () => {
+      const on = cur === id;
+      rrect(x, y, w, 100, 16, on ? c + '22' : COL.card, c, on ? 4 : 1.5);
+      text(l, x + w / 2, y + 50, {size: 22, weight: 700, color: c, align: 'center', maxW: w - 20});
+    }));
+  });
+  if (cur) fade(G, P(t, S(cur) + 0.3, 0.4), () => {
+    const [h, a, b] = INFO[cur], c = BLK.find(r => r[0] === cur)[2];
+    card(240, 630, 1440, 190, {stroke: c});
+    text(h, 280, 675, {size: 28, weight: 700, color: c});
+    text(a, 280, 730, {size: 25, maxW: 1360});
+    text('→ ' + b, 280, 785, {size: 25, weight: 700, color: COL.ok, maxW: 1360});
+  });
+}
+
+function shotTrain(G, t) {
+  const s = S('train'), sl = S('lang'), dl = D('lang');
+  heading(t < sl ? 'Khi học: mẫu và đoạn cần nói cùng một người' : 'Ngôn ngữ');
+  if (t < sl) {
+    fade(G, P(t, s + 0.3, 0.5), () => {
+      [['người A', COL.i, 300], ['người B', COL.frame, 560]].forEach(([l, c, y]) => {
+        text(l, 240, y + 23, {size: 26, weight: 700, color: c});
+        rrect(400, y, 300, 46, 8, c + '44', c, 2);
+        text('đoạn mẫu', 550, y + 23, {size: 20, color: c, align: 'center'});
+        rrect(720, y, 160, 46, 8, COL.soft, COL.line2, 1.5);
+        text('chữ', 800, y + 23, {size: 20, color: COL.mute, align: 'center'});
+        for (let k = 0; k < 10; k++) rrect(900 + k * 54, y, 46, 46, 8, c);
+        text('GPT phải viết: vẫn ' + l, 1170, y + 80, {size: 22, weight: 700, color: c, align: 'center'});
+      });
+    });
+    fade(G, P(t, s + D('train') * 0.6, 0.5), () => text('học được: "viết tiếp sao cho giống người trong đoạn mở đầu"', 960, 760, {size: 28, weight: 700, color: COL.ok, align: 'center'}));
+    return;
+  }
+  fade(G, P(t, sl + 0.3, 0.5), () => {
+    text('16', 700, 400, {size: 120, weight: 700, color: COL.acc, align: 'center'});
+    text('ngôn ngữ (bài báo)', 700, 490, {size: 28, align: 'center'});
+    text('+ Hindi', 1120, 400, {size: 60, weight: 700, color: COL.frame, align: 'center'});
+    text('bản XTTS-v2 công khai', 1120, 490, {size: 28, align: 'center'});
+  });
+  fade(G, P(t, sl + dl * 0.5, 0.5), () => text('tiếng Việt: không có chính thức, cộng đồng có bản tinh chỉnh', 960, 640, {size: 28, weight: 700, color: COL.hl, align: 'center'}));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  BLK.slice().sort((a, b) => ['tok', 'spk', 'gpt', 'dec'].indexOf(a[0]) - ['tok', 'spk', 'gpt', 'dec'].indexOf(b[0])).forEach(([id, l, c], j) =>
+    fade(G, P(t, s + 0.3 + j * 0.7, 0.5), () => {
+      const x = 180 + j * 400; rrect(x, 320, 360, 110, 14, c + '18', c, 3); text(l, x + 180, 375, {size: 22, weight: 700, color: c, align: 'center', maxW: 330});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 740, 600, 'Phần 3: đổi frame thành mã số  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 2', [
+  ['đổi âm thanh thành mã rời rạc', 'audio tokenizer, VQ-VAE, neural codec', ''],
+  ['bảng các mã', 'codebook', 'vài nghìn mã'],
+  ['Transformer chỉ có phần viết tiếp', 'decoder-only Transformer (GPT)', ''],
+  ['nén mẫu thành số vector cố định', 'Perceiver Resampler', 'mẫu dài hay ngắn đều được'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'pipe', to: 'dec', draw: shotBlocks},
+    {from: 'train', to: 'lang', draw: shotTrain},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/xtts-2-khoi.wav');
+</script>
+</body>
+</html>

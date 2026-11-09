@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>CTC 3: Trống và rút gọn</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../lib/nn.js"></script>
+<script src="../lib/ctc.js"></script>
+<script src="../build/ctc-3-blank.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn thành phần', '3 Trống, rút gọn', '4 Loss cộng mọi cách căn', '5 Giải mã'];
+const RAW = '--hh-e--ll-ll-ooo--', W = 60;
+const centred = (s, w = W) => 960 - s.length * w / 2;
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('CTC', 'Phần 3/5: ký hiệu trống và quy tắc rút gọn', 2, PARTS);
+
+function shotRule(G, t) {
+  const sf = S('frames'), s1 = S('step1'), d1 = D('step1'), s2 = S('step2');
+  heading('Quy tắc rút gọn');
+  fade(G, P(t, sf + 0.3, 0.5), () => {
+    text('19 frame', centred(RAW) - 20, 286, {size: 22, color: COL.mute, align: 'right'});
+    CTC.row(centred(RAW), 260, RAW, {w: W, upto: P(t, sf + 0.5, 2)});
+  });
+  const c1 = CTC.collapse(RAW);
+  fade(G, P(t, s1 + 0.3, 0.5), () => {
+    // Runs of the same symbol bracketed under the frame row before they merge.
+    let k = 0;
+    while (k < RAW.length) {
+      let j = k; while (j + 1 < RAW.length && RAW[j + 1] === RAW[k]) j++;
+      if (j > k) line(centred(RAW) + k * W + 4, 330, centred(RAW) + (j + 1) * W - 8, 330, COL.frame, 4);
+      k = j + 1;
+    }
+    text('bước 1: gộp lặp liền nhau', centred(c1) - 20, 426, {size: 22, weight: 700, color: COL.frame, align: 'right'});
+    CTC.row(centred(c1), 400, c1, {w: W, upto: P(t, s1 + d1 * 0.4, 1)});
+  });
+  fade(G, P(t, s2 + 0.3, 0.5), () => {
+    const out = CTC.reduce(RAW);
+    text('bước 2: xóa trống', centred(out) - 20, 566, {size: 22, weight: 700, color: COL.ok, align: 'right'});
+    CTC.row(centred(out), 540, out, {w: W, color: COL.ok});
+    text('"hello"', 960, 680, {size: 44, weight: 700, color: COL.ok, align: 'center'});
+  });
+}
+
+function shotLoop(G, t) {
+  const s = S('loop'), d = D('loop');
+  heading('Bước 1 cho phép chữ kéo dài');
+  ['a', 'aaa', 'aaaaaa'].forEach((x, j) => fade(G, P(t, s + 0.4 + j * 0.6, 0.5), () => {
+    const y = 290 + j * 110;
+    CTC.row(500, y, x, {w: W});
+    arrow(500 + 6 * W + 30, y + 26, 500 + 6 * W + 110, y + 26, COL.mute, 3);
+    CTC.row(500 + 6 * W + 130, y, 'a', {w: W, color: COL.ok});
+  }));
+  fade(G, P(t, s + d * 0.55, 0.5), () => text('giống vòng tự lặp của HMM', 960, 680, {size: 30, weight: 700, color: COL.acc, align: 'center'}));
+}
+
+function pair(G, t, s0, y, a, note, good) {
+  fade(G, P(t, s0, 0.5), () => {
+    CTC.row(300, y, a, {w: W});
+    arrow(300 + a.length * W + 30, y + 26, 300 + a.length * W + 110, y + 26, COL.mute, 3);
+    const out = CTC.reduce(a);
+    CTC.row(300 + a.length * W + 130, y, out, {w: W, color: good ? COL.ok : COL.hl});
+    text(note, 300 + a.length * W + 150 + out.length * W, y + 26, {size: 24, weight: 700, color: good ? COL.ok : COL.hl});
+  });
+}
+
+function shotSep(G, t) {
+  const ss = S('sep'), ds = D('sep'), sn = S('nosep'), dn = D('nosep');
+  heading('Trống ngăn cách hai chữ giống nhau');
+  pair(G, t, ss + 0.4, 270, 'll-ll', '2 chữ l', true);
+  pair(G, t, ss + ds * 0.5, 370, 'llll', 'chỉ 1 chữ l', false);
+  fade(G, P(t, sn + 0.3, 0.5), () => text('không có trống giữa hai "l":', 300, 510, {size: 26, color: COL.mute}));
+  pair(G, t, sn + 0.6, 550, 'hhellloo', '≠ "hello"', false);
+  pair(G, t, sn + dn * 0.55, 650, 'hhel-loo', '✓', true);
+}
+
+function shotSilence(G, t) {
+  const s = S('silence'), d = D('silence');
+  heading('Trống lấp các frame không nói');
+  const x = '-----mm---aaa----i------';
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    CTC.row(centred(x, 56), 330, x, {w: 56});
+    [['khoảng lặng', 0, 5], ['chuyển âm', 7, 10], ['hơi thở', 18, 24]].forEach(([l, a, b], j) => fade(G, P(t, s + 1 + j * d * 0.2, 0.5), () => {
+      const x0 = centred(x, 56);
+      line(x0 + a * 56, 400, x0 + b * 56 - 6, 400, COL.mute, 3);
+      text(l, x0 + (a + b) / 2 * 56, 430, {size: 24, weight: 700, color: COL.mute, align: 'center'});
+    }));
+  });
+}
+
+function shotSpike(G, t) {
+  const s = S('spike'), d = D('spike');
+  heading('Sau khi học: các đỉnh nhọn (spike)');
+  const P0 = CTC.post(0.8, 2), x0 = 360, cw = 40, B = {y: 300, h: 360};
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    line(x0, B.y + B.h, x0 + 30 * cw, B.y + B.h, COL.line2, 2);
+    const cols = {m: COL.ok, a: COL.acc, i: COL.i};
+    const tops = [];
+    ['m', 'a', 'i'].forEach(ch => {
+      const k = CTC.SYM.indexOf(ch), xs = P0.map((_, f) => x0 + (f + 0.5) * cw), ys = P0.map(p => B.y + B.h - p[k] * B.h);
+      poly(xs, ys, cols[ch], 4, null, P(t, s + 0.5, 1.5));
+      const fm = P0.reduce((b, p, f) => (p[k] > P0[b][k] ? f : b), 0);
+      tops.push([ch, xs[fm], ys[fm], cols[ch]]);
+    });
+    const kb = 0, xs = P0.map((_, f) => x0 + (f + 0.5) * cw), ys = P0.map(p => B.y + B.h - p[kb] * B.h);
+    poly(xs, ys, COL.line2, 3, [6, 5], P(t, s + 0.5, 1.5));
+    fade(G, P(t, s + 2, 0.5), () => {
+      tops.forEach(([ch, x, y, c]) => text(ch, x, y - 24, {size: 30, weight: 700, color: c, align: 'center'}));
+      text('trống', x0 + 30 * cw + 20, ys[29], {size: 22, color: COL.mute});
+      text('frame →', x0 + 30 * cw, B.y + B.h + 30, {size: 20, color: COL.mute, align: 'right'});
+      text('xác suất', x0, B.y - 20, {size: 20, color: COL.mute});
+    });
+  });
+  fade(G, P(t, s + d * 0.6, 0.5), () => text('mỗi chữ chỉ hiện ở 1–2 frame, xung quanh là trống', 960, 760, {size: 28, weight: 700, color: COL.acc, align: 'center'}));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['rút gọn = gộp lặp liền nhau, rồi xóa trống'], ['gộp: chữ kéo dài bao nhiêu frame cũng được'], ['trống: ngăn chữ trùng, lấp frame không nói'], ['sau khi học: đỉnh nhọn']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text('✓', 420, 290 + j * 84, {size: 34, weight: 700, color: COL.ok});
+      text(a, 470, 290 + j * 84, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 720, 680, 'Phần 4: nhiều chuỗi frame cho cùng một câu  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 3', [
+  ['ký hiệu "không ra chữ"', 'blank', 'viết "−" hoặc ε'],
+  ['gộp lặp rồi xóa trống', 'collapse, hàm B', 'nhiều chuỗi frame → một câu'],
+  ['một chuỗi frame cụ thể', 'đường căn (alignment, path)', 'một ký hiệu mỗi frame'],
+  ['đỉnh nhọn', 'spike (peaky behavior)', 'chữ chỉ ở 1–2 frame'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'frames', to: 'step2', draw: shotRule},
+    {from: 'loop', to: 'loop', draw: shotLoop},
+    {from: 'sep', to: 'nosep', draw: shotSep},
+    {from: 'silence', to: 'silence', draw: shotSilence},
+    {from: 'spike', to: 'spike', draw: shotSpike},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/ctc-3-blank.wav');
+</script>
+</body>
+</html>

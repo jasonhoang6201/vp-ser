@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Đánh giá cho đúng</title>
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="pn"></nav>
+<h1>Đánh giá cho đúng: những bẫy làm con số đẹp hơn sự thật</h1>
+<p class="sub">Trang cuối của nhánh SER. Biết mô hình rồi, câu hỏi còn lại là: <b>con số báo ra có tin được không</b>, và có so sánh được với số của người khác không.</p>
+
+<section>
+<h2><span class="n">1</span>Vấn đề: cùng một mô hình, có thể báo ra nhiều con số khác nhau</h2>
+<div class="tablewrap"><table>
+<tr><th>Bẫy</th><th>Làm số sai thế nào</th><th>Ở mục</th></tr>
+<tr><td>chọn epoch (hay tham số) dựa trên <b>test</b></td><td>lấy điểm cao nhất trong nhiều lần thử: may mắn bị tính là giỏi</td><td>3</td></tr>
+<tr><td>chỉ chạy <b>một seed</b>, test nhỏ</td><td>chênh 1 đến 2 điểm có thể chỉ là ngẫu nhiên</td><td>4</td></tr>
+<tr><td><b>rò rỉ dữ liệu</b> (data leakage)</td><td>mô hình học sẵn đã thấy chính bộ test, nên điểm zero-shot cao bất thường</td><td>5</td></tr>
+<tr><td>chuẩn hóa chữ khác nhau khi tính WER</td><td>"Mr. Smith" so với "mister smith" bị tính là lỗi hay không, tùy cách chuẩn hóa</td><td>6</td></tr>
+<tr><td>người nói ở test cũng có trong train</td><td>mô hình nhận ra giọng thay vì cảm xúc (trang 18)</td><td>2</td></tr>
+<tr><td>chỉ báo WA trên dữ liệu lệch</td><td>đoán lớp đông cũng được điểm cao (trang 18)</td><td>2</td></tr>
+</table></div>
+<div class="note blue"><b>Mục tiêu:</b> một bộ quy tắc để con số <b>phản ánh đúng</b> khả năng của mô hình trên dữ liệu chưa thấy, và so sánh được giữa các hệ.</div>
+</section>
+
+<section>
+<h2><span class="n">2</span>Bộ quy tắc</h2>
+<div class="tablewrap"><table>
+<tr><th>Quy tắc</th><th>Cụ thể</th></tr>
+<tr><td><b>ba tập tách biệt</b></td><td>train để học; <b>dev</b> để chọn epoch, siêu tham số, ngưỡng; <b>test</b> chỉ chạm một lần ở cuối. Bộ nào không có dev thì tách một phần train ra làm dev</td></tr>
+<tr><td><b>tách theo người nói</b></td><td>IEMOCAP: test một phiên, train các phiên còn lại (lặp 5 lần nếu làm đủ leave-one-session-out)</td></tr>
+<tr><td><b>nhiều seed</b></td><td>chạy 3 đến 5 seed, báo trung bình ± độ lệch chuẩn</td></tr>
+<tr><td><b>đủ thước đo</b></td><td>SER: WA, UA, macro-F1 (MELD hay dùng thêm weighted-F1). ASR: WER với cùng một cách chuẩn hóa</td></tr>
+<tr><td><b>kiểm tra rò rỉ</b></td><td>đọc mô hình học sẵn đã huấn luyện trên dữ liệu gì; nghi ngờ thì ghi chú, hoặc so trên một bộ chắc chắn chưa thấy</td></tr>
+<tr><td><b>báo cách làm</b></td><td>câu lệnh (với audio-LLM), luật đọc nhãn, câu bị loại và lý do</td></tr>
+</table></div>
+</section>
+
+<section>
+<h2><span class="n">3</span>Chọn epoch trên test làm số đẹp lên bao nhiêu</h2>
+<p>Giả sử khả năng thật của mô hình là UA 30. Mỗi epoch, điểm đo trên test dao động ngẫu nhiên quanh 30 (vì test có hạn và quá trình học có nhiễu). Có hai cách báo: điểm của <b>epoch cuối</b> (hoặc epoch chọn theo dev), và điểm <b>cao nhất trên test</b> qua các epoch.</p>
+<div class="ctrl">
+  <span class="grp">Số epoch <input type="range" id="ep" min="1" max="30" step="1" value="10"> <b id="epv"></b></span>
+  <span class="grp">Độ dao động mỗi epoch (độ lệch chuẩn) <input type="range" id="sd" min="0.2" max="3" step="0.1" value="1.2"> <b id="sdv"></b></span>
+  <button id="re3">Chạy lại</button>
+</div>
+<div class="fig"><canvas id="c3"></canvas></div>
+<div class="readout" id="r3"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Lấy max trên test luôn cao hơn khả năng thật, và càng nhiều epoch (càng nhiều lần "thử vận may") thì càng cao.
+<br>• Chọn trên dev thì không bị thổi phồng như vậy, vì dev và test dao động độc lập.
+<br>• Trong thực tế, các epoch còn khác nhau thật sự (mô hình tốt dần rồi học thuộc), nên chọn epoch là cần thiết. Chỉ là phải chọn bằng <b>dev</b>.</div>
+</section>
+
+<section>
+<h2><span class="n">4</span>Chênh bao nhiêu thì đáng tin</h2>
+<p>Với n câu test và độ chính xác p, khoảng tin cậy 95% xấp xỉ <span class="mono">p ± 1,96 × √(p(1−p)/n)</span>. (Với UA thì mỗi lớp có ít câu hơn n, nên khoảng còn rộng hơn.)</p>
+<div class="ctrl">
+  <span class="grp">Số câu test n <input type="range" id="nn" min="100" max="5000" step="50" value="1200"> <b id="nnv"></b></span>
+  <span class="grp">Độ chính xác <input type="range" id="pp" min="0.2" max="0.9" step="0.01" value="0.72"> <b id="ppv"></b></span>
+  <span class="grp">Hệ B hơn hệ A <input type="range" id="dd" min="0" max="8" step="0.1" value="1.5"> <b id="ddv"></b></span>
+</div>
+<div class="fig"><canvas id="c4"></canvas></div>
+<div class="readout" id="r4"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Test khoảng 1 200 câu (cỡ phiên 5 của IEMOCAP, 4 lớp), độ chính xác 72%: khoảng tin cậy rộng khoảng ±2,5 điểm. Hơn nhau 1,5 điểm thì chưa nói được gì.
+<br>• Đây là phần ngẫu nhiên do <b>chọn câu test</b>. Còn một phần nữa do <b>seed</b> (khởi tạo, thứ tự dữ liệu): đo bằng độ lệch chuẩn qua các seed. Hai phần cộng lại.
+<br>• Cách so hai hệ chặt hơn: trên cùng tập test, đếm số câu A đúng mà B sai và ngược lại (McNemar test), hoặc lấy mẫu lại tập test nhiều lần (bootstrap).</div>
+</section>
+
+<section>
+<h2><span class="n">5</span>Rò rỉ dữ liệu</h2>
+<p>Mô hình học sẵn ngày càng được huấn luyện trên "mọi dữ liệu công khai". Nếu bộ test của ta nằm trong số đó, điểm zero-shot sẽ cao bất thường: mô hình <b>nhớ</b> chứ không <b>hiểu</b>.</p>
+<div class="tablewrap"><table>
+<tr><th>Dấu hiệu</th><th>Làm gì</th></tr>
+<tr><td>zero-shot cao hơn hẳn các hệ fine-tune trên chính bộ đó</td><td>đọc tài liệu huấn luyện của mô hình; tìm tên bộ dữ liệu</td></tr>
+<tr><td>mô hình công bố huấn luyện trên một bộ tổng hợp (ví dụ EmoBox gồm nhiều bộ SER công khai)</td><td>kiểm tra bộ tổng hợp đó có chứa bộ test của ta không</td></tr>
+<tr><td>không chắc chắn</td><td>ghi rõ "có thể rò rỉ", không dùng con số đó để kết luận; nếu được thì kiểm tra trên một bộ mới hơn mô hình</td></tr>
+</table></div>
+</section>
+
+<section>
+<h2><span class="n">6</span>WER phụ thuộc cách chuẩn hóa</h2>
+<div class="ctrl">
+  <span class="grp">Câu đúng <input type="text" id="ref" value="Mr. Smith has 2 cats, doesn't he?"></span>
+  <span class="grp">Câu ASR <input type="text" id="hyp" value="mister smith has two cats doesn't he"></span>
+</div>
+<div class="readout" id="r6"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Không chuẩn hóa: dấu câu, chữ hoa, cách viết số đều bị tính là lỗi, dù nghe hoàn toàn đúng.
+<br>• Chuẩn hóa ở đây chỉ là bản rút gọn (chữ thường, bỏ dấu câu, vài số và từ viết tắt). Bộ chuẩn hóa tiếng Anh của Whisper làm kỹ hơn nhiều, và là lựa chọn phổ biến để so sánh giữa các hệ.
+<br>• Quy tắc: dùng <b>cùng một</b> bộ chuẩn hóa cho mọi hệ, áp cho cả câu đúng lẫn câu ASR, và ghi rõ trong báo cáo. Số WER do code của một bài báo tự tính bằng cách khác thì không so trực tiếp được.</div>
+</section>
+
+<section>
+<h2>Tóm tắt</h2>
+<ul>
+<li>Chọn mọi thứ trên dev, chạm test một lần. Tách theo người nói.</li>
+<li>Nhiều seed, báo trung bình ± độ lệch chuẩn; chênh nhỏ hơn khoảng tin cậy thì chưa kết luận.</li>
+<li>Nghi ngờ rò rỉ khi zero-shot cao bất thường. Cùng một bộ chuẩn hóa cho WER.</li>
+</ul>
+<h3>Thuật ngữ mới</h3>
+<div class="tablewrap"><table>
+<tr><th>Nói thường</th><th>Thuật ngữ</th></tr>
+<tr><td>tập để chọn mô hình</td><td>dev set, validation set</td></tr>
+<tr><td>chọn theo test nên số đẹp giả</td><td>test-set selection bias, overfitting to the test set</td></tr>
+<tr><td>mô hình đã thấy dữ liệu test</td><td>data leakage, contamination</td></tr>
+<tr><td>khoảng mà giá trị thật có thể nằm</td><td>khoảng tin cậy (confidence interval)</td></tr>
+<tr><td>lấy mẫu lại tập test nhiều lần</td><td>bootstrap</td></tr>
+<tr><td>đưa chữ về một dạng chuẩn trước khi so</td><td>text normalization</td></tr>
+</table></div>
+<div class="note exp"><b>Gắn với thực nghiệm:</b> ENT không có tập dev, và code gốc báo <b>max trên test</b> qua các epoch: trên MELD là UA 27.5, so với 26.6 ở epoch cuối. WER của ENT tính bằng chuẩn hóa riêng (56.8) nên không so được với các WER khác (dùng chuẩn hóa Whisper). emotion2vec+ zero-shot trên IEMOCAP đạt UA 86.2, cao hơn mọi hệ fine-tune: gần như chắc chắn rò rỉ, vì bản này học trên EmoBox có chứa IEMOCAP. Notebook 12, 21 chạy 3 đến 5 seed và báo mean ± std.</div>
+</section>
+<nav class="pn"></nav>
+</div>
+<script src="assets/learn.js"></script>
+<script>
+let EP = 10, SD = 1.2, SEED = 1;
+function draw3() {
+  document.getElementById('epv').textContent = EP;
+  document.getElementById('sdv').textContent = r1(SD);
+  const r = rng(SEED), one = Array.from({length: EP}, () => 30 + SD * randn(r));
+  let sMax = 0, sLast = 0, sDev = 0;
+  const M = 2000;
+  for (let m = 0; m < M; m++) {
+    const t = Array.from({length: EP}, () => 30 + SD * randn(r)), d = Array.from({length: EP}, () => 30 + SD * randn(r));
+    sMax += Math.max(...t); sLast += t[EP - 1]; sDev += t[d.indexOf(Math.max(...d))];
+  }
+  const R = setup('c3', 200), g = R.g, B = {l: 50, t: 10, w: R.w - 70, h: 150}, lo = 30 - 3.5 * SD - 0.5, hi = 30 + 3.5 * SD + 0.5;
+  const Y = v => B.t + B.h - (v - lo) / (hi - lo) * B.h, bw = B.w / EP, im = one.indexOf(Math.max(...one));
+  hline(g, B.l, B.l + B.w, Y(30), C.ok);
+  text(g, 'khả năng thật 30', B.l + B.w, Y(30) - 8, C.ok, 'right', true);
+  one.forEach((v, e) => { dot(g, B.l + (e + 0.5) * bw, Y(v), e === im ? 7 : 4, e === im ? C.hl : e === EP - 1 ? C.acc : C.grey, '#fff'); });
+  text(g, `max trên test: ${r1(one[im])}`, B.l + (im + 0.5) * bw, Y(one[im]) - 14, C.hl, 'center', true, true);
+  for (let e = 0; e < EP; e += Math.max(1, Math.round(EP / 10))) text(g, String(e + 1), B.l + (e + 0.5) * bw, B.t + B.h + 14, C.mute, 'center');
+  text(g, 'epoch', B.l + B.w, B.t + B.h + 30, C.mute, 'right');
+  document.getElementById('r3').innerHTML = `Trung bình qua ${M} lần mô phỏng: epoch cuối <b>${r1(sLast / M)}</b>, chọn theo dev <b>${r1(sDev / M)}</b>, max trên test <b style="color:#d44c47">${r1(sMax / M)}</b> (thổi phồng +${r1(sMax / M - 30)} điểm).`;
+}
+['ep', 'sd'].forEach(id => document.getElementById(id).addEventListener('input', e => { if (id === 'ep') EP = +e.target.value; else SD = +e.target.value; draw3(); }));
+document.getElementById('re3').addEventListener('click', () => { SEED++; draw3(); });
+
+let NN = 1200, PP = 0.72, DD = 1.5;
+function draw4() {
+  document.getElementById('nnv').textContent = NN;
+  document.getElementById('ppv').textContent = r0(100 * PP) + '%';
+  document.getElementById('ddv').textContent = '+' + r1(DD) + ' điểm';
+  const half = 196 * Math.sqrt(PP * (1 - PP) / NN), a = 100 * PP, b = a + DD;
+  const R = setup('c4', 120), g = R.g, B = {l: 80, t: 16, w: R.w - 110}, lo = a - 8, hi = a + 14, X = v => B.l + (v - lo) / (hi - lo) * B.w;
+  [[a, 'hệ A', C.acc], [b, 'hệ B', C.frame]].forEach(([v, lab, col], j) => {
+    const y = B.t + 20 + j * 40;
+    box(g, X(v - half), y - 8, X(v + half) - X(v - half), 16, alpha(col, 0.25));
+    dot(g, X(v), y, 5, col);
+    text(g, lab, B.l - 10, y, col, 'right', true);
+  });
+  for (let v = Math.ceil(lo / 2) * 2; v <= hi; v += 2) text(g, String(v), X(v), B.t + 102, C.mute, 'center');
+  const overlap = b - half < a + half;
+  document.getElementById('r4').innerHTML = `Khoảng tin cậy 95%: ±<b>${r1(half)}</b> điểm. ` + (overlap ? 'Hai khoảng <b>chồng nhau</b>: chênh lệch có thể chỉ là ngẫu nhiên.' : 'Hai khoảng <b>tách rời</b>: chênh lệch nhiều khả năng là thật.') +
+    ' <span class="muted">(so hai khoảng chồng nhau là quy tắc thô; McNemar trên cùng tập test chặt hơn)</span>';
+}
+[['nn', v => NN = v], ['pp', v => PP = v], ['dd', v => DD = v]].forEach(([id, f]) => document.getElementById(id).addEventListener('input', e => { f(+e.target.value); draw4(); }));
+
+const NUM = {0: 'zero', 1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six', 7: 'seven', 8: 'eight', 9: 'nine', 10: 'ten'}, ABBR = {mr: 'mister', mrs: 'missus', dr: 'doctor'};
+const norm = s => s.toLowerCase().replace(/[.,!?;:"]/g, ' ').split(/\s+/).filter(Boolean).map(w => NUM[w] || ABBR[w] || w);
+const raw = s => s.split(/\s+/).filter(Boolean);
+function ed(a, b) {
+  const D = Array.from({length: a.length + 1}, (_, i) => Array.from({length: b.length + 1}, (_, j) => i === 0 ? j : j === 0 ? i : 0));
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) D[i][j] = Math.min(D[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1), D[i - 1][j] + 1, D[i][j - 1] + 1);
+  return D[a.length][b.length];
+}
+function draw6() {
+  const ref = document.getElementById('ref').value, hyp = document.getElementById('hyp').value;
+  const r1w = raw(ref), h1 = raw(hyp), r2w = norm(ref), h2 = norm(hyp);
+  const w1 = r1w.length ? ed(r1w, h1) / r1w.length : 0, w2 = r2w.length ? ed(r2w, h2) / r2w.length : 0;
+  document.getElementById('r6').innerHTML = `Không chuẩn hóa: WER = <b>${r0(100 * w1)}%</b>. &nbsp; Sau chuẩn hóa (<span class="mono">${r2w.join(' ')}</span> so với <span class="mono">${h2.join(' ')}</span>): WER = <b>${r0(100 * w2)}%</b>.`;
+}
+['ref', 'hyp'].forEach(id => document.getElementById(id).addEventListener('input', draw6));
+function drawAll() { draw3(); draw4(); draw6(); }
+drawAll();
+onResize(drawAll);
+</script>
+</body>
+</html>

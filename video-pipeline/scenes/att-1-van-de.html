@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Attention 1: Vấn đề</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/att-1-van-de.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn thành phần', '3 Query, key, value', '4 Decoder viết từng chữ', '5 Transformer, Conformer'];
+
+function painCard(j, title) {
+  const x = [180, 980][j % 2], y = [220, 545][j >> 1];
+  card(x, y, 760, 290, {stroke: COL.hl});
+  text(title, x + 30, y + 44, {size: 28, weight: 700, color: COL.hl});
+  return {x, y};
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Attention', 'Phần 1/5: CTC không nhìn những chữ đã viết', 0, PARTS);
+
+function shotRecap(G, t) {
+  const s = S('recap'), d = D('recap');
+  heading('Trang trước: CTC');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    for (let k = 0; k < 10; k++) {
+      const x = 360 + k * 122;
+      rrect(x, 330, 96, 60, 10, COL.accSoft, COL.acc, 2);
+      text(`frame ${k + 1}`, x + 48, 360, {size: 20, color: COL.acc, align: 'center'});
+      arrow(x + 48, 400, x + 48, 460, COL.acc, 2.5);
+      rrect(x + 18, 470, 60, 56, 8, COL.card, COL.line2, 2);
+      text('?', x + 48, 498, {size: 26, weight: 700, color: COL.mute, align: 'center'});
+    }
+  });
+  fade(G, P(t, s + d * 0.5, 0.5), () => text('mỗi frame quyết định riêng rẽ', 960, 620, {size: 30, weight: 700, color: COL.hl, align: 'center'}));
+}
+
+function shotPains(G, t) {
+  const ids = ['p1', 'p2', 'p3', 'p4'];
+  heading('Bốn vấn đề');
+  fade(G, P(t, S('p1') + 0.3, 0.5), () => {
+    const {x, y} = painCard(0, '1. mỗi frame đoán độc lập');
+    ['n', 'ng', 'n', 'ngh'].forEach((c, k) => chip(G, x + 30 + k * 130, y + 100, c, {size: 28, weight: 700, color: COL.frame, stroke: COL.frame}));
+    text('cùng âm "ngh", mỗi frame một ý', x + 30, y + 220, {size: 24});
+  });
+  fade(G, P(t, S('p2') + 0.3, 0.5), () => {
+    const {x, y} = painCard(1, '2. không dùng được chữ đã viết');
+    chip(G, x + 30, y + 100, 'trời', {size: 30, weight: 700});
+    arrow(x + 150, y + 126, x + 230, y + 126, COL.mute, 3);
+    chip(G, x + 240, y + 100, 'mưa ?', {size: 30, weight: 700, color: COL.ok, stroke: COL.ok});
+    text('CTC không biết mình đã viết "trời"', x + 30, y + 220, {size: 24});
+  });
+  fade(G, P(t, S('p3') + 0.3, 0.5), () => {
+    const {x, y} = painCard(2, '3. phải ghép LM bên ngoài');
+    chip(G, x + 30, y + 100, 'CTC', {size: 28, weight: 700});
+    text('+', x + 150, y + 126, {size: 32, weight: 700, color: COL.mute});
+    chip(G, x + 190, y + 100, 'LM ngoài', {size: 28, weight: 700, color: COL.i, stroke: COL.i});
+    text('+ λ', x + 360, y + 126, {size: 28, weight: 700, color: COL.mute});
+    text('thêm một thành phần rời, thêm trọng số để chỉnh', x + 30, y + 220, {size: 24});
+  });
+  fade(G, P(t, S('p4') + 0.3, 0.5), () => {
+    const {x, y} = painCard(3, '4. đọc tuần tự (RNN): chậm, khó nhớ xa');
+    for (let k = 0; k < 12; k++) {
+      rrect(x + 30 + k * 56, y + 100, 40, 40, 6, COL.accSoft, COL.acc, 1.5);
+      if (k < 11) arrow(x + 72 + k * 56, y + 120, x + 84 + k * 56, y + 120, COL.acc, 2, 6);
+    }
+    text('frame 10', x + 50, y + 170, {size: 20, color: COL.mute, align: 'center'});
+    text('frame 300', x + 30 + 11 * 56 + 20, y + 170, {size: 20, color: COL.mute, align: 'center'});
+    text('tính lần lượt; tin ở đầu phai dần', x + 30, y + 230, {size: 24});
+  });
+}
+
+function shotGoal(G, t) {
+  const sg = S('goal'), dg = D('goal'), st = S('three');
+  heading('Mục tiêu');
+  [['viết từng chữ, dựa trên chữ đã viết', 'vấn đề 1, 2, 3'], ['mỗi chữ nhìn đúng đoạn âm thanh cần thiết', ''], ['mọi frame trao đổi thông tin cùng lúc', 'vấn đề 4']].forEach(([a, b], j) =>
+    fade(G, P(t, sg + 0.5 + j * dg * 0.25, 0.5), () => {
+      text('✓', 360, 270 + j * 76, {size: 34, weight: 700, color: COL.ok});
+      text(a, 410, 270 + j * 76, {size: 32});
+      text(b, 1480, 270 + j * 76, {size: 24, color: COL.mute});
+    }));
+  fade(G, P(t, st + 0.3, 0.5), () => {
+    const X = y => 360 + (y - 2014) / 7 * 1200, Y0 = 620;
+    line(300, Y0, 1640, Y0, COL.line2, 3);
+    [[2015, 'encoder-decoder + attention'], [2017, 'Transformer'], [2020, 'Conformer']].forEach(([y, l], j) => fade(G, P(t, st + 0.5 + j * 0.8, 0.5), () => {
+      Clip.g.beginPath(); Clip.g.arc(X(y), Y0, 10, 0, Math.PI * 2); Clip.g.fillStyle = COL.acc; Clip.g.fill();
+      text(`~${y}`, X(y), Y0 + 40, {size: 24, weight: 700, color: COL.acc, align: 'center'});
+      text(l, X(y), Y0 - 34, {size: 28, weight: 700, align: 'center'});
+    }));
+  });
+}
+
+function shotHuman(G, t) {
+  const s = S('human'), d = D('human');
+  heading('Giống người chép chính tả');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    for (let k = 0; k < 40; k++) rrect(360 + k * 30, 320, 24, 100, 3, COL.acc + '66');
+    text('nghe cả câu', 960, 460, {size: 26, color: COL.mute, align: 'center'});
+  });
+  const word = ['x', 'i', 'n', ' ', 'c', 'h', 'à', 'o'], n = Math.ceil(word.length * P(t, s + 1.2, d * 0.6));
+  word.slice(0, n).forEach((c, k) => {
+    const on = k === n - 1;
+    rrect(560 + k * 100, 560, 80, 80, 12, on ? COL.frameSoft : COL.card, on ? COL.frame : COL.line2, on ? 3 : 1.5);
+    text(c === ' ' ? '␣' : c, 600 + k * 100, 600, {size: 36, weight: 700, color: on ? COL.frame : COL.ink, align: 'center'});
+    if (on) { const fx = 360 + Math.round(4 + k * 4.5) * 30; rrect(fx - 4, 312, 5 * 30 + 4, 116, 8, null, COL.frame, 3); }
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['CTC: mỗi frame đoán độc lập'], ['không biết chữ đã viết, cần LM ngoài'], ['RNN: chậm, khó nhớ xa']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text('✗', 460, 300 + j * 84, {size: 34, weight: 700, color: COL.hl});
+      text(a, 510, 300 + j * 84, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 800, 640, 'Phần 2: bốn thành phần  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 1', [
+  ['mạng đọc tuần tự', 'RNN (Recurrent Neural Network)', 'chậm, khó nhớ xa'],
+  ['phần đọc âm thanh / phần viết chữ', 'encoder / decoder', ''],
+  ['cơ chế chọn chỗ để nhìn', 'attention', 'Bahdanau 2014; ASR từ 2015'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'recap', to: 'recap', draw: shotRecap},
+    {from: 'p1', to: 'p4', draw: shotPains},
+    {from: 'goal', to: 'three', draw: shotGoal},
+    {from: 'human', to: 'human', draw: shotHuman},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/att-1-van-de.wav');
+</script>
+</body>
+</html>

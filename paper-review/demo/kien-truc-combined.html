@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kiến trúc model kết hợp (notebook 21)</title>
+<link rel="stylesheet" href="assets/learn.css">
+<style>
+svg text { font-family: Inter, system-ui, sans-serif; }
+.fig svg { width: 100%; height: auto; }
+td.c { text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<p class="muted"><a href="ent-joint-network.html">← Joint network trong ENT</a> · trang phụ, giải thích thực nghiệm của bạn</p>
+<h1>Model kết hợp của bạn (notebook 21) trông thế nào?</h1>
+<p class="sub">Bạn hỏi: "asr_ctx_wavlm, asr_wavlm... là kiến trúc gì?" Thật ra chúng là <b>một</b> kiến trúc. Mỗi tên chỉ là một cách bật hoặc tắt vài khối trong đó. Trang này vẽ bản đầy đủ trước, rồi đi vào từng khối.</p>
+
+<section>
+<h2><span class="n">1</span>Vấn đề: mỗi nguồn thiếu một thứ</h2>
+<div class="tablewrap"><table>
+<tr><th>Nguồn</th><th>Mạnh ở</th><th>Thiếu</th></tr>
+<tr><td><b>chữ</b> của câu đang nói</td><td>nội dung: "tôi chán lắm" thì đọc là biết</td><td>câu ngắn hoặc trung tính về chữ ("ừ", "được thôi") thì không đoán được</td></tr>
+<tr><td><b>ngữ cảnh</b> (mấy câu trước)</td><td>biết cuộc nói chuyện đang căng hay vui</td><td>không biết câu hiện tại nói với giọng thế nào</td></tr>
+<tr><td><b>giọng</b> (audio)</td><td>cao độ, năng lượng, tốc độ: nói <i>thế nào</i></td><td>không hiểu nội dung</td></tr>
+</table></div>
+<p>Ý tưởng của model: lấy cả ba nguồn, rồi để model <b>tự quyết định</b> tin nguồn nào nhiều hơn ở từng câu.</p>
+</section>
+
+<section>
+<h2><span class="n">2</span>Bức tranh lớn: hai giai đoạn</h2>
+<div class="fig">
+<svg viewBox="0 0 900 300" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="m1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#787774"/></marker></defs>
+<g font-size="13" fill="#37352f">
+<rect x="112" y="24" width="338" height="130" rx="8" fill="#f7f6f3" stroke="#9b9a97" stroke-dasharray="5 4"/>
+<text x="120" y="18" font-size="12" font-weight="600" fill="#787774">GIAI ĐOẠN 1: ASR, chạy trước một lần, lưu transcript ra file</text>
+<rect x="465" y="24" width="430" height="266" rx="8" fill="none" stroke="#9b9a97" stroke-dasharray="5 4"/>
+<text x="473" y="18" font-size="12" font-weight="600" fill="#787774">GIAI ĐOẠN 2: SER, phần được train trong notebook 21</text>
+
+<rect x="10" y="130" width="85" height="40" rx="6" fill="#fff" stroke="#9b9a97"/><text x="52" y="154" text-anchor="middle">âm thanh</text>
+<polyline points="95,150 104,150 104,60 118,60" fill="none" stroke="#787774" marker-end="url(#m1)"/>
+<polyline points="104,150 104,240 118,240" fill="none" stroke="#787774" marker-end="url(#m1)"/>
+
+<rect x="120" y="40" width="160" height="40" rx="6" fill="#fff" stroke="#9b9a97"/><text x="200" y="58" text-anchor="middle">SenseVoice-Small</text><text x="200" y="73" text-anchor="middle" font-size="11" fill="#787774">fine-tune (notebook 10)</text>
+<line x1="280" y1="60" x2="298" y2="60" stroke="#787774" marker-end="url(#m1)"/>
+<rect x="300" y="40" width="140" height="40" rx="6" fill="#fbecdd" stroke="#d9730d"/><text x="370" y="58" text-anchor="middle">chữ câu hiện tại</text><text x="370" y="73" text-anchor="middle" font-size="11" fill="#787774">WER ≈ 10</text>
+<rect x="300" y="98" width="140" height="40" rx="6" fill="#fdf5ec" stroke="#d9730d" stroke-dasharray="3 3"/><text x="370" y="116" text-anchor="middle">3 lượt nói trước</text><text x="370" y="131" text-anchor="middle" font-size="11" fill="#787774">cũng là chữ của ASR</text>
+
+<line x1="440" y1="60" x2="478" y2="60" stroke="#787774" marker-end="url(#m1)"/>
+<polyline points="440,118 458,118 458,88 478,88" fill="none" stroke="#787774" marker-end="url(#m1)"/>
+<rect x="480" y="40" width="170" height="60" rx="6" fill="#fbecdd" stroke="#d9730d"/><text x="565" y="64" text-anchor="middle" font-weight="600">RoBERTa-large</text><text x="565" y="82" text-anchor="middle" font-size="11" fill="#787774">được fine-tune</text>
+
+<rect x="120" y="220" width="320" height="40" rx="6" fill="#e7f0f6" stroke="#337ea9"/><text x="280" y="238" text-anchor="middle" font-weight="600">WavLM-large</text><text x="280" y="253" text-anchor="middle" font-size="11" fill="#787774">đóng băng, tính sẵn một lần rồi lưu cache</text>
+<line x1="440" y1="240" x2="478" y2="240" stroke="#787774" marker-end="url(#m1)"/>
+<rect x="480" y="210" width="170" height="60" rx="6" fill="#e7f0f6" stroke="#337ea9"/><text x="565" y="234" text-anchor="middle">trộn 25 layer</text><text x="565" y="252" text-anchor="middle" font-size="11" fill="#787774">+ Linear, tanh (được train)</text>
+
+<polyline points="650,70 680,70 680,135 698,135" fill="none" stroke="#d9730d" stroke-width="1.5" marker-end="url(#m1)"/>
+<text x="656" y="62" font-size="12" fill="#d9730d" font-weight="600">h_text</text>
+<polyline points="650,240 680,240 680,165 698,165" fill="none" stroke="#337ea9" stroke-width="1.5" marker-end="url(#m1)"/>
+<text x="656" y="232" font-size="12" fill="#337ea9" font-weight="600">h_audio</text>
+<rect x="700" y="120" width="95" height="60" rx="6" fill="#f3eef8" stroke="#9065b0"/><text x="747" y="146" text-anchor="middle" font-weight="600">Gate</text><text x="747" y="163" text-anchor="middle" font-size="11" fill="#787774">trộn có trọng số</text>
+<line x1="795" y1="150" x2="813" y2="150" stroke="#787774" marker-end="url(#m1)"/>
+<rect x="815" y="125" width="72" height="50" rx="6" fill="#e6f1ea" stroke="#448361"/><text x="851" y="147" text-anchor="middle">4 cảm</text><text x="851" y="163" text-anchor="middle">xúc</text>
+
+<text x="280" y="180" text-anchor="middle" font-size="12" fill="#d44c47">✕ gradient của SER không chảy ngược về SenseVoice</text>
+</g>
+</svg>
+</div>
+<p>Đọc diagram theo hai giai đoạn:</p>
+<ul>
+<li><b>Giai đoạn 1</b> chỉ làm một việc: chép lời. SenseVoice được fine-tune riêng ở notebook 10, chạy trên mọi câu, rồi ghi transcript ra file CSV. Xong giai đoạn này thì không đụng tới nó nữa.</li>
+<li><b>Giai đoạn 2</b> đọc file transcript đó, cộng thêm audio, rồi học đoán cảm xúc. Chỉ phần này được train.</li>
+</ul>
+<div class="note blue"><b>Vì thế nó thuộc nhóm cascade</b>, giống kiểu bạn tả ở trang ENT (ASR ra chữ → encoder chữ, audio → encoder khác → trộn). Có hai chỗ khác: encoder chữ được <b>fine-tune</b> chứ không đóng băng, và hai vector được trộn bằng <b>gate</b> chứ không nối rồi đưa qua MLP.</div>
+</section>
+
+<section>
+<h2><span class="n">3</span>Nhánh chữ: RoBERTa đọc ngữ cảnh + câu hiện tại</h2>
+<p>RoBERTa nhận <b>hai đoạn văn bản</b> trong cùng một chuỗi: ngữ cảnh trước, câu cần đoán sau, ngăn bởi token đặc biệt <span class="mono">&lt;/s&gt;&lt;/s&gt;</span>. Sau 24 layer, mỗi token có một vector. Model chỉ lấy vector ở <b>vị trí đầu tiên</b> (token <span class="mono">&lt;s&gt;</span>, thường gọi là [CLS]) làm đại diện cho cả chuỗi. Đoạn hội thoại dưới đây là ví dụ minh họa:</p>
+<div class="fig">
+<svg viewBox="0 0 900 250" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="m2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#787774"/></marker></defs>
+<g font-size="12" fill="#37352f">
+<rect x="10" y="20" width="50" height="34" rx="5" fill="#f3eef8" stroke="#9065b0"/><text x="35" y="41" text-anchor="middle" class="mono">&lt;s&gt;</text>
+<rect x="66" y="20" width="200" height="34" rx="5" fill="#fdf5ec" stroke="#d9730d" stroke-dasharray="3 3"/><text x="166" y="41" text-anchor="middle">"you said you'd call me"</text>
+<rect x="272" y="20" width="150" height="34" rx="5" fill="#fdf5ec" stroke="#d9730d" stroke-dasharray="3 3"/><text x="347" y="41" text-anchor="middle">"I was busy"</text>
+<rect x="428" y="20" width="150" height="34" rx="5" fill="#fdf5ec" stroke="#d9730d" stroke-dasharray="3 3"/><text x="503" y="41" text-anchor="middle">"you're always busy"</text>
+<rect x="584" y="20" width="80" height="34" rx="5" fill="#f3eef8" stroke="#9065b0"/><text x="624" y="41" text-anchor="middle" class="mono">&lt;/s&gt;&lt;/s&gt;</text>
+<rect x="670" y="20" width="160" height="34" rx="5" fill="#fbecdd" stroke="#d9730d" stroke-width="1.5"/><text x="750" y="41" text-anchor="middle" font-weight="600">"fine, whatever"</text>
+<rect x="836" y="20" width="54" height="34" rx="5" fill="#f3eef8" stroke="#9065b0"/><text x="863" y="41" text-anchor="middle" class="mono">&lt;/s&gt;</text>
+<text x="344" y="72" text-anchor="middle" fill="#787774">ngữ cảnh: 3 lượt nói trước, của cả hai người</text>
+<text x="750" y="72" text-anchor="middle" fill="#787774">câu cần đoán</text>
+
+<line x1="450" y1="82" x2="450" y2="104" stroke="#787774" marker-end="url(#m2)"/>
+<rect x="10" y="106" width="880" height="50" rx="6" fill="#fbecdd" stroke="#d9730d"/>
+<text x="450" y="128" text-anchor="middle" font-weight="600">RoBERTa-large: 24 layer self-attention, mọi token nhìn thấy nhau</text>
+<text x="450" y="146" text-anchor="middle" font-size="11" fill="#787774">nên vector ở vị trí &lt;s&gt; đã "đọc" cả ngữ cảnh lẫn câu hiện tại</text>
+<line x1="35" y1="156" x2="35" y2="186" stroke="#9065b0" stroke-width="2" marker-end="url(#m2)"/>
+<rect x="10" y="188" width="120" height="34" rx="5" fill="#fff" stroke="#d9730d"/><text x="70" y="209" text-anchor="middle" font-weight="600" fill="#d9730d">h_text (1024 số)</text>
+<text x="145" y="209" fill="#787774">chỉ lấy vector ở vị trí đầu; vector của các token khác bỏ đi</text>
+<text x="10" y="242" font-size="11" fill="#787774">Tối đa 192 token. Dài quá thì cắt từ đầu ngữ cảnh, để giữ những câu gần nhất.</text>
+</g>
+</svg>
+</div>
+<ul>
+<li>Cả ngữ cảnh lẫn câu hiện tại đều là <b>transcript ASR</b>, có lỗi, đúng như khi dùng thật. Chỉ các cấu hình <span class="mono">gt*</span> mới dùng transcript đúng.</li>
+<li>RoBERTa được <b>fine-tune</b>: toàn bộ 24 layer đều được cập nhật để hợp với việc đoán cảm xúc. Đây là khác biệt lớn so với "text probe" ở notebook 12, nơi RoBERTa bị đóng băng.</li>
+</ul>
+</section>
+
+<section>
+<h2><span class="n">4</span>Nhánh giọng: WavLM, trộn mọi layer</h2>
+<p>WavLM-large có 25 đầu ra: 1 từ khối CNN ở đầu và 24 từ các layer transformer. Các layer thấp giữ nhiều thông tin âm học (cao độ, năng lượng), còn các layer cao gần với nội dung hơn. Ta không biết trước layer nào hợp với cảm xúc, nên để model <b>tự học trọng số</b> cho từng layer. Cách làm này lấy từ benchmark SUPERB.</p>
+<div class="fig">
+<svg viewBox="0 0 900 260" xmlns="http://www.w3.org/2000/svg" id="wl"></svg>
+</div>
+<ul>
+<li>Phần trước đường nét đứt (WavLM, mean theo thời gian) <b>đóng băng</b>, tính một lần rồi lưu cache. Phần sau (trọng số layer, Linear) được train.</li>
+<li>Mỗi câu chỉ còn <b>một</b> vector, vì đã lấy trung bình theo thời gian. Model không biết đoạn nào trong câu giọng to hay nhỏ, chỉ biết "trung bình cả câu". ENT thì giữ được thông tin theo thời gian.</li>
+</ul>
+</section>
+
+<section>
+<h2><span class="n">5</span>Gate: trộn có trọng số, và vì sao cần 3 head</h2>
+<p>Gate là một lớp nhỏ, nhìn cả <span class="mono">h_text</span> và <span class="mono">h_audio</span> rồi ra hai số cộng lại bằng 1: tin chữ bao nhiêu, tin giọng bao nhiêu. Hai số này được tính lại <b>cho từng câu</b>.</p>
+<div class="fig">
+<svg viewBox="0 0 900 270" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="m3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#787774"/></marker></defs>
+<g font-size="13" fill="#37352f">
+<rect x="10" y="40" width="110" height="40" rx="6" fill="#fbecdd" stroke="#d9730d"/><text x="65" y="64" text-anchor="middle" font-weight="600">h_text</text>
+<rect x="10" y="180" width="110" height="40" rx="6" fill="#e7f0f6" stroke="#337ea9"/><text x="65" y="204" text-anchor="middle" font-weight="600">h_audio</text>
+
+<polyline points="120,60 160,60 160,118 198,118" fill="none" stroke="#d9730d" marker-end="url(#m3)"/>
+<polyline points="120,200 160,200 160,142 198,142" fill="none" stroke="#337ea9" marker-end="url(#m3)"/>
+<rect x="200" y="105" width="190" height="50" rx="6" fill="#f3eef8" stroke="#9065b0"/><text x="295" y="125" text-anchor="middle" font-weight="600">Gate</text><text x="295" y="143" text-anchor="middle" font-size="11" fill="#787774">nối [h_text ; h_audio] → Linear → softmax</text>
+<line x1="390" y1="130" x2="418" y2="130" stroke="#787774" marker-end="url(#m3)"/>
+<text x="425" y="124" fill="#9065b0" font-weight="600">g_text = 0.6</text><text x="425" y="142" fill="#9065b0" font-weight="600">g_audio = 0.4</text>
+<line x1="525" y1="130" x2="553" y2="130" stroke="#787774" marker-end="url(#m3)"/>
+<rect x="555" y="105" width="190" height="50" rx="6" fill="#fff" stroke="#9065b0"/><text x="650" y="125" text-anchor="middle">fused =</text><text x="650" y="143" text-anchor="middle" font-size="12">0.6·h_text + 0.4·h_audio</text>
+<line x1="745" y1="130" x2="773" y2="130" stroke="#787774" marker-end="url(#m3)"/>
+<rect x="775" y="105" width="115" height="50" rx="6" fill="#e6f1ea" stroke="#448361"/><text x="832" y="125" text-anchor="middle" font-weight="600">head chính</text><text x="832" y="143" text-anchor="middle" font-size="11" fill="#787774">→ CE</text>
+
+<line x1="120" y1="60" x2="553" y2="60" stroke="#d9730d" stroke-dasharray="4 3"/>
+<line x1="553" y1="60" x2="773" y2="60" stroke="#d9730d" stroke-dasharray="4 3" marker-end="url(#m3)"/>
+<rect x="775" y="40" width="115" height="40" rx="6" fill="#fff" stroke="#d9730d" stroke-dasharray="4 3"/><text x="832" y="58" text-anchor="middle" font-size="12">head phụ chữ</text><text x="832" y="73" text-anchor="middle" font-size="11" fill="#787774">→ CE</text>
+<line x1="120" y1="200" x2="773" y2="200" stroke="#337ea9" stroke-dasharray="4 3" marker-end="url(#m3)"/>
+<rect x="775" y="180" width="115" height="40" rx="6" fill="#fff" stroke="#337ea9" stroke-dasharray="4 3"/><text x="832" y="198" text-anchor="middle" font-size="12">head phụ giọng</text><text x="832" y="213" text-anchor="middle" font-size="11" fill="#787774">→ CE</text>
+
+<text x="450" y="252" text-anchor="middle" font-weight="600">loss = CE(head chính) + CE(head phụ chữ) + CE(head phụ giọng)</text>
+</g>
+</svg>
+</div>
+<p><b>Vì sao cần 2 head phụ (nét đứt)?</b> Lần chạy đầu trên MELD không có head phụ. Nhánh giọng chỉ có một lớp Linear nên học rất nhanh, gate thấy vậy liền dồn 88% sang giọng. RoBERTa gần như không nhận được gradient nên không học, và kết quả chỉ bằng dùng giọng một mình (UA 31.7). Head phụ buộc <b>mỗi nhánh tự đoán được cảm xúc</b>, nên nhánh nào cũng phải học, không nhánh nào "ăn theo" nhánh kia.</p>
+<p>Khi chạy thật (inference), chỉ dùng head chính. Hai head phụ chỉ có tác dụng lúc train.</p>
+<div class="note">Gate trung bình trên IEMOCAP session 5: <span class="mono">asr_wavlm</span> tin giọng khoảng 0.62. Thêm ngữ cảnh (<span class="mono">asr_ctx_wavlm</span>) thì chỉ còn khoảng 0.40: nhánh chữ đã có ngữ cảnh nên mạnh hơn, và model tự chuyển sang tin chữ nhiều hơn.</div>
+</section>
+
+<section>
+<h2><span class="n">6</span>Các tên cấu hình = bật/tắt khối</h2>
+<p>Tắt nhánh giọng thì gate và hai head phụ cũng biến mất. Lúc đó model chỉ còn RoBERTa → h_text → Linear → 4 cảm xúc.</p>
+<div class="tablewrap"><table>
+<tr><th>Tên</th><th>Chữ khi train</th><th>Chữ khi test</th><th>Ngữ cảnh</th><th>Nhánh giọng</th><th>UA IEMOCAP<br>CV 5 fold, seed 0</th></tr>
+<tr><td class="mono">gt</td><td>đúng</td><td>đúng</td><td class="c"></td><td class="c"></td><td>71.48</td></tr>
+<tr><td class="mono">asr</td><td>ASR</td><td>ASR</td><td class="c"></td><td class="c"></td><td>70.91</td></tr>
+<tr><td class="mono">asr_wavlm</td><td>ASR</td><td>ASR</td><td class="c"></td><td class="c">✓</td><td>74.61</td></tr>
+<tr><td class="mono">asr_ctx</td><td>ASR</td><td>ASR</td><td class="c">✓</td><td class="c"></td><td>77.44</td></tr>
+<tr><td class="mono"><b>asr_ctx_wavlm</b></td><td>ASR</td><td>ASR</td><td class="c">✓</td><td class="c">✓</td><td><b>79.01</b></td></tr>
+<tr><td class="mono">gt_ctx</td><td>đúng</td><td>đúng</td><td class="c">✓</td><td class="c"></td><td>79.02</td></tr>
+</table></div>
+<p>Đọc bảng theo từng bước bật thêm: so <span class="mono">asr</span> với <span class="mono">gt</span> thì lỗi ASR (WER ~10) gần như không làm mất gì. Thêm giọng được khoảng +3.7. Thêm ngữ cảnh được khoảng +6.5. Thêm cả hai được khoảng +8, và bằng mức dùng chữ đúng có ngữ cảnh.</p>
+<p class="muted">Còn hai tên khác: <span class="mono">gt2asr</span> (train trên chữ đúng, test trên chữ ASR, chỉ chạy session 5) và <span class="mono">*_e2v</span> (nhánh giọng là emotion2vec+ thay cho WavLM; trên IEMOCAP bị rò rỉ dữ liệu nên không dùng).</p>
+</section>
+
+<section>
+<h2>Tóm tắt: đặt cạnh ENT</h2>
+<div class="tablewrap"><table>
+<tr><th></th><th>Model của bạn (notebook 21)</th><th>ENT</th></tr>
+<tr><td>nhóm</td><td>cascade: ASR riêng, SER riêng</td><td>joint: một model, train chung</td></tr>
+<tr><td>chữ</td><td>transcript SenseVoice-FT → RoBERTa-large fine-tune</td><td>predictor (LSTM nhỏ) đọc chữ chính model viết</td></tr>
+<tr><td>giọng</td><td>WavLM-large đóng băng, 1 vector/câu</td><td>wav2vec 2.0 base đóng băng + LSTM, theo từng frame</td></tr>
+<tr><td>trộn</td><td>gate, 1 lần/câu</td><td>joint network, ở mọi ô (t, u)</td></tr>
+<tr><td>ngữ cảnh hội thoại</td><td>có (3 lượt trước)</td><td>không</td></tr>
+<tr><td>đầu ra</td><td>nhãn cả câu (transcript có từ giai đoạn 1)</td><td>transcript + nhãn câu + cảm xúc theo đoạn</td></tr>
+</table></div>
+</section>
+</div>
+<script>
+(() => {
+  const svg = document.getElementById('wl');
+  const blue = '#337ea9', ink = '#37352f', mute = '#787774', line = '#9b9a97';
+  const layers = [0, 1, 2, 12, 23, 24];
+  const w = [0.05, 0.07, 0.08, 0.13, 0.06, 0.04];
+  let s = `<defs><marker id="m4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="${mute}"/></marker></defs><g font-size="12" fill="${ink}">`;
+  s += `<rect x="10" y="110" width="90" height="40" rx="6" fill="#fff" stroke="${line}"/><text x="55" y="128" text-anchor="middle">âm thanh</text><text x="55" y="143" text-anchor="middle" font-size="11" fill="${mute}">≤ 20 s</text>`;
+  s += `<line x1="100" y1="130" x2="128" y2="130" stroke="${mute}" marker-end="url(#m4)"/>`;
+  s += `<rect x="130" y="10" width="130" height="240" rx="6" fill="#e7f0f6" stroke="${blue}"/><text x="195" y="28" text-anchor="middle" font-weight="600">WavLM-large</text>`;
+  const ys = [215, 185, 155, 110, 75, 45];
+  layers.forEach((l, i) => {
+    const y = ys[i];
+    s += `<rect x="145" y="${y - 12}" width="100" height="24" rx="4" fill="#fff" stroke="${blue}"/><text x="195" y="${y + 4}" text-anchor="middle">layer ${l}</text>`;
+    s += `<line x1="245" y1="${y}" x2="288" y2="${y}" stroke="${mute}" marker-end="url(#m4)"/>`;
+    for (let k = 0; k < 6; k++) s += `<rect x="${290 + k * 9}" y="${y - 8}" width="8" height="16" fill="${blue}" fill-opacity="${0.25 + 0.1 * ((k + i) % 5)}"/>`;
+    s += `<line x1="346" y1="${y}" x2="378" y2="${y}" stroke="${mute}" marker-end="url(#m4)"/>`;
+    s += `<rect x="380" y="${y - 8}" width="12" height="16" fill="${blue}" fill-opacity=".7"/>`;
+    s += `<rect x="420" y="${y + 8 - w[i] * 200}" width="16" height="${w[i] * 200}" fill="#9065b0" fill-opacity=".7"/>`;
+    s += `<line x1="440" y1="${y}" x2="488" y2="130" stroke="${line}"/>`;
+  });
+  s += `<text x="195" y="136" text-anchor="middle" fill="${mute}">⋮</text><text x="195" y="94" text-anchor="middle" fill="${mute}">⋮</text>`;
+  s += `<text x="317" y="16" text-anchor="middle" font-size="11" fill="${mute}">vector mỗi frame</text>`;
+  s += `<text x="386" y="16" text-anchor="middle" font-size="11" fill="${mute}">mean</text><text x="386" y="246" text-anchor="middle" font-size="11" fill="${mute}">theo thời gian</text>`;
+  s += `<text x="428" y="16" text-anchor="middle" font-size="11" fill="#9065b0">trọng số</text><text x="428" y="246" text-anchor="middle" font-size="11" fill="#9065b0">học được</text>`;
+  s += `<line x1="403" y1="5" x2="403" y2="255" stroke="#d44c47" stroke-dasharray="4 4"/>`;
+  s += `<text x="398" y="232" text-anchor="end" font-size="10" fill="#d44c47">đóng băng</text><text x="408" y="232" font-size="10" fill="#d44c47">train</text>`;
+  s += `<circle cx="505" cy="130" r="16" fill="#fff" stroke="#9065b0"/><text x="505" y="135" text-anchor="middle" font-size="16" fill="#9065b0">Σ</text>`;
+  s += `<line x1="521" y1="130" x2="568" y2="130" stroke="${mute}" marker-end="url(#m4)"/>`;
+  s += `<rect x="570" y="105" width="190" height="50" rx="6" fill="#e7f0f6" stroke="${blue}"/><text x="665" y="125" text-anchor="middle">LayerNorm → Linear → tanh</text><text x="665" y="143" text-anchor="middle" font-size="11" fill="${mute}">1024 → 1024</text>`;
+  s += `<line x1="760" y1="130" x2="788" y2="130" stroke="${mute}" marker-end="url(#m4)"/>`;
+  s += `<rect x="790" y="110" width="100" height="40" rx="6" fill="#fff" stroke="${blue}"/><text x="840" y="134" text-anchor="middle" font-weight="600" fill="${blue}">h_audio</text>`;
+  s += `</g>`;
+  svg.innerHTML = s;
+})();
+</script>
+</body>
+</html>

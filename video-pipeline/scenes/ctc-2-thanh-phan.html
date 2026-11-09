@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>CTC 2: Bốn thành phần</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../lib/nn.js"></script>
+<script src="../lib/ctc.js"></script>
+<script src="../build/ctc-2-thanh-phan.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn thành phần', '3 Trống, rút gọn', '4 Loss cộng mọi cách căn', '5 Giải mã'];
+const POST = CTC.post(0.8, 2), BEST = CTC.greedy(POST);
+
+function heatGrid(x, y, cw, rh, cols) {
+  POST.slice(0, cols).forEach((p, t) => p.forEach((v, k) => rrect(x + t * cw, y + k * rh, cw - 2, rh - 2, 3, Clip.heat(0.1 + 0.8 * v))));
+  CTC.SYM.forEach((s, k) => text(s === '-' ? '−' : s, x - 14, y + k * rh + rh / 2, {size: 22, weight: 700, color: COL.mute, align: 'right', mono: true}));
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('CTC', 'Phần 2/5: bốn thành phần', 1, PARTS);
+
+function shotPipe(G, t) {
+  const s = S('pipe'), d = D('pipe');
+  heading('Đường đi');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    for (let k = 0; k < 14; k++) rrect(160 + k * 14, 300, 10, 160, 2, COL.acc + '88');
+    text('frame', 255, 490, {size: 24, weight: 700, align: 'center'});
+    arrow(370, 380, 430, 380, COL.mute, 3);
+    rrect(440, 320, 260, 120, 16, COL.frameSoft, COL.frame, 3);
+    text('mạng nơ-ron', 570, 380, {size: 28, weight: 700, color: COL.frame, align: 'center'});
+    arrow(710, 380, 770, 380, COL.mute, 3);
+  });
+  fade(G, P(t, s + d * 0.3, 0.5), () => {
+    heatGrid(820, 300, 16, 34, 30);
+    text('xác suất mỗi ký hiệu, mỗi frame', 1060, 490, {size: 22, weight: 700, align: 'center'});
+    arrow(1310, 380, 1370, 380, COL.mute, 3);
+  });
+  fade(G, P(t, s + d * 0.5, 0.5), () => {
+    chip(G, 1380, 354, 'rút gọn', HOT);
+    arrow(1520, 380, 1580, 380, COL.mute, 3);
+    text('"mai"', 1660, 380, {size: 40, weight: 700, color: COL.ok, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.7, 0.5), () => {
+    ['HMM', 'từ điển', 'GMM'].forEach((l, j) => {
+      const x = 640 + j * 230;
+      chip(G, x, 620, l, {size: 28, color: COL.mute});
+      line(x - 4, 646, x + 150, 646, COL.hl, 4);
+    });
+    text('không còn', 520, 646, {size: 28, weight: 700, color: COL.hl, align: 'right'});
+  });
+}
+
+function shotParts(G, t) {
+  const ids = ['blank', 'collapse', 'loss', 'decode'];
+  heading('Bốn thành phần');
+  const cx = [200, 560, 1180, 1660];
+  fade(G, P(t, S('blank') + 0.2, 0.5), () => {
+    ['Thành phần', 'Là gì', 'Giải quyết vấn đề', 'Phần'].forEach((h, j) => text(h, cx[j], 240, {size: 24, weight: 600, color: COL.mute}));
+    line(180, 266, 1720, 266, COL.line2, 2);
+  });
+  [['ký hiệu trống "−"', '"frame này không ra chữ nào"', 'độ dài lệch', '3'],
+   ['quy tắc rút gọn', 'gộp lặp liền nhau, rồi xóa trống', 'frame → câu chữ', '3'],
+   ['loss cộng mọi cách căn', 'tổng mọi chuỗi rút gọn ra câu, tính bằng forward', 'không biết ranh giới', '4'],
+   ['giải mã', 'greedy, hoặc beam search + LM', 'ra câu khi dùng', '5']].forEach((r, i) =>
+    fade(G, P(t, S(ids[i]) + 0.3, 0.5), () => {
+      const y = 330 + i * 110, on = t >= S(ids[i]) && t < E(ids[i]) + 0.5;
+      if (on) rrect(180, y - 44, 1540, 88, 10, COL.frameSoft);
+      text(r[0], cx[0], y, {size: 28, weight: 700, color: COL.acc});
+      text(r[1], cx[1], y, {size: 25, maxW: 560});
+      text(r[2], cx[2], y, {size: 25, color: COL.mute});
+      text(r[3], cx[3], y, {size: 28, weight: 700, color: COL.frame});
+    }));
+}
+
+function shotUnits(G, t) {
+  const s = S('units'), d = D('units');
+  heading('Ký hiệu đầu ra là gì?');
+  [['chữ cái', ['m', 'a', 'i'], COL.acc], ['âm tiết', ['hôm', 'nay'], COL.ok], ['mảnh từ (subword, BPE)', ['speech', '_recog', 'nition'], COL.i]].forEach(([l, xs, c], j) =>
+    fade(G, P(t, s + 0.4 + j * d * 0.22, 0.5), () => {
+      const y = 290 + j * 130;
+      text(l, 640, y + 26, {size: 30, weight: 700, color: c, align: 'right'});
+      let x = 700;
+      xs.forEach(u => { x += chip(G, x, y, u, {size: 28, weight: 700, color: c, stroke: c}) + 16; });
+    }));
+  fade(G, P(t, s + d * 0.75, 0.5), () => text('không cần biết phát âm: học thẳng ra chữ viết', 960, 720, {size: 30, weight: 700, color: COL.frame, align: 'center'}));
+}
+
+function shotHist(G, t) {
+  const s = S('hist'), d = D('hist');
+  heading('Lịch sử');
+  const X = y => 360 + (y - 2004) / 14 * 1200, Y0 = 470;
+  fade(G, P(t, s + 0.2, 0.5), () => {
+    line(300, Y0, 1640, Y0, COL.line2, 3);
+    [2006, 2010, 2014, 2018].forEach(y => { line(X(y), Y0 - 8, X(y), Y0 + 8, COL.line2, 2); text(String(y), X(y), Y0 + 34, {size: 20, color: COL.mute, align: 'center'}); });
+  });
+  [[2006, 'Graves và cộng sự', 'CTC: âm vị, chữ viết tay', -1, 0.1], [2014, 'Deep Speech (Baidu)', 'CTC cho tiếng nói quy mô lớn', 1, 0.55]].forEach(([y, a, b, side, at]) =>
+    fade(G, P(t, s + d * at, 0.5), () => {
+      const x = X(y), ty = Y0 + side * 130;
+      line(x, Y0, x, Y0 + side * (side < 0 ? 40 : 100), COL.acc, 2);
+      Clip.g.beginPath(); Clip.g.arc(x, Y0, 9, 0, Math.PI * 2); Clip.g.fillStyle = COL.acc; Clip.g.fill();
+      text(String(y), x, ty, {size: 24, weight: 700, color: COL.acc, align: 'center'});
+      text(a, x, ty + 36, {size: 26, weight: 700, align: 'center'});
+      text(b, x, ty + 70, {size: 22, color: COL.mute, align: 'center'});
+    }));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  const ls = ['trống "−"', 'rút gọn', 'loss cộng mọi cách căn', 'giải mã'], o = {size: 28, weight: 700, color: COL.acc, stroke: COL.acc}, xs = UI.chipXs(G, ls, o, 40);
+  ls.forEach((l, j) => fade(G, P(t, s + 0.4 + j * 0.8, 0.5), () => chip(G, xs[j], 320, l, o)));
+  fade(G, P(t, s + 4, 0.5), () => text('một mạng, học thẳng từ cặp (âm thanh, câu chữ)', 960, 470, {size: 32, weight: 700, align: 'center'}));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 760, 620, 'Phần 3: trống và quy tắc rút gọn  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 2', [
+  ['ký hiệu "không ra chữ"', 'blank, "−"', 'phần lớn frame là trống'],
+  ['gộp lặp rồi xóa trống', 'collapse, hàm B (many-to-one)', 'chuỗi frame → câu'],
+  ['chọn cao nhất mỗi frame', 'greedy (best-path) decoding', 'nhanh, đơn giản'],
+  ['mảnh từ', 'subword, BPE, wordpiece', 'giữa chữ cái và từ'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'pipe', to: 'pipe', draw: shotPipe},
+    {from: 'blank', to: 'decode', draw: shotParts},
+    {from: 'units', to: 'units', draw: shotUnits},
+    {from: 'hist', to: 'hist', draw: shotHist},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/ctc-2-thanh-phan.wav');
+</script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Từ frame đến câu · 4: Trộn các tầng</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../lib/pool.js"></script>
+<script src="../build/pool-4-tang.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn công cụ', '3 Pooling', '4 Trộn tầng', '5 Probe / fine-tune', '6 emotion2vec'];
+const TASK = {asr: ['ASR (nội dung)', COL.acc], spk: ['nhận dạng người nói', COL.i], ser: ['SER (cảm xúc)', COL.frame]};
+const B = {x: 360, y: 330, w: 1200, h: 330};
+
+function bars(task, grow, hiLast) {
+  const w = POOL.layers(task), [l, c] = TASK[task], bw = B.w / 12;
+  w.forEach((v, k) => {
+    const h = v / 0.28 * B.h * grow;
+    rrect(B.x + k * bw + 8, B.y + B.h - h, bw - 16, Math.max(2, h), 6, hiLast && k === 11 ? COL.hl : c);
+    text(String(k + 1), B.x + (k + 0.5) * bw, B.y + B.h + 22, {size: 20, color: COL.mute, align: 'center'});
+    if (v >= 0.02) text(v.toFixed(2).replace('.', ','), B.x + (k + 0.5) * bw, B.y + B.h - h - 18, {size: 20, weight: 700, color: c, align: 'center'});
+  });
+  line(B.x, B.y + B.h, B.x + B.w, B.y + B.h, COL.mute, 2);
+  text('tầng của encoder (12 tầng) →', B.x + B.w, B.y + B.h + 54, {size: 20, color: COL.mute, align: 'right'});
+  text(l, B.x, B.y - 30, {size: 30, weight: 700, color: c});
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Từ frame đến cả câu', 'Phần 4/6: trộn các tầng, để mô hình tự chọn', 3, PARTS);
+
+function shotFormula(G, t) {
+  const s = S('formula'), d = D('formula');
+  heading('Tổng có trọng số của mọi tầng');
+  fade(G, P(t, s + 0.3, 0.5), () => text('h = Σₗ softmax(w)ₗ × LayerNorm(hₗ)', 960, 290, {size: 46, weight: 700, align: 'center', mono: true}));
+  fade(G, P(t, s + d * 0.35, 0.5), () => {
+    const raw = [0.2, -0.5, 1.1, 0.4], sm = POOL.softmax(raw);
+    raw.forEach((v, j) => {
+      const x = 520 + j * 240;
+      chip(G, x, 420, `w${j + 1} = ${v.toFixed(1).replace('.', ',')}`, {size: 24, weight: 700, color: COL.i, stroke: COL.i});
+      arrow(x + 70, 480, x + 70, 530, COL.mute, 2.5);
+      rrect(x + 20, 660 - sm[j] * 180, 100, sm[j] * 180, 8, COL.i);
+      text(sm[j].toFixed(2).replace('.', ','), x + 70, 640 - sm[j] * 180, {size: 22, weight: 700, color: COL.i, align: 'center'});
+    });
+    text('softmax: cộng lại bằng 1 · benchmark SUPERB', 960, 700, {size: 26, weight: 700, color: COL.mute, align: 'center'});
+  });
+}
+
+function shotLayers(G, t) {
+  const sa = S('asr'), sp = S('spk'), ss = S('ser'), sl = S('last');
+  const task = t >= ss ? 'ser' : t >= sp ? 'spk' : 'asr', s0 = {asr: sa, spk: sp, ser: ss}[task];
+  heading('Trọng số thường học ra (minh họa theo xu hướng)');
+  bars(task, P(t, s0 + 0.3, 0.8), t >= sl);
+  if (t >= sl) fade(G, P(t, sl + 0.3, 0.5), () => text('lấy tầng cuối cho SER: trọng số gần 0 → thường kém hơn trộn mọi tầng', 960, 790, {size: 26, weight: 700, color: COL.hl, align: 'center'}));
+}
+
+function shotLn(G, t) {
+  const s = S('ln'), d = D('ln'), sn = S('note');
+  heading(t < sn ? 'Vì sao LayerNorm trước khi trộn?' : 'Lưu ý về hình');
+  if (t < sn) {
+    fade(G, P(t, s + 0.3, 0.5), () => {
+      const scale = [1, 3, 12, 40], on = t >= s + d * 0.5;
+      text(on ? 'sau LayerNorm: cùng thang' : 'độ lớn mỗi tầng rất khác nhau', 960, 270, {size: 28, weight: 700, color: on ? COL.ok : COL.hl, align: 'center'});
+      scale.forEach((v, j) => {
+        const h = on ? 160 : v / 40 * 400, x = 560 + j * 220;
+        rrect(x, 720 - h, 140, h, 8, on ? COL.ok : COL.hl);
+        text('tầng ' + [1, 4, 8, 12][j], x + 70, 750, {size: 22, align: 'center'});
+      });
+      if (!on) text('tầng số to nhất lấn át', 1500, 360, {size: 24, weight: 700, color: COL.hl});
+    });
+    return;
+  }
+  fade(G, P(t, sn + 0.3, 0.5), () => {
+    card(300, 330, 1320, 200, {stroke: COL.line2});
+    text('các hình trọng số là minh họa theo xu hướng thường được báo cáo', 960, 400, {size: 28, align: 'center'});
+    text('cho encoder tự giám sát, không phải số đo của một mô hình cụ thể', 960, 460, {size: 28, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['softmax trọng số trên mọi tầng'], ['LayerNorm từng tầng trước khi trộn'], ['nội dung tầng cao, người nói tầng thấp, cảm xúc ở giữa']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text('✓', 400, 300 + j * 90, {size: 34, weight: 700, color: COL.ok});
+      text(a, 450, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 790, 640, 'Phần 5: probe hay fine-tune  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 4', [
+  ['tổng có trọng số các tầng', 'weighted layer sum', 'kiểu SUPERB, s3prl'],
+  ['chuẩn hóa từng vector', 'LayerNorm', 'đưa các tầng về cùng thang'],
+  ['bộ đánh giá nhiều việc tiếng nói', 'SUPERB benchmark', 'ASR, SER, người nói…'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'formula', to: 'formula', draw: shotFormula},
+    {from: 'asr', to: 'last', draw: shotLayers},
+    {from: 'ln', to: 'note', draw: shotLn},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/pool-4-tang.wav');
+</script>
+</body>
+</html>

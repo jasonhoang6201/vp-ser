@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Tacotron 2 · 2: Năm khối</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/taco-2-khoi.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Năm khối', '3 Một bước decoder', '4 Attention tốt và hỏng'];
+const BLK = [
+  ['enc', 'encoder', COL.acc, 230, 'mỗi ký tự → vector 512 số · 3 lớp convolution (nhìn 5 ký tự) · LSTM hai chiều', '"gh" và "g" đọc khác nhau: mỗi chữ biết chữ xung quanh'],
+  ['att', 'attention theo vị trí', COL.frame, 560, 'như trang 11 + cộng thông tin bước trước đã nhìn ở đâu', 'khuyến khích đi tiếp, không nhảy lung tung'],
+  ['dec', 'decoder', COL.ok, 890, 'frame vừa sinh → pre-net (2 lớp, dropout) → 2 lớp LSTM → frame Mel 80 số + stop token', 'sinh từng frame, tự quyết độ dài'],
+  ['post', 'post-net', COL.i, 1220, '5 lớp convolution nhìn cả Mel đã sinh, cộng thêm phần sửa', 'làm sắc lại chi tiết bị mờ'],
+  ['voc', 'vocoder', COL.hl, 1550, 'WaveNet học riêng trên Mel do Tacotron 2 sinh (sau này: HiFi-GAN)', 'Mel → sóng âm (trang 13)'],
+];
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Tacotron 2', 'Phần 2/4: năm khối', 1, PARTS);
+
+function shotBlocks(G, t) {
+  const sp = S('pipe');
+  heading('chữ → encoder → attention → decoder → post-net → vocoder');
+  fade(G, P(t, sp + 0.3, 0.5), () => {
+    chip(G, 60, 304, '"xin chào"', {size: 24, weight: 700});
+    BLK.forEach(([id, l, c, x], j) => {
+      const on = t >= S(id) && t < E(id) + 0.4;
+      fade(G, P(t, sp + 0.5 + j * 0.4, 0.4), () => {
+        rrect(x, 270, 270, 120, 16, on ? c + '22' : COL.card, c, on ? 4 : 1.5);
+        text(l, x + 135, 330, {size: 24, weight: 700, color: c, align: 'center', maxW: 240});
+        if (j < 4) arrow(x + 276, 330, x + 324, 330, COL.mute, 3);
+      });
+    });
+    const g = Clip.g;
+    g.beginPath(); g.moveTo(1025, 400); g.quadraticCurveTo(1025, 470, 960, 470); g.quadraticCurveTo(895, 470, 895, 400);
+    g.strokeStyle = COL.ok; g.lineWidth = 2.5; g.setLineDash([7, 6]); g.stroke(); g.setLineDash([]);
+    text('lặp từng frame', 960, 495, {size: 20, color: COL.ok, align: 'center'});
+  });
+  BLK.forEach(([id, l, c, x, a, b]) => {
+    if (t < S(id) || t >= E(id) + 0.4) return;
+    fade(G, P(t, S(id) + 0.3, 0.4), () => {
+      card(240, 560, 1440, 200, {stroke: c});
+      text(l, 280, 610, {size: 30, weight: 700, color: c});
+      text(a, 280, 665, {size: 25, maxW: 1360});
+      text('→ ' + b, 280, 725, {size: 25, weight: 700, color: COL.ok});
+    });
+  });
+}
+
+function shotMos(G, t) {
+  const s = S('mos');
+  heading('Kết quả trong bài báo (tiếng Anh, một người đọc)');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    const B = {x: 660, y: 280, h: 360}, lo = 3.5, hi = 5;
+    [['Tacotron 2', 4.53, COL.acc], ['giọng thu thật', 4.58, COL.ok]].forEach(([l, v, c], j) => {
+      const h = (v - lo) / (hi - lo) * B.h * P(t, s + 0.5 + j * 0.4, 0.8), x = B.x + j * 360;
+      rrect(x, B.y + B.h - h, 220, h, 10, c);
+      text(String(v).replace('.', ','), x + 110, B.y + B.h - h - 28, {size: 34, weight: 700, color: c, align: 'center'});
+      text(l, x + 110, B.y + B.h + 34, {size: 26, weight: 700, align: 'center'});
+    });
+    line(B.x - 40, B.y + B.h, B.x + 640, B.y + B.h, COL.line2, 2);
+    text('MOS (trục bắt đầu từ 3,5)', B.x - 40, B.y - 30, {size: 20, color: COL.mute});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  BLK.forEach(([id, l, c], j) => fade(G, P(t, s + 0.3 + j * 0.6, 0.5), () => {
+    const x = 160 + j * 330; rrect(x, 320, 290, 90, 14, c + '18', c, 3); text(l, x + 145, 365, {size: 24, weight: 700, color: c, align: 'center', maxW: 260});
+  }));
+  fade(G, P(t, s + 3.5, 0.5), () => text('MOS gần giọng thật', 960, 500, {size: 32, weight: 700, color: COL.ok, align: 'center'}));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 780, 640, 'Phần 3: một bước của decoder  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 2', [
+  ['mạng đọc tuần tự có bộ nhớ', 'LSTM (Long Short-Term Memory)', 'encoder hai chiều, decoder 2 lớp'],
+  ['attention nhớ bước trước nhìn đâu', 'location-sensitive attention', ''],
+  ['lớp xử lý frame vừa sinh', 'pre-net', 'có dropout'],
+  ['xác suất "hết câu"', 'stop token', 'dừng khi > 0,5'],
+  ['lớp sửa Mel sau cùng', 'post-net (residual)', '5 lớp convolution'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'pipe', to: 'voc', draw: shotBlocks},
+    {from: 'mos', to: 'mos', draw: shotMos},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/taco-2-khoi.wav');
+</script>
+</body>
+</html>

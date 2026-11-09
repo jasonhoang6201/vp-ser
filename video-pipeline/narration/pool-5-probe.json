@@ -1,0 +1,33 @@
+{
+  "clip": "pool-5-probe",
+  "title": "Từ frame đến câu · Phần 5: Probe hay fine-tune",
+  "segments": [
+    {"id": "intro",
+     "sub": "Từ frame đến câu, phần 5: probe hay fine-tune.",
+     "say": "Từ frame đến cả câu, phần năm: pờ rốp hay phai tiu."},
+    {"id": "probe",
+     "sub": "Probe: đóng băng encoder. Chỉ học trọng số trộn tầng, pooling, bộ phân loại: vài nghìn đến vài triệu tham số.",
+     "say": "Pờ rốp: đóng băng en cô đơ. Chỉ học trọng số trộn tầng, pu ling, và bộ phân loại, từ vài nghìn đến vài triệu tham số."},
+    {"id": "probe2",
+     "sub": "Chi phí: tính đặc trưng một lần, lưu lại, huấn luyện vài phút. Rủi ro: bị giới hạn bởi những gì encoder có sẵn. Dùng khi so nhanh nhiều encoder, dữ liệu ít.",
+     "say": "Chi phí thấp: tính đặc trưng một lần, lưu lại, rồi huấn luyện vài phút. Rủi ro: bị giới hạn bởi những gì en cô đơ đã có sẵn. Dùng khi cần so sánh nhanh nhiều en cô đơ, hoặc dữ liệu ít."},
+    {"id": "ft",
+     "sub": "Fine-tune: học cả encoder (hàng trăm triệu tham số) và phần sau. Mỗi bước chạy encoder cả xuôi lẫn ngược, cần GPU mạnh.",
+     "say": "Phai tiu: học lại cả en cô đơ, hàng trăm triệu tham số, cùng phần phía sau. Mỗi bước phải chạy en cô đơ cả xuôi lẫn ngược, nên cần gờ pê u mạnh."},
+    {"id": "ft2",
+     "sub": "Rủi ro: học thuộc khi dữ liệu nhỏ; quên kiến thức cũ (catastrophic forgetting). Dùng khi cần điểm cao nhất, đủ dữ liệu và GPU.",
+     "say": "Rủi ro: học thuộc khi dữ liệu nhỏ, và quên kiến thức cũ, gọi là quên thảm khốc. Dùng khi cần điểm cao nhất, và có đủ dữ liệu, đủ gờ pê u."},
+    {"id": "mid",
+     "sub": "Ở giữa: fine-tune vài tầng trên cùng; hoặc thêm ma trận nhỏ vào encoder và chỉ học chúng (adapter, LoRA). Tốn ít hơn fine-tune, thường tốt hơn probe.",
+     "say": "Ở giữa có nhiều cách: chỉ phai tiu vài tầng trên cùng, hoặc thêm các ma trận nhỏ vào en cô đơ và chỉ học chúng, như a đáp tơ hay lô ra. Các cách này tốn ít hơn phai tiu, mà thường tốt hơn pờ rốp."},
+    {"id": "lora",
+     "sub": "LoRA: giữ nguyên ma trận W, học thêm hai ma trận mỏng A, B; W + B·A. Với W 1024 × 1024 và hạng 8: 16 384 tham số thay vì 1 048 576.",
+     "say": "Lô ra giữ nguyên ma trận W, và học thêm hai ma trận mỏng A và B, rồi cộng tích B nhân A vào W. Với W cỡ một nghìn không trăm hai mươi tư nhân một nghìn không trăm hai mươi tư, hạng tám, chỉ cần mười sáu nghìn ba trăm tám mươi tư tham số, thay vì hơn một triệu."},
+    {"id": "result",
+     "sub": "Tóm lại: probe rẻ, nhanh, an toàn với dữ liệu nhỏ; fine-tune mạnh hơn nhưng tốn, dễ học thuộc; adapter, LoRA ở giữa. Phần 6: emotion2vec.",
+     "say": "Tóm lại: pờ rốp rẻ, nhanh, an toàn với dữ liệu nhỏ. Phai tiu mạnh hơn nhưng tốn và dễ học thuộc. A đáp tơ và lô ra nằm ở giữa. Phần sáu: i mô sần tu véc."},
+    {"id": "terms",
+     "sub": "Thuật ngữ của phần này.",
+     "say": "Các thuật ngữ của phần này."}
+  ]
+}

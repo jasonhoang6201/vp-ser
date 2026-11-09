@@ -1,0 +1,33 @@
+{
+  "clip": "bert-1-van-de",
+  "title": "SER từ chữ · Phần 1: Vấn đề",
+  "segments": [
+    {"id": "intro",
+     "sub": "SER từ chữ: BERT, RoBERTa. Phần 1: đếm từ cảm xúc là chưa đủ.",
+     "say": "Ét i a từ chữ, với Bơt và Rô bơt ta. Phần một: đếm từ cảm xúc là chưa đủ."},
+    {"id": "place",
+     "sub": "Trang 18: giọng nói phân biệt giận với vui kém, từ ngữ thì tốt. Trang này: làm sao một mô hình \"hiểu\" câu chữ để đoán cảm xúc.",
+     "say": "Trang mười tám cho thấy giọng nói phân biệt giận với vui kém, còn từ ngữ thì phân biệt tốt. Trang này hỏi: làm sao một mô hình hiểu câu chữ để đoán cảm xúc."},
+    {"id": "lex",
+     "sub": "Cách đơn giản: có \"happy\", \"love\" thì đoán vui; có \"hate\" thì đoán giận.",
+     "say": "Cách đơn giản nhất: câu có từ hép pi hay lớp thì đoán vui, có từ hết thì đoán giận."},
+    {"id": "p1",
+     "sub": "Vấn đề 1: \"I'm not happy\" ngược nghĩa; \"oh great, just great\" là mỉa mai. Đếm từ không hiểu phủ định, ngữ cảnh.",
+     "say": "Vấn đề thứ nhất: câu ai em nót hép pi thì ngược nghĩa, còn câu ô grết, jớt grết lại là mỉa mai. Đếm từ thì không hiểu phủ định, cũng không hiểu ngữ cảnh."},
+    {"id": "p2",
+     "sub": "Vấn đề 2: học một bộ phân loại từ đầu trên câu của IEMOCAP: vài nghìn câu là quá ít để học ngôn ngữ.",
+     "say": "Vấn đề thứ hai: học một bộ phân loại từ đầu trên các câu của I e mô cáp. Vài nghìn câu là quá ít để học cả một ngôn ngữ."},
+    {"id": "p3",
+     "sub": "Vấn đề 3: chữ trong thực tế do ASR chép, có lỗi. Lỗi rơi vào đúng từ mang cảm xúc thì hỏng.",
+     "say": "Vấn đề thứ ba: trong thực tế, chữ do máy nhận dạng chép ra, nên có lỗi. Lỗi mà rơi vào đúng từ mang cảm xúc thì hỏng."},
+    {"id": "goal",
+     "sub": "Mục tiêu: một mô hình đã học sẵn ngôn ngữ từ rất nhiều văn bản (hiểu phủ định, ngữ cảnh), chỉ cần ít dữ liệu cảm xúc để dạy thêm. Và hiểu lỗi ASR hại tới đâu.",
+     "say": "Mục tiêu: một mô hình đã học sẵn ngôn ngữ từ rất nhiều văn bản, hiểu phủ định và ngữ cảnh, rồi chỉ cần ít dữ liệu cảm xúc để dạy thêm. Và hiểu lỗi nhận dạng hại tới đâu."},
+    {"id": "result",
+     "sub": "Tóm lại: đếm từ không hiểu phủ định, mỉa mai; dữ liệu cảm xúc ít; chữ ASR có lỗi. Phần 2: bốn thành phần của BERT.",
+     "say": "Tóm lại: đếm từ không hiểu phủ định và mỉa mai, dữ liệu cảm xúc thì ít, còn chữ từ máy nhận dạng có lỗi. Phần hai: bốn thành phần của Bơt."},
+    {"id": "terms",
+     "sub": "Thuật ngữ của phần này.",
+     "say": "Các thuật ngữ của phần này."}
+  ]
+}

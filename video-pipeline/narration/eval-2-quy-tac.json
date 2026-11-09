@@ -1,0 +1,33 @@
+{
+  "clip": "eval-2-quy-tac",
+  "title": "Đánh giá cho đúng · Phần 2: Bộ quy tắc",
+  "segments": [
+    {"id": "intro",
+     "sub": "Đánh giá cho đúng, phần 2: sáu quy tắc.",
+     "say": "Đánh giá cho đúng, phần hai: sáu quy tắc."},
+    {"id": "q1",
+     "sub": "Ba tập tách biệt: train để học; dev để chọn epoch, siêu tham số, ngưỡng; test chỉ chạm một lần ở cuối. Bộ nào không có dev thì tách một phần train ra làm dev.",
+     "say": "Quy tắc một: ba tập tách biệt. Tập học để học, tập kiểm để chọn ê pốc, siêu tham số, ngưỡng, còn tập thử chỉ chạm một lần ở cuối. Bộ nào không có tập kiểm thì tách một phần tập học ra làm tập kiểm."},
+    {"id": "q2",
+     "sub": "Tách theo người nói: IEMOCAP test một phiên, train các phiên còn lại (lặp 5 lần nếu làm đủ leave-one-session-out).",
+     "say": "Quy tắc hai: tách theo người nói. Với I e mô cáp, tập thử là một phiên, tập học là các phiên còn lại, và lặp năm lần nếu làm đủ."},
+    {"id": "q3",
+     "sub": "Nhiều seed: chạy 3 đến 5 seed, báo trung bình ± độ lệch chuẩn.",
+     "say": "Quy tắc ba: nhiều xít. Chạy ba đến năm xít, báo trung bình cộng trừ độ lệch chuẩn."},
+    {"id": "q4",
+     "sub": "Đủ thước đo: SER báo WA, UA, macro-F1 (MELD thêm weighted-F1); ASR báo WER với cùng một cách chuẩn hóa.",
+     "say": "Quy tắc bốn: đủ thước đo. Ét i a báo đắp bờ liu a, u a, ma crô ép một, riêng Meo hay thêm oe tịt ép một. Nhận dạng lời báo tỉ lệ lỗi từ, với cùng một cách chuẩn hóa."},
+    {"id": "q5",
+     "sub": "Kiểm tra rò rỉ: đọc mô hình học sẵn đã huấn luyện trên dữ liệu gì; nghi ngờ thì ghi chú, hoặc so trên một bộ chắc chắn chưa thấy.",
+     "say": "Quy tắc năm: kiểm tra rò rỉ. Đọc xem mô hình học sẵn đã huấn luyện trên dữ liệu gì. Nghi ngờ thì ghi chú, hoặc so trên một bộ chắc chắn chưa thấy."},
+    {"id": "q6",
+     "sub": "Báo cách làm: câu lệnh (với audio-LLM), luật đọc nhãn, câu bị loại và lý do.",
+     "say": "Quy tắc sáu: báo rõ cách làm. Câu lệnh với âu đi ô eo eo em, luật đọc nhãn, và những câu bị loại cùng lý do."},
+    {"id": "result",
+     "sub": "Tóm lại: train/dev/test tách biệt, tách theo người nói, nhiều seed, đủ thước đo, kiểm tra rò rỉ, báo cách làm. Phần 3: chọn epoch trên test làm số đẹp lên bao nhiêu.",
+     "say": "Tóm lại sáu quy tắc: ba tập tách biệt, tách theo người nói, nhiều xít, đủ thước đo, kiểm tra rò rỉ, và báo cách làm. Phần ba: chọn ê pốc trên tập thử làm số đẹp lên bao nhiêu."},
+    {"id": "terms",
+     "sub": "Thuật ngữ của phần này.",
+     "say": "Các thuật ngữ của phần này."}
+  ]
+}

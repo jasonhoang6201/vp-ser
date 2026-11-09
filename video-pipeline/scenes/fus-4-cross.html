@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Ghép âm thanh và chữ · 4: Cross-attention</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/fus-4-cross.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Các kiểu ghép', '3 Ghép muộn, cổng', '4 Cross-attention', '5 Ngữ cảnh'];
+const WORDS = [['oh', 0, 6], ['great', 7, 18], ['just', 20, 25], ['great', 26, 38]];
+const NF = 40, FX = 260, FW = 1400 / NF, FY = 560;
+
+// Attention of the first "great" over the 40 audio frames: a bump on its own frames 7..18.
+const ATT = (() => {
+  const raw = Array.from({length: NF}, (_, k) => Math.exp(-((k - 12.5) ** 2) / 18) + 0.03);
+  const s = raw.reduce((a, b) => a + b, 0);
+  return raw.map(v => v / s);
+})();
+
+function scene(t, focus) {
+  const xs = UI.chipXs(Clip.g, WORDS.map(w => w[0]), {size: 30, weight: 700}, 80);
+  WORDS.forEach(([w], j) => chip(Clip.g, xs[j], 300, w, {size: 30, weight: 700, color: j === 1 ? COL.acc : COL.ink, stroke: j === 1 ? COL.acc : COL.line}));
+  text('chữ (query)', xs[0] - 30, 326, {size: 22, color: COL.acc, align: 'right'});
+  const mx = Math.max(...ATT);
+  for (let k = 0; k < NF; k++) {
+    const own = k >= 7 && k <= 18, a = focus * ATT[k] / mx;
+    rrect(FX + k * FW + 2, FY, FW - 4, 90, 5, own ? COL.frame : COL.frame + '55');
+    if (focus > 0) rrect(FX + k * FW + 2, FY - 12 - a * 120, FW - 4, a * 120, 3, COL.acc);
+  }
+  text('frame âm thanh (key, value)', FX, FY + 120, {size: 22, color: COL.frame});
+  return xs;
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Ghép âm thanh và chữ', 'Phần 4/5: cross-attention, mỗi từ tìm đoạn giọng của nó', 3, PARTS);
+
+function shotCross(G, t) {
+  const sq = S('qkv'), sf = S('focus'), df = D('focus'), ss = S('same'), sb = S('both');
+  heading(t < sf ? 'query từ chữ, key-value từ âm thanh' : t < ss ? 'Trọng số dồn vào đoạn nói "great"' : t < sb ? 'Cùng công thức attention ở trang 11' : 'Mỗi từ biết mình được nói ra thế nào');
+  fade(G, P(t, sq + 0.3, 0.5), () => {
+    const xs = scene(t, t >= sf ? P(t, sf + 0.3, 1) : 0);
+    const gx = xs[1] + 60;
+    if (t >= sf) fade(G, P(t, sf + 0.3, 0.5), () => {
+      [3, 9, 13, 17, 30].forEach(k => line(gx, 360, FX + (k + 0.5) * FW, FY - 140, COL.acc + (k >= 7 && k <= 18 ? 'cc' : '33'), 2));
+    });
+    if (t >= sf + df * 0.6 && t < ss) fade(G, P(t, sf + df * 0.6, 0.5), () => text('→ giọng của đúng chữ "great": gằn hay vui vẻ?', 960, 790, {size: 28, weight: 700, color: COL.frame, align: 'center'}));
+    if (t >= ss && t < sb) fade(G, P(t, ss + 0.3, 0.5), () => text('softmax(q · k / √d) · v: q từ một nguồn, k, v từ nguồn kia', 960, 790, {size: 28, weight: 700, mono: true, align: 'center'}));
+    if (t >= sb) fade(G, P(t, sb + 0.3, 0.5), () => text('làm cả hai chiều được: âm thanh nhìn lại chữ', 960, 790, {size: 28, weight: 700, color: COL.ok, align: 'center'}));
+  });
+}
+
+function shotStack(G, t) {
+  const ss = S('stack'), sc = S('cost');
+  heading(t < sc ? 'Chồng nhiều lớp, nhiều mức' : 'Cái giá');
+  if (t < sc) {
+    fade(G, P(t, ss + 0.3, 0.5), () => {
+      for (let j = 0; j < 3; j++) {
+        rrect(560, 560 - j * 110, 800, 80, 12, COL.accSoft, COL.acc, 2);
+        text(`lớp cross-attention ${j + 1}: chữ ↔ âm thanh`, 960, 600 - j * 110, {size: 24, weight: 700, color: COL.acc, align: 'center'});
+      }
+      text('mức từ → mức câu: co-attention, hierarchical attention', 960, 720, {size: 26, color: COL.mute, align: 'center'});
+    });
+    return;
+  }
+  fade(G, P(t, sc + 0.3, 0.5), () => {
+    card(360, 320, 1200, 200, {stroke: COL.hl});
+    text('nhiều tham số, cần nhiều dữ liệu', 960, 390, {size: 32, weight: 700, color: COL.hl, align: 'center'});
+    text('vài nghìn câu: rất dễ học thuộc', 960, 450, {size: 28, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['✓', 'query từ chữ, key-value từ âm thanh', COL.ok], ['✓', 'mỗi từ biết mình được nói ra sao', COL.ok], ['✗', 'nhiều tham số, cần nhiều dữ liệu', COL.hl]].forEach(([m, a, c], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text(m, 520, 300 + j * 90, {size: 34, weight: 700, color: c});
+      text(a, 570, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 790, 640, 'Phần 5: ngữ cảnh hội thoại  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 4', [
+  ['query một nguồn, key-value nguồn kia', 'cross-attention', ''],
+  ['hai nguồn nhìn nhau qua lại', 'co-attention', ''],
+  ['attention theo nhiều mức (từ, câu)', 'hierarchical attention', ''],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'qkv', to: 'both', draw: shotCross},
+    {from: 'stack', to: 'cost', draw: shotStack},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/fus-4-cross.wav');
+</script>
+</body>
+</html>

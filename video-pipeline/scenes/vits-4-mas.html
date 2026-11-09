@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>VITS · 4: MAS</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../lib/vits.js"></script>
+<script src="../build/vits-4-mas.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp, heat} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Năm thành phần', '3 VAE và flow', '4 MAS', '5 Độ dài ngẫu nhiên'];
+const PCOL = [COL.mute, COL.acc, COL.ok, COL.hl, COL.frame, COL.i];
+const B = {x: 300, y: 220, w: 1400, rh: 56}, CW = B.w / VITS.TF;
+const CACHE = {};
+function run(noise) {
+  if (!CACHE[noise]) { const L = VITS.scores(noise, 3), {path} = VITS.mas(L); CACHE[noise] = {L, path, D: VITS.dursOf(path)}; }
+  return CACHE[noise];
+}
+
+function grid({L, path, D}, o = {}) {
+  const cols = o.cols ?? VITS.TF;
+  // Fixed scale instead of min-max: a match scores about 0, one phoneme off about -1.5, so that contrast stays visible.
+  L.forEach((row, i) => {
+    row.forEach((v, j) => rrect(B.x + j * CW, B.y + i * B.rh, CW - 1, B.rh - 1, 0, heat(clamp((v + 4) / 5) * 0.8)));
+    text(VITS.PH[i], B.x - 16, B.y + (i + 0.5) * B.rh, {size: 26, weight: 700, color: PCOL[i], align: 'right'});
+  });
+  if (cols < VITS.TF) {
+    rrect(B.x + cols * CW, B.y - 4, B.w - cols * CW, 6 * B.rh + 8, 0, 'rgba(251,251,250,0.75)');
+    line(B.x + cols * CW, B.y - 10, B.x + cols * CW, B.y + 6 * B.rh + 10, COL.frame, 3);
+  }
+  const yb = B.y + 6 * B.rh;
+  text(`frame của z (${VITS.TF}) →`, B.x + B.w, yb + 20, {size: 20, color: COL.mute, align: 'right'});
+  if (o.path > 0) {
+    const n = Math.floor(VITS.TF * o.path), js = path.map((_, j) => j).slice(VITS.TF - n);
+    poly(js.map(j => B.x + (j + 0.5) * CW), js.map(j => B.y + (path[j] + 0.5) * B.rh), COL.ink, 4);
+  }
+  if (o.dur > 0) fade(Clip.g, o.dur, () => {
+    let acc = 0;
+    D.forEach((d, i) => {
+      if (d) {
+        rrect(B.x + acc * CW, yb + 44, d * CW - 2, 44, 6, PCOL[i]);
+        text(String(d), B.x + (acc + d / 2) * CW, yb + 66, {size: 22, weight: 700, color: '#fff', align: 'center'});
+      }
+      acc += d;
+    });
+    text('độ dài', B.x - 16, yb + 66, {size: 22, color: COL.mute, align: 'right'});
+  });
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('VITS', 'Phần 4/5: MAS, tự căn chữ với frame', 3, PARTS);
+
+function shotMas(G, t) {
+  const sg = S('grid'), sr = S('rule'), sd = S('dp'), dd = D('dp'), su = S('dur'), sn = S('noise'), sl = S('loop'), dl = D('loop');
+  let noise = 0.8;
+  if (t >= sn && t < sl) noise = 2;
+  if (t >= sl) noise = [4, 2, 1.2, 0.8][Math.min(3, Math.floor(P(t, sl + 0.5, dl * 0.7) * 4))];
+  const R = run(noise);
+  heading(t < sr ? 'Điểm khớp: âm vị (hàng) × frame (cột)' : t < sd ? 'Ràng buộc: đơn điệu' : t < su ? 'Quy hoạch động' : t < sn ? 'Đếm frame → độ dài' : t < sl ? 'Điểm nhiễu: căn lệch' : 'Học dần: căn dần đúng');
+  fade(G, P(t, sg + 0.3, 0.5), () => {
+    const cols = t >= sd && t < su ? Math.floor(VITS.TF * P(t, sd + 0.5, dd * 0.45)) : VITS.TF;
+    const pathQ = t < sd ? 0 : t < su ? P(t, sd + dd * 0.55, dd * 0.3) : 1;
+    grid(R, {cols, path: pathQ, dur: t >= su ? P(t, su + 0.5, 0.6) : 0});
+  });
+  if (t >= sr && t < sd) fade(G, P(t, sr + 0.3, 0.5), () => {
+    const g = Clip.g;
+    [[0, 0, 'bắt đầu'], [VITS.TF - 1, 5, 'kết thúc']].forEach(([j, i, l]) => {
+      g.beginPath(); g.arc(B.x + (j + 0.5) * CW, B.y + (i + 0.5) * B.rh, 16, 0, 2 * Math.PI); g.strokeStyle = COL.ink; g.lineWidth = 4; g.stroke();
+    });
+    const x = 960, y = 680;
+    card(560, 640, 800, 170, {stroke: COL.frame});
+    rrect(x - 180, y + 20, 60, 50, 6, COL.soft, COL.line2, 2);
+    arrow(x - 114, y + 45, x - 30, y + 45, COL.ok, 3); rrect(x - 24, y + 20, 60, 50, 6, COL.accSoft, COL.acc, 2);
+    text('ở lại âm vị cũ', x + 60, y + 45, {size: 22});
+    arrow(x - 114, y + 45, x - 30, y + 105, COL.ok, 3);
+    text('hoặc sang âm vị kế', x + 60, y + 105, {size: 22});
+    text('✗ quay lui · ✗ bỏ âm vị', 960, 612, {size: 24, weight: 700, color: COL.hl, align: 'center'});
+  });
+  if (t >= sd && t < su) fade(G, P(t, sd + 0.3, 0.5), () => text('Q(i, j) = điểm(i, j) + max( Q(i, j−1), Q(i−1, j−1) )', 960, 690, {size: 30, weight: 700, mono: true, align: 'center'}));
+  if (t >= su) {
+    const err = R.D.reduce((s, d, i) => s + Math.abs(d - VITS.TRUE_D[i]), 0);
+    text(`độ dài thật: [${VITS.TRUE_D.join(', ')}]  ·  lệch ${err} frame  ·  mức nhiễu ${String(noise).replace('.', ',')}`, 960, 720, {size: 26, weight: 700, color: err ? COL.hl : COL.ok, align: 'center'});
+  }
+}
+
+function shotViterbi(G, t) {
+  const s = S('viterbi');
+  heading('MAS chính là Viterbi');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    card(240, 280, 640, 300, {stroke: COL.line2});
+    text('Viterbi (trang 07, HMM)', 280, 340, {size: 30, weight: 700, color: COL.mute});
+    text('điểm phát xạ × xác suất chuyển', 280, 410, {size: 26});
+    text('max qua trạng thái trước', 280, 460, {size: 26});
+    text('những năm 1980', 280, 520, {size: 24, color: COL.mute});
+    card(1040, 280, 640, 300, {stroke: COL.frame, lw: 3});
+    text('MAS (VITS, 2021)', 1080, 340, {size: 30, weight: 700, color: COL.frame});
+    text('điểm khớp z với âm vị', 1080, 410, {size: 26});
+    text('bỏ xác suất chuyển', 1080, 460, {size: 26, weight: 700, color: COL.hl});
+    text('ở lại hoặc sang kế', 1080, 520, {size: 24, color: COL.mute});
+    arrow(890, 430, 1030, 430, COL.mute, 3);
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['quy hoạch động: đường đơn điệu tổng điểm lớn nhất'], ['đếm frame trên đường đi → độ dài, thay MFA'], ['chạy lại mỗi bước học: căn và mô hình cùng tốt lên']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text('✓', 340, 300 + j * 90, {size: 34, weight: 700, color: COL.ok});
+      text(a, 390, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 740, 640, 'Phần 5: độ dài ngẫu nhiên  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 4', [
+  ['tìm cách căn đơn điệu tốt nhất', 'Monotonic Alignment Search (MAS)', 'mượn từ Glow-TTS'],
+  ['giải bài toán bằng bảng tính dần', 'quy hoạch động (dynamic programming)', 'như Viterbi'],
+  ['căn chỉ đi tới, không quay lui', 'monotonic alignment', ''],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'grid', to: 'loop', draw: shotMas},
+    {from: 'viterbi', to: 'viterbi', draw: shotViterbi},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/vits-4-mas.wav');
+</script>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Đánh giá · 1: Vấn đề</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/eval-1-van-de.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, arrow} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Quy tắc', '3 Chọn epoch', '4 Tin cậy', '5 Rò rỉ', '6 WER'];
+const TRAPS = [
+  ['b1', 'chọn epoch trên test', 'may mắn bị tính là giỏi'],
+  ['b2', 'một seed, test nhỏ', 'chênh 1-2 điểm có thể là ngẫu nhiên'],
+  ['b3', 'rò rỉ dữ liệu', 'mô hình đã thấy bộ test'],
+  ['b4', 'chuẩn hóa chữ khác nhau', '"Mr. Smith" và "mister smith"'],
+  ['b5', 'người nói lẫn train/test', 'trang 18'],
+  ['b5', 'chỉ báo WA trên dữ liệu lệch', 'trang 18'],
+];
+
+const shotIntro = UI.introShot('Đánh giá cho đúng', 'Phần 1/6: một mô hình, nhiều con số', 0, PARTS);
+
+function shotTraps(G, t) {
+  const sp = S('place'), sg = S('goal');
+  heading(t < S('b1') ? 'Con số báo ra có tin được không?' : t < sg ? 'Sáu sai lầm làm số đẹp hơn sự thật' : 'Mục tiêu');
+  if (t < S('b1')) {
+    fade(G, P(t, sp + 0.3, 0.5), () => {
+      card(360, 300, 520, 300, {stroke: COL.acc});
+      text('mô hình', 620, 380, {size: 34, weight: 700, color: COL.acc, align: 'center'});
+      text('(đã biết ở trang 18-23)', 620, 440, {size: 24, color: COL.mute, align: 'center'});
+      arrow(900, 450, 1020, 450, COL.ink, 3);
+      card(1040, 300, 520, 300, {stroke: COL.hl});
+      text('UA = ?', 1300, 400, {size: 44, weight: 700, color: COL.hl, align: 'center'});
+      text('tin được? so được với người khác?', 1300, 480, {size: 24, align: 'center', maxW: 470});
+    });
+    return;
+  }
+  TRAPS.forEach(([id, a, b], j) => {
+    const x = 170 + (j % 3) * 540, y = 230 + Math.floor(j / 3) * 270;
+    fade(G, P(t, S(id) + 0.3 + (j === 5 ? 1.5 : 0), 0.5), () => {
+      card(x, y, 500, 230, {stroke: COL.hl});
+      text(`sai lầm ${j + 1}`, x + 28, y + 50, {size: 22, weight: 700, color: COL.hl});
+      text(a, x + 28, y + 110, {size: 30, weight: 700, maxW: 450});
+      text(b, x + 28, y + 170, {size: 22, color: COL.mute, maxW: 450});
+    });
+  });
+  if (t >= sg) fade(G, P(t, sg + 0.3, 0.5), () => {
+    rrect(170, 790, 1580, 110, 10, COL.frameSoft, COL.frame, 2);
+    text('bộ quy tắc: số phản ánh đúng khả năng trên dữ liệu chưa thấy, và so được giữa các hệ', 960, 855, {size: 27, weight: 700, color: COL.frame, align: 'center', maxW: 1500});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  fade(G, P(t, s + 0.3, 0.6), () => {
+    text('!', 360, 340, {size: 34, weight: 700, color: COL.hl});
+    text('sáu sai lầm, cái nào cũng làm số đẹp hơn sự thật', 410, 340, {size: 32});
+  });
+  fade(G, P(t, s + D('result') * 0.7, 0.5), () => chip(G, 800, 560, 'Phần 2: bộ quy tắc  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 1', [
+  ['tập học / tập kiểm / tập thử', 'train / dev (validation) / test', ''],
+  ['lượt huấn luyện qua toàn bộ dữ liệu', 'epoch', ''],
+  ['hạt giống ngẫu nhiên', 'seed', 'khởi tạo, thứ tự dữ liệu'],
+  ['rò rỉ dữ liệu', 'data leakage, contamination', ''],
+  ['dùng ngay không huấn luyện thêm', 'zero-shot', ''],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'place', to: 'goal', draw: shotTraps},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/eval-1-van-de.wav');
+</script>
+</body>
+</html>

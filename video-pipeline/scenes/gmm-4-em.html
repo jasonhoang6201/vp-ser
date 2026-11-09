@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>GMM 4: Trộn đồi và EM</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../build/gmm-4-em.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp, ease} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Ba thành phần', '3 Một quả đồi Gauss', '4 Trộn đồi và EM', '5 Chấm điểm frame'];
+const fmt = (v, n = 2) => v.toFixed(n).replace('.', ',').replace('-', '−');
+const HC = [COL.acc, COL.frame, COL.ok, COL.i];
+const PTS = GMM.A_PTS;
+
+const TR = GMM.emTrace(PTS, 3, 3, 12);
+const FINAL = [1, 2, 3, 4].map(K => GMM.emTrace(PTS, K, 3, 80)[80]);
+const BAD = GMM.emTrace(PTS, 3, 26, 80)[80];
+const PROBE = [-0.35, 0.15];
+const PL = GMM.plane({x: 130, y: 220, w: 792, h: 600});
+
+// Linear blend of two mixtures with the same K, for smooth M-step motion.
+const blend = (A, B, u) => A.map((g, k) => ({mu: [0, 1].map(d => lerp(g.mu[d], B[k].mu[d], u)), cov: [0, 1, 2].map(d => lerp(g.cov[d], B[k].cov[d], u)), w: lerp(g.w, B[k].w, u)}));
+function drawMix(P0, gs, colored = true, r = 4) {
+  const R = colored ? GMM.resp(PTS, gs) : null;
+  P0.dots(PTS, COL.mute + '77', r, 1, colored ? (j => HC[R[j].indexOf(Math.max(...R[j]))] + 'aa') : null);
+  gs.forEach((g, k) => { P0.ell(g, 1, HC[k], 3); P0.ell(g, 2, HC[k] + '77', 1.5); });
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Trộn đồi và EM', 'Phần 4/5: học nhiều quả đồi từ dữ liệu', 3, PARTS);
+
+function shotOne(G, t) {
+  const s = S('one'), d = D('one');
+  heading('Một quả đồi cho ba cụm');
+  PL.frame();
+  PL.dots(PTS, COL.acc + '99', 4);
+  fade(G, P(t, s + 0.6, 0.6), () => { PL.ell(FINAL[0][0], 1, COL.frame, 3); PL.ell(FINAL[0][0], 2, COL.frame + '88', 2); });
+  fade(G, P(t, s + d * 0.55, 0.5), () => {
+    PL.dot([-0.1, 0.25], COL.hl, 10, '#fff');
+    text('vùng trống, vẫn được chấm cao', PL.X(-0.1), PL.Y(0.25) + 36, {size: 22, weight: 700, color: COL.hl, align: 'center'});
+    card(1010, 330, 760, 200, {stroke: COL.hl});
+    text('✗ một đồi phải phình to', 1040, 380, {size: 27, weight: 700, color: COL.hl});
+    text('bao cả ba cụm và cả khoảng trống giữa chúng', 1040, 440, {size: 24, color: COL.mute});
+  });
+}
+
+function shotMix(G, t) {
+  const s = S('mix');
+  heading('Dùng K = 3 đồi');
+  PL.frame();
+  drawMix(PL, TR[0], false);
+  fade(G, P(t, s + 0.5, 0.6), () => {
+    card(1010, 300, 760, 260);
+    text('mỗi đồi một elip', 1040, 345, {size: 27, weight: 700});
+    text('vòng trong: 1σ, vòng ngoài: 2σ', 1040, 400, {size: 24, color: COL.mute});
+    text('đồi nào ứng với cụm nào?', 1040, 490, {size: 30, weight: 700, color: COL.frame});
+  });
+}
+
+function shotChicken(G, t) {
+  const s = S('chicken'), d = D('chicken');
+  heading('Vướng: con gà và quả trứng');
+  fade(G, P(t, s + 0.3, 0.6), () => {
+    card(260, 300, 600, 220, {stroke: COL.acc, lw: 3});
+    text('biết điểm thuộc đồi nào', 560, 370, {size: 28, weight: 700, color: COL.acc, align: 'center'});
+    text('→ tính mỗi đồi dễ (như phần 3)', 560, 430, {size: 24, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.3, 0.6), () => {
+    card(1060, 300, 600, 220, {stroke: COL.frame, lw: 3});
+    text('biết các đồi', 1360, 370, {size: 28, weight: 700, color: COL.frame, align: 'center'});
+    text('→ chia điểm cho đồi dễ', 1360, 430, {size: 24, align: 'center'});
+    arrow(880, 380, 1040, 380, COL.mute, 3); arrow(1040, 450, 880, 450, COL.mute, 3);
+  });
+  fade(G, P(t, s + d * 0.6, 0.6), () => {
+    text('?', 560, 620, {size: 90, weight: 700, color: COL.hl, align: 'center'});
+    text('?', 1360, 620, {size: 90, weight: 700, color: COL.hl, align: 'center'});
+    text('lúc đầu không biết cái nào', 960, 740, {size: 32, weight: 700, color: COL.hl, align: 'center'});
+  });
+}
+
+function shotEM(G, t) {
+  const se = S('em'), sE = S('estep'), sM = S('mstep'), dM = D('mstep'), sR = S('run'), dR = D('run');
+  heading('EM: đoán rồi sửa dần');
+  // Mixture state: initial guess until the M step, morph to step 1 during it, then steps 1..10 during the run.
+  let gs = TR[0], step = 0;
+  if (t >= sM + dM * 0.3) { const u = ease((t - sM - dM * 0.3) / (dM * 0.5)); gs = blend(TR[0], TR[1], clamp(u)); step = u >= 1 ? 1 : 0; }
+  if (t >= sR) {
+    const f = clamp((t - sR - 0.5) / (dR * 0.75)) * 9, i = Math.floor(f);
+    gs = i >= 9 ? TR[10] : blend(TR[1 + i], TR[2 + i], ease(f - i)); step = 1 + Math.min(9, Math.round(f));
+  }
+  PL.frame();
+  drawMix(PL, gs, t >= sE + 0.5);
+  text(`bước ${step}`, PL.B.x + 20, PL.B.y + 30, {size: 24, weight: 700});
+
+  if (t < sE) {
+    fade(G, P(t, se + 0.3, 0.6), () => {
+      card(1010, 300, 760, 260);
+      text('1. đặt đồi ngẫu nhiên', 1040, 350, {size: 28, weight: 700});
+      text('2. lặp:', 1040, 420, {size: 28, weight: 700});
+      text('E', 1150, 420, {size: 28, weight: 700, color: COL.acc}); text('chia điểm', 1185, 420, {size: 26});
+      text('M', 1150, 480, {size: 28, weight: 700, color: COL.frame}); text('dời đồi', 1195, 480, {size: 26});
+    });
+  } else if (t < sM - 0.2) {
+    const R = GMM.resp([PROBE], TR[0])[0];
+    PL.dot(PROBE, '#fff', 11, COL.ink);
+    card(1010, 260, 760, 470, {stroke: COL.acc, lw: 3});
+    text('E (Expectation)', 1040, 305, {size: 30, weight: 700, color: COL.acc});
+    text('mỗi đồi "nhận" bao nhiêu % điểm đen?', 1040, 360, {size: 24, color: COL.mute});
+    R.forEach((r, k) => fade(G, P(t, sE + 1 + k * 0.4, 0.5), () => {
+      const y = 420 + k * 70;
+      text(`đồi ${k + 1}`, 1040, y + 20, {size: 24, weight: 600, color: HC[k]});
+      rrect(1150, y, 480 * r, 40, 6, HC[k]);
+      text(`${Math.round(r * 100)}%`, 1160 + 480 * r, y + 20, {size: 24, weight: 700, color: HC[k]});
+    }));
+    fade(G, P(t, sE + D('estep') * 0.6, 0.5), () => text('responsibility: chia mềm, không gán cứng', 1040, 680, {size: 24, weight: 700}));
+  } else if (t < sR - 0.2) {
+    card(1010, 260, 760, 380, {stroke: COL.frame, lw: 3});
+    text('M (Maximization)', 1040, 305, {size: 30, weight: 700, color: COL.frame});
+    [['tâm', 'trung bình có trọng số của điểm nó nhận'], ['độ rộng', 'theo độ tản của các điểm đó'], ['trọng số w', 'phần dữ liệu nó nhận']].forEach(([a, b], j) =>
+      fade(G, P(t, sM + 0.6 + j * 0.8, 0.5), () => {
+        text(a, 1040, 380 + j * 72, {size: 26, weight: 700});
+        text(b, 1200, 380 + j * 72, {size: 23, color: COL.mute, maxW: 540});
+      }));
+  } else {
+    // Log-likelihood per frame against step.
+    const B = {x: 1080, y: 300, w: 640, h: 380}, lo = -3.0, hi = -2.0, X = i => B.x + i / 10 * B.w, Y = v => B.y + B.h - (v - lo) / (hi - lo) * B.h;
+    card(1010, 240, 790, 520);
+    text('log-likelihood trung bình mỗi frame', 1040, 275, {size: 23, weight: 700});
+    [-3, -2.5, -2].forEach(v => { line(B.x, Y(v), B.x + B.w, Y(v), '#ecebe8', 1.5); text(fmt(v, 1), B.x - 12, Y(v), {size: 20, color: COL.mute, align: 'right'}); });
+    for (let i = 0; i <= 10; i += 2) text(String(i), X(i), B.y + B.h + 26, {size: 20, color: COL.mute, align: 'center'});
+    text('bước', B.x + B.w, B.y + B.h + 52, {size: 20, color: COL.mute, align: 'right'});
+    const n = step, xs = [], ys = [];
+    for (let i = 0; i <= n; i++) { xs.push(X(i)); ys.push(Y(GMM.avgLL(PTS, TR[i]))); }
+    poly(xs, ys, COL.ok, 3.5);
+    xs.forEach((x, i) => { G.beginPath(); G.arc(x, ys[i], 5, 0, 2 * Math.PI); G.fillStyle = COL.ok; G.fill(); });
+    text(fmt(GMM.avgLL(PTS, TR[n])), xs[n] + 12, ys[n] - 22, {size: 26, weight: 700, color: COL.ok});
+    fade(G, P(t, sR + dR * 0.7, 0.5), () => text('không bao giờ giảm', B.x + B.w / 2, B.y + B.h - 60, {size: 26, weight: 700, color: COL.ok, align: 'center'}));
+  }
+}
+
+function shotK(G, t) {
+  const s = S('k'), d = D('k');
+  heading('Chọn K bao nhiêu đồi?');
+  FINAL.forEach((gs, j) => fade(G, P(t, s + 0.4 + j * d * 0.12, 0.5), () => {
+    const P0 = GMM.plane({x: 90 + j * 445, y: 260, w: 410, h: 310});
+    P0.frame(); drawMix(P0, gs, true, 2.5);
+    text(`K = ${j + 1}`, P0.B.x + P0.B.w / 2, P0.B.y + P0.B.h + 50, {size: 28, weight: 700, align: 'center'});
+    text(fmt(GMM.avgLL(PTS, gs)), P0.B.x + P0.B.w / 2, P0.B.y + P0.B.h + 92, {size: 26, weight: 700, color: j === 2 ? COL.ok : COL.mute, align: 'center'});
+  }));
+  fade(G, P(t, s + d * 0.62, 0.5), () => {
+    text('K = 4: một cụm bị chia đôi, chỉ nhích lên chút', 960, 760, {size: 26, color: COL.mute, align: 'center'});
+    chip(G, 560, 800, 'K lớn hơn luôn khớp hơn dữ liệu đã thấy: chọn K trên dữ liệu chưa thấy', HOT);
+  });
+}
+
+function shotLocal(G, t) {
+  const s = S('local'), d = D('local');
+  heading('EM chỉ leo tới đỉnh gần nhất');
+  [[FINAL[2], 'khởi tạo tốt', COL.ok], [BAD, 'khởi tạo xấu: hai đồi chồng nhau', COL.hl]].forEach(([gs, lab, c], j) =>
+    fade(G, P(t, s + 0.4 + j * d * 0.15, 0.5), () => {
+      const P0 = GMM.plane({x: 150 + j * 830, y: 240, w: 594, h: 450});
+      P0.frame(); drawMix(P0, gs, true, 3);
+      text(`${lab}:  ${fmt(GMM.avgLL(PTS, gs))}`, P0.B.x, P0.B.y + P0.B.h + 60, {size: 26, weight: 700, color: c});
+    }));
+  fade(G, P(t, s + d * 0.6, 0.5), () => chip(G, 470, 790, 'thực tế: khởi tạo bằng k-means, hoặc tách đồi 1 → 2 → 4 → 8 (HTK)', HOT));
+}
+
+const FPTS = [[-0.8, 0.4], [0.3, -0.2], [0.9, 0.6], [-0.2, 0.9], [0.5, -0.9], [1.6, -0.3]];
+function shotFloor(G, t) {
+  const s = S('floor'), d = D('floor');
+  heading('Bẫy: đồi co về một điểm');
+  const PF = GMM.plane({x: 160, y: 260, w: 660, h: 500}, [-2.5, 3], [-2, 2.2]);
+  PF.frame();
+  FPTS.forEach(p => PF.dot(p, COL.acc, 6));
+  const u = P(t, s + 0.6, d * 0.5), sd = Math.exp(lerp(Math.log(0.6), Math.log(0.004), u));
+  const floorOn = t > s + d * 0.7, sdShow = floorOn ? Math.max(sd, 0.1) : sd;
+  const g = {mu: FPTS[5], cov: [sdShow * sdShow, 0, sdShow * sdShow]};
+  PF.ell(g, 1, COL.hl, 3); PF.ell(g, 2, COL.hl + '88', 2);
+  card(960, 290, 800, 300);
+  text(`σ = ${fmt(sdShow, 3)}`, 1000, 345, {size: 30, weight: 700, color: COL.hl});
+  const h = GMM.npdf(0, 0, sdShow) ** 2;
+  const sup = n => String(n).replace(/./g, ch => '⁰¹²³⁴⁵⁶⁷⁸⁹'[+ch]);
+  text(`độ cao tại điểm đó: ${h > 1e4 ? '≈ 10' + sup(Math.floor(Math.log10(h))) : fmt(h, 1)}`, 1000, 410, {size: 26});
+  text('σ → 0  ⇒  likelihood → ∞', 1000, 480, {size: 30, weight: 700, color: COL.hl});
+  text('(một "lời giải" vô nghĩa nhưng điểm số rất cao)', 1000, 535, {size: 22, color: COL.mute});
+  fade(G, P(t, s + d * 0.7, 0.5), () => {
+    card(960, 630, 800, 130, {stroke: COL.ok, lw: 3});
+    text('variance floor: σ² không nhỏ hơn một mức sàn', 1000, 695, {size: 27, weight: 700, color: COL.ok});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['GMM', 'tổng K đồi có trọng số'], ['EM', 'lặp E (chia mềm) và M (dời đồi)'], ['tính chất', 'log-likelihood không giảm'], ['cẩn thận', 'kẹt đỉnh gần, đồi co về một điểm']].forEach(([a, b], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.3, 0.6), () => {
+      text('✓', 470, 300 + j * 84, {size: 34, weight: 700, color: COL.ok});
+      text(a, 520, 300 + j * 84, {size: 32, weight: 700, color: COL.acc});
+      text(b, 760, 300 + j * 84, {size: 30});
+    }));
+  fade(G, P(t, s + D('result') * 0.78, 0.5), () => chip(G, 720, 680, 'Phần 5: dùng GMM để chấm điểm  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 4', [
+  ['cộng nhiều đồi', 'Gaussian mixture, mixture weight', 'p(x) = Σ wₖ N(x; μₖ, Σₖ)'],
+  ['đoán rồi sửa dần', 'EM (Expectation-Maximization)', 'Dempster, Laird, Rubin 1977'],
+  ['phần trăm đồi nhận một điểm', 'responsibility', 'xác suất hậu nghiệm của thành phần'],
+  ['đỉnh gần, chưa chắc tốt nhất', 'local optimum', 'phụ thuộc khởi tạo'],
+  ['khởi tạo bằng cụm', 'k-means, mixture splitting', 'tách đồi 1 → 2 → 4 → 8'],
+  ['mức sàn phương sai', 'variance floor', 'tránh đồi co về một điểm'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 9,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'one', to: 'one', draw: shotOne},
+    {from: 'mix', to: 'mix', draw: shotMix},
+    {from: 'chicken', to: 'chicken', draw: shotChicken},
+    {from: 'em', to: 'run', draw: shotEM},
+    {from: 'k', to: 'k', draw: shotK},
+    {from: 'local', to: 'local', draw: shotLocal},
+    {from: 'floor', to: 'floor', draw: shotFloor},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/gmm-4-em.wav');
+</script>
+</body>
+</html>

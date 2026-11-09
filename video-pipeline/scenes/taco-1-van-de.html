@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Tacotron 2 · 1: Vấn đề</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/taco-1-van-de.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Năm khối', '3 Một bước decoder', '4 Attention tốt và hỏng'];
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Tacotron 2', 'Phần 1/4: hệ TTS cũ là một chuỗi mô hình rời', 0, PARTS);
+
+function shotPlace(G, t) {
+  const s = S('place');
+  heading('Tacotron 2 là mô hình âm học');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    [['xử lý văn bản', COL.i, false], ['mô hình âm học: chữ → Mel', COL.acc, true], ['vocoder', COL.frame, false]].forEach(([l, c, on], j) => {
+      const x = 220 + j * 520;
+      rrect(x, 330, 460, 120, 16, on ? c + '22' : COL.card, c, on ? 4 : 1.5);
+      text(l, x + 230, 390, {size: 28, weight: 700, color: c, align: 'center'});
+      if (j < 2) arrow(x + 466, 390, x + 514, 390, COL.mute, 3);
+    });
+    text('Tacotron 2 ở đây', 1000, 500, {size: 26, weight: 700, color: COL.acc, align: 'center'});
+  });
+}
+
+function shotOld(G, t) {
+  const s1 = S('p1'), s2 = S('p2'), s3 = S('p3'), sa = S('avg'), da = D('avg');
+  heading(t < sa ? 'Hệ TTS cũ' : 'Vì sao "trung bình" làm giọng phẳng?');
+  if (t < sa) {
+    fade(G, P(t, s1 + 0.3, 0.5), () => {
+      ['độ dài âm', 'f0', 'phổ'].forEach((l, j) => {
+        rrect(260 + j * 300, 260, 240, 90, 14, COL.soft, COL.line2, 2);
+        text(`mô hình ${l}`, 380 + j * 300, 305, {size: 24, weight: 700, align: 'center'});
+      });
+      text('học riêng rồi ghép: lỗi cộng dồn', 610, 400, {size: 24, weight: 700, color: COL.hl, align: 'center'});
+    });
+    fade(G, P(t, s2 + 0.3, 0.5), () => {
+      card(1180, 240, 520, 220, {stroke: COL.hl});
+      text('đặc trưng do chuyên gia thiết kế', 1210, 290, {size: 24, weight: 700, color: COL.hl});
+      ['vị trí âm tiết', 'loại từ', 'trọng âm', '…'].forEach((l, j) => text('· ' + l, 1210, 340 + j * 30, {size: 22}));
+    });
+    fade(G, P(t, s3 + 0.3, 0.5), () => {
+      card(260, 520, 1440, 160, {stroke: COL.hl});
+      text('giọng phẳng, máy móc: mô hình dự đoán "trung bình"', 980, 600, {size: 30, weight: 700, color: COL.hl, align: 'center'});
+    });
+    return;
+  }
+  fade(G, P(t, sa + 0.3, 0.5), () => {
+    const B = {x: 400, y: 260, w: 1100, h: 400}, xs = Array.from({length: 101}, (_, k) => k / 100);
+    const up = u => 0.5 + 0.35 * Math.sin(Math.PI * u), dn = u => 0.5 - 0.35 * Math.sin(Math.PI * u);
+    const X = u => B.x + u * B.w, Y = v => B.y + B.h - v * B.h;
+    line(B.x, B.y + B.h, B.x + B.w, B.y + B.h, COL.line2, 2);
+    poly(xs.map(X), xs.map(u => Y(up(u))), COL.ok, 4);
+    poly(xs.map(X), xs.map(u => Y(dn(u))), COL.acc, 4);
+    text('lên giọng', X(0.5), Y(0.85) - 24, {size: 24, weight: 700, color: COL.ok, align: 'center'});
+    text('xuống giọng', X(0.5), Y(0.15) + 30, {size: 24, weight: 700, color: COL.acc, align: 'center'});
+    fade(G, P(t, sa + da * 0.45, 0.5), () => {
+      poly(xs.map(X), xs.map(u => Y((up(u) + dn(u)) / 2)), COL.hl, 5, [12, 8]);
+      text('trung bình: phẳng, không giống cách nào', X(0.5), Y(0.5) - 30, {size: 24, weight: 700, color: COL.hl, align: 'center'});
+    });
+    text('f0', B.x - 20, B.y, {size: 20, color: COL.mute, align: 'right'});
+  });
+}
+
+function shotGoal(G, t) {
+  const sg = S('goal'), dg = D('goal'), si = S('idea'), di = D('idea');
+  heading(t < si ? 'Mục tiêu: một mạng, học thẳng' : 'Mượn ý trang 11, đổi chiều');
+  if (t < si) {
+    fade(G, P(t, sg + 0.3, 0.5), () => {
+      chip(G, 320, 340, '(câu chữ, âm thanh)', {size: 30, weight: 700});
+      arrow(660, 366, 760, 366, COL.mute, 3);
+      rrect(780, 300, 360, 130, 16, COL.frameSoft, COL.frame, 3);
+      text('một mạng', 960, 365, {size: 32, weight: 700, color: COL.frame, align: 'center'});
+    });
+    fade(G, P(t, sg + dg * 0.45, 0.5), () => {
+      ['mỗi chữ đọc dài bao lâu', 'lên giọng, xuống giọng ra sao', 'không cần nhãn độ dài, đặc trưng ngôn ngữ'].forEach((l, j) => {
+        text('✓', 1200, 320 + j * 60, {size: 28, weight: 700, color: COL.ok});
+        text(l, 1240, 320 + j * 60, {size: 26});
+      });
+    });
+    return;
+  }
+  fade(G, P(t, si + 0.3, 0.5), () => {
+    chip(G, 300, 300, 'trang 11 (ASR): đọc frame → viết chữ', {size: 28, weight: 700, color: COL.acc, stroke: COL.acc});
+    arrow(960, 400, 960, 460, COL.mute, 3);
+    chip(G, 300, 480, 'Tacotron (TTS): đọc chữ → viết frame Mel', {size: 28, weight: 700, color: COL.frame, stroke: COL.frame});
+  });
+  fade(G, P(t, si + di * 0.5, 0.5), () => text('Tacotron (Google, 2017) · Tacotron 2 (Shen và cộng sự, 2018)', 960, 660, {size: 26, color: COL.mute, align: 'center'}));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['hệ cũ: nhiều thành phần, cần chuyên gia, giọng phẳng', COL.hl, '✗'], ['Tacotron: một mạng, học thẳng từ (chữ, âm thanh)', COL.ok, '✓']].forEach(([a, c, m], j) =>
+    fade(G, P(t, s + 0.3 + j * 2, 0.6), () => {
+      text(m, 400, 320 + j * 90, {size: 34, weight: 700, color: c});
+      text(a, 450, 320 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 820, 600, 'Phần 2: năm khối  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 1', [
+  ['khối chữ → Mel', 'mô hình âm học (acoustic model)', 'Tacotron 2'],
+  ['đặc trưng do người thiết kế', 'linguistic features', 'mỗi ngôn ngữ một bộ'],
+  ['ngữ điệu, độ dài, cao độ', 'prosody', 'cái làm giọng tự nhiên'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'place', to: 'place', draw: shotPlace},
+    {from: 'p1', to: 'avg', draw: shotOld},
+    {from: 'goal', to: 'idea', draw: shotGoal},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/taco-1-van-de.wav');
+</script>
+</body>
+</html>

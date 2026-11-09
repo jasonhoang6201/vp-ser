@@ -1,0 +1,33 @@
+{
+  "clip": "ser-4-du-lieu",
+  "title": "SER · Phần 4: Hai bộ dữ liệu",
+  "segments": [
+    {"id": "intro",
+     "sub": "SER, phần 4: hai bộ dữ liệu hay dùng, IEMOCAP và MELD.",
+     "say": "Ét i a, phần bốn: hai bộ dữ liệu hay dùng, I e mô cáp và Meo."},
+    {"id": "iemo",
+     "sub": "IEMOCAP: 10 diễn viên, 5 phiên, mỗi phiên 1 nam 1 nữ, đối thoại theo kịch bản và ứng tác, thu trong phòng thu. Khoảng 12 giờ, khoảng 10 000 câu.",
+     "say": "I e mô cáp: mười diễn viên, chia làm năm phiên, mỗi phiên một nam một nữ, đối thoại theo kịch bản và ứng tác, thu trong phòng thu. Khoảng mười hai giờ, khoảng mười nghìn câu."},
+    {"id": "iemo2",
+     "sub": "Mỗi câu ít nhất 3 người gán, lấy đa số; có cả nhãn lớp và nhãn chiều. Cách dùng phổ biến: 4 lớp (trung tính, vui gộp \"excited\", giận, buồn), 5 531 câu.",
+     "say": "Mỗi câu có ít nhất ba người gán nhãn, rồi lấy đa số. Có cả nhãn theo lớp và nhãn theo chiều. Cách dùng phổ biến là bốn lớp: trung tính, vui có gộp cả hào hứng, giận, và buồn, tổng cộng năm nghìn năm trăm ba mươi mốt câu."},
+    {"id": "split",
+     "sub": "Chia theo phiên: người nói ở test không có trong train (leave-one-session-out). Nếu cùng người ở cả hai, mô hình có thể học nhận ra giọng thay vì cảm xúc.",
+     "say": "Dữ liệu được chia theo phiên, để người nói ở tập thử không có mặt trong tập học. Cách này gọi là để riêng một phiên. Nếu cùng một người có ở cả hai tập, mô hình có thể học cách nhận ra giọng người đó, thay vì nhận ra cảm xúc."},
+    {"id": "meld",
+     "sub": "MELD: hội thoại trong phim Friends, khoảng 13 000 câu, chia sẵn train/dev/test. 7 lớp: trung tính, vui, ngạc nhiên, giận, buồn, ghê tởm, sợ.",
+     "say": "Meo: các đoạn hội thoại trong phim Phờ ren, khoảng mười ba nghìn câu, chia sẵn tập học, tập kiểm, tập thử. Có bảy lớp: trung tính, vui, ngạc nhiên, giận, buồn, ghê tởm, và sợ."},
+    {"id": "meld2",
+     "sub": "Tập test MELD: 1 256 trên 2 610 câu là trung tính, gần một nửa; sợ chỉ 50 câu. Câu ngắn, nhạc nền, tiếng cười khán giả. Chỉ số chính thường là weighted-F1.",
+     "say": "Tập thử của Meo có một nghìn hai trăm năm mươi sáu trên hai nghìn sáu trăm mười câu là trung tính, gần một nửa, còn sợ chỉ có năm mươi câu. Câu ngắn, có nhạc nền, có tiếng cười khán giả. Chỉ số chính thường là oe tịt ép một."},
+    {"id": "tie",
+     "sub": "Câu mà người gán nhãn không thống nhất (hòa phiếu) thường bị bỏ. Dữ liệu vì thế \"dễ\" hơn đời thật.",
+     "say": "Những câu mà người gán nhãn không thống nhất, tức hòa phiếu, thường bị bỏ đi. Vì thế dữ liệu dễ hơn đời thật."},
+    {"id": "result",
+     "sub": "Tóm lại: IEMOCAP nhỏ, phòng thu, 4 lớp khá đều, chia theo phiên; MELD từ phim, 7 lớp, lệch nặng về trung tính. Phần 5: thước đo.",
+     "say": "Tóm lại: I e mô cáp nhỏ, thu trong phòng thu, bốn lớp khá đều, chia theo phiên. Meo lấy từ phim, bảy lớp, lệch nặng về trung tính. Phần năm: thước đo."},
+    {"id": "terms",
+     "sub": "Thuật ngữ của phần này.",
+     "say": "Các thuật ngữ của phần này."}
+  ]
+}

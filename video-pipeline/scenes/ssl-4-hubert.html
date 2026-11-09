@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>SSL 4: HuBERT</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../lib/ssl.js"></script>
+<script src="../build/ssl-4-hubert.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Hai hướng', '3 wav2vec 2.0', '4 HuBERT', '5 Whisper'];
+const KCOL = [COL.acc, COL.frame, COL.ok, COL.i, COL.hl, '#b8860b', '#4b8b9b', '#787774'];
+const RUN = {3: SSL.kmeans(3, 2), 5: SSL.kmeans(5, 2), 8: SSL.kmeans(8, 2)};
+const B = {x: 260, y: 230, s: 480}, lo = -2.6, hi = 2.6;
+const X = v => B.x + (v - lo) / (hi - lo) * B.s, Y = v => B.y + B.s - (v - lo) / (hi - lo) * B.s;
+
+function scatter(state, o = {}) {
+  const g = Clip.g;
+  rrect(B.x, B.y, B.s, B.s, 6, COL.card, COL.line, 2);
+  SSL.FR.forEach((f, j) => { g.beginPath(); g.arc(X(f.p[0]), Y(f.p[1]), 6, 0, Math.PI * 2); g.fillStyle = state ? KCOL[state.asg[j]] : COL.line2; g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.stroke(); });
+  if (state) state.cent.forEach((c, k) => {
+    const x = X(c[0]), y = Y(c[1]);
+    line(x - 9, y - 9, x + 9, y + 9, COL.ink, 3); line(x + 9, y - 9, x - 9, y + 9, COL.ink, 3);
+    text(`mã ${k}`, x + 14, y - 14, {size: 20, weight: 700, color: KCOL[k]});
+  });
+  SSL.SEGS.forEach(([lab, c]) => text(`"${lab}"`, X(c[0]), Y(c[1]) - 50, {size: 26, weight: 700, color: COL.mute, align: 'center'}));
+}
+function strip(state, y = 330) {
+  const x0 = 860, cw = 14;
+  text('chuỗi mã theo thời gian', x0, y - 40, {size: 24, weight: 700});
+  SSL.FR.forEach((f, j) => rrect(x0 + j * cw, y, cw - 1, 60, 1, state ? KCOL[state.asg[j]] : COL.line2));
+  [[0, 22, 'a'], [22, 36, 's'], [36, 60, 'i']].forEach(([a, b, l]) => {
+    line(x0 + a * cw, y + 76, x0 + b * cw - 3, y + 76, COL.ink, 2);
+    text(`"${l}"`, x0 + (a + b) / 2 * cw, y + 100, {size: 22, weight: 700, align: 'center'});
+  });
+  [22, 36].forEach(b => line(x0 + b * cw - 1, y - 10, x0 + b * cw - 1, y + 70, COL.hl, 2, [4, 4]));
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('HuBERT', 'Phần 4/5: đáp án lấy từ phân cụm', 3, PARTS);
+
+function shotIdea(G, t) {
+  const s = S('idea'), d = D('idea');
+  heading('HuBERT (Hsu và cộng sự, 2021)');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    const steps = ['frame', 'k-means', 'mã cụm', 'che', 'đoán mã của frame bị che'], xs = UI.chipXs(G, steps, {size: 28, weight: 700}, 60);
+    steps.forEach((l, j) => { chip(G, xs[j], 380, l, j === 4 ? HOT : {size: 28, weight: 700}); if (j < 4) arrow(xs[j + 1] - 52, 406, xs[j + 1] - 8, 406, COL.mute, 3); });
+  });
+  fade(G, P(t, s + d * 0.55, 0.5), () => text('wav2vec 2.0 học mã cùng mạng; HuBERT lấy mã từ phân cụm, làm trước', 960, 540, {size: 26, color: COL.mute, align: 'center'}));
+}
+
+function shotKmeans(G, t) {
+  const sd = S('data'), ss = S('step'), ds = D('step'), se = S('em'), s3 = S('k3'), s5 = S('k5'), s8 = S('k8');
+  const K = t >= s8 ? 8 : t >= s5 ? 5 : 3;
+  heading(t < ss ? '60 frame của câu "a s i"' : t < s3 ? 'k-means: gán, rồi dời tâm' : `K = ${K}`);
+  let state = null;
+  if (t >= ss) {
+    const run = RUN[t < s3 ? 5 : K], i = t < s3 ? Math.min(run.length - 1, Math.floor((run.length) * P(t, ss + 0.5, ds * 0.8))) : run.length - 1;
+    state = run[i];
+    if (t < s3) text(`bước ${i}`, B.x + B.s, B.y - 20, {size: 22, weight: 700, color: COL.frame, align: 'right'});
+  }
+  fade(G, P(t, sd + 0.3, 0.5), () => { scatter(state); strip(state); });
+  if (t >= se && t < s3) fade(G, P(t, se + 0.3, 0.5), () => text('giống EM của GMM (trang 06), nhưng gán cứng', 1260, 560, {size: 26, weight: 700, color: COL.acc, align: 'center'}));
+  if (t >= s5 && t < s8) fade(G, P(t, s5 + D('k5') * 0.4, 0.5), () => text('ranh giới âm vẫn là chỗ đổi mã: nhãn giả đủ tốt', 1260, 560, {size: 26, weight: 700, color: COL.ok, align: 'center'}));
+  if (t >= s8) fade(G, P(t, s8 + D('k8') * 0.4, 0.5), () => text('mã không cần trùng âm vị, chỉ cần nhất quán', 1260, 560, {size: 26, weight: 700, color: COL.ok, align: 'center'}));
+}
+
+function shotIter(G, t) {
+  const s = S('iter'), d = D('iter'), sb = S('bert'), db = D('bert');
+  heading(t < sb ? 'Hai vòng' : 'Hidden-unit BERT');
+  if (t < sb) {
+    fade(G, P(t, s + 0.3, 0.5), () => {
+      card(220, 280, 680, 260, {stroke: COL.acc});
+      text('vòng 1', 250, 330, {size: 26, color: COL.mute});
+      text('k-means trên MFCC', 250, 390, {size: 32, weight: 700, color: COL.acc});
+      text('100 cụm', 250, 450, {size: 30, weight: 700});
+    });
+    fade(G, P(t, s + d * 0.45, 0.5), () => {
+      arrow(910, 410, 1010, 410, COL.mute, 4, 16);
+      card(1020, 280, 680, 260, {stroke: COL.ok});
+      text('vòng 2', 1050, 330, {size: 26, color: COL.mute});
+      text('k-means trên đặc trưng HuBERT vòng 1', 1050, 390, {size: 28, weight: 700, color: COL.ok});
+      text('500 cụm, huấn luyện lại', 1050, 450, {size: 30, weight: 700});
+    });
+    return;
+  }
+  fade(G, P(t, sb + 0.3, 0.5), () => {
+    const ws = ['hôm', 'nay', '[che]', 'mưa'], xs = UI.chipXs(G, ws, {size: 30, weight: 700}, 20);
+    ws.forEach((w, j) => chip(G, xs[j], 300, w, w === '[che]' ? HOT : {size: 30, weight: 700}));
+    text('BERT: đoán chữ bị che', 960, 400, {size: 26, color: COL.mute, align: 'center'});
+    const cs = ['12', '12', '[che]', '[che]', '47', '47', '3'], xs2 = UI.chipXs(G, cs, {size: 30, weight: 700}, 20);
+    cs.forEach((w, j) => chip(G, xs2[j], 480, w, w === '[che]' ? HOT : {size: 30, weight: 700, color: COL.ok, stroke: COL.ok}));
+    text('HuBERT: đoán mã cụm bị che', 960, 580, {size: 26, color: COL.mute, align: 'center'});
+  });
+}
+
+function shotWavlm(G, t) {
+  const s = S('wavlm'), d = D('wavlm');
+  heading('WavLM (2022): học cả khi có nhiễu');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    chip(G, 240, 320, 'tiếng nói gốc', {size: 28, weight: 700, color: COL.acc, stroke: COL.acc});
+    text('+', 520, 346, {size: 34, weight: 700, color: COL.mute, align: 'center'});
+    chip(G, 560, 320, 'tiếng ồn / người khác', {size: 28, weight: 700, color: COL.hl, stroke: COL.hl});
+    arrow(900, 346, 980, 346, COL.mute, 3);
+    chip(G, 1000, 320, 'vẫn đoán mã của tiếng gốc', HOT);
+  });
+  fade(G, P(t, s + d * 0.5, 0.5), () => {
+    text('đặc trưng bền với nhiễu', 960, 480, {size: 30, weight: 700, color: COL.ok, align: 'center'});
+    text('hợp cả nhận dạng người nói và cảm xúc', 960, 540, {size: 26, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['đáp án từ k-means: mã cụm'], ['đoán mã của frame bị che (như BERT)'], ['hai vòng: MFCC, rồi đặc trưng tự học'], ['mã không cần trùng âm vị, chỉ cần nhất quán']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.5, 0.6), () => {
+      text('✓', 440, 290 + j * 84, {size: 34, weight: 700, color: COL.ok});
+      text(a, 490, 290 + j * 84, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 840, 680, 'Phần 5: Whisper  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 4', [
+  ['phân nhóm theo tâm gần nhất', 'k-means clustering', 'gán cứng, dời tâm'],
+  ['nhãn tự tạo, chưa chuẩn', 'nhãn giả (pseudo-label)', 'mã cụm'],
+  ['BERT cho đơn vị ẩn', 'HuBERT (Hidden-unit BERT)', 'Hsu 2021'],
+  ['học cả khi có nhiễu', 'WavLM (denoising)', 'bền, hợp cảm xúc'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'idea', to: 'idea', draw: shotIdea},
+    {from: 'data', to: 'k8', draw: shotKmeans},
+    {from: 'iter', to: 'bert', draw: shotIter},
+    {from: 'wavlm', to: 'wavlm', draw: shotWavlm},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/ssl-4-hubert.wav');
+</script>
+</body>
+</html>

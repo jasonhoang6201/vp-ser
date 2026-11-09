@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Tacotron 2 · 3: Một bước decoder</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/taco-3-buoc.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Năm khối', '3 Một bước decoder', '4 Attention tốt và hỏng'];
+const STEPS = [
+  ['s1', 'frame Mel vừa sinh → pre-net', '(bước đầu: frame toàn 0)', 260, 300],
+  ['s2', 'attention: chấm điểm các chữ', '(có cộng dồn trọng số các bước trước)', 760, 300],
+  ['s3', 'trung bình có trọng số', '"đang đọc chữ nào"', 1260, 300],
+  ['s4', 'LSTM → frame Mel + xác suất dừng', '', 1260, 520],
+  ['s5', 'xác suất dừng > 0,5?', 'có: dừng · không: lặp', 760, 520],
+];
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Tacotron 2', 'Phần 3/4: một bước của decoder', 2, PARTS);
+
+function shotLoop(G, t) {
+  heading('Một bước của decoder');
+  STEPS.forEach(([id, a, b, x, y], j) => fade(G, P(t, S(id) + 0.2, 0.4), () => {
+    const on = t >= S(id) && t < E(id) + 0.3;
+    rrect(x, y, 420, 160, 16, on ? COL.frameSoft : COL.card, on ? COL.frame : COL.line2, on ? 3 : 1.5);
+    text(String(j + 1), x + 34, y + 80, {size: 44, weight: 700, color: on ? COL.frame : COL.line2, align: 'center'});
+    text(a, x + 74, y + 40, {size: 24, weight: 700, maxW: 330});
+    if (b) text(b, x + 74, y + 128, {size: 20, color: COL.mute, maxW: 330});
+  }));
+  fade(G, P(t, S('s2') + 0.2, 0.4), () => arrow(690, 370, 750, 370, COL.mute, 3));
+  fade(G, P(t, S('s3') + 0.2, 0.4), () => arrow(1190, 370, 1250, 370, COL.mute, 3));
+  fade(G, P(t, S('s4') + 0.2, 0.4), () => arrow(1470, 464, 1470, 514, COL.mute, 3));
+  fade(G, P(t, S('s5') + 0.2, 0.4), () => {
+    arrow(1250, 590, 1190, 590, COL.mute, 3);
+    const g = Clip.g;
+    g.beginPath(); g.moveTo(760, 590); g.quadraticCurveTo(470, 590, 470, 450); g.strokeStyle = COL.ok; g.lineWidth = 3; g.setLineDash([8, 6]); g.stroke(); g.setLineDash([]);
+    arrow(470, 458, 470, 446, COL.ok, 3);
+    text('lặp', 560, 560, {size: 24, weight: 700, color: COL.ok});
+    text('12,5 ms mỗi bước ≈ 80 bước mỗi giây', 960, 740, {size: 26, weight: 700, color: COL.acc, align: 'center'});
+  });
+}
+
+function shotTrain(G, t) {
+  const st = S('train'), dt = D('train'), sb = S('bias'), db = D('bias'), sd = S('dropout');
+  heading(t < sb ? 'Khi huấn luyện: teacher forcing' : t < sd ? 'Khi dùng: exposure bias' : 'Mẹo: dropout ở pre-net luôn bật');
+  if (t < sb) {
+    fade(G, P(t, st + 0.3, 0.5), () => {
+      chip(G, 300, 300, 'frame Mel thật', {size: 28, weight: 700, color: COL.ok, stroke: COL.ok});
+      arrow(560, 326, 640, 326, COL.mute, 3);
+      chip(G, 660, 300, 'decoder', {size: 28, weight: 700});
+      arrow(810, 326, 890, 326, COL.mute, 3);
+      chip(G, 910, 300, 'frame sinh ra', {size: 28, weight: 700, color: COL.acc, stroke: COL.acc});
+    });
+    fade(G, P(t, st + dt * 0.45, 0.5), () => {
+      card(300, 430, 1320, 200, {stroke: COL.hl});
+      text('loss = (Mel sinh − Mel thật)² trước post-net', 340, 485, {size: 28, weight: 700});
+      text('     + (Mel sinh − Mel thật)² sau post-net', 340, 535, {size: 28, weight: 700});
+      text('     + loss của xác suất dừng', 340, 585, {size: 28, weight: 700, color: COL.frame});
+    });
+    return;
+  }
+  if (t < sd) {
+    fade(G, P(t, sb + 0.3, 0.5), () => {
+      const n = 10;
+      for (let k = 0; k < n; k++) {
+        const x = 300 + k * 140, drift = k * k * 1.6;
+        rrect(x, 330 + drift, 100, 60, 8, COL.accSoft, COL.acc, 2);
+        if (k < n - 1) arrow(x + 104, 360 + drift, x + 136, 360 + (k + 1) ** 2 * 1.6, COL.acc, 2, 8);
+      }
+      line(300, 360, 1660, 360, COL.ok, 2, [6, 6]);
+      text('đúng', 1680, 360, {size: 22, color: COL.ok});
+      text('frame tự sinh lệch dần', 1680, 360 + 81 * 1.6, {size: 22, color: COL.hl});
+    });
+    fade(G, P(t, sb + db * 0.55, 0.5), () => text('lúc học dùng frame thật, lúc dùng dựa vào frame của mình: một frame lệch kéo frame sau lệch thêm', 960, 620, {size: 26, weight: 700, color: COL.hl, align: 'center', maxW: 1400}));
+    return;
+  }
+  fade(G, P(t, sd + 0.3, 0.5), () => {
+    for (let k = 0; k < 12; k++) {
+      const off = [2, 7, 9].includes(k);
+      rrect(560 + k * 70, 330, 54, 54, 27, off ? COL.soft : COL.accSoft, off ? COL.line2 : COL.acc, 2);
+      if (off) text('✗', 587 + k * 70, 357, {size: 24, weight: 700, color: COL.hl, align: 'center'});
+    }
+    text('pre-net: tắt ngẫu nhiên một số nơ-ron, kể cả khi dùng', 960, 450, {size: 28, weight: 700, align: 'center'});
+    text('→ quen đầu vào không hoàn hảo, chịu được frame tự sinh, giọng có chút biến đổi tự nhiên', 960, 520, {size: 26, color: COL.ok, align: 'center', maxW: 1400});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['pre-net → attention → trung bình → LSTM → Mel + stop, lặp'], ['học: teacher forcing, loss bình phương + stop'], ['dùng: dựa vào frame của mình (exposure bias)'], ['dropout pre-net luôn bật']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.5, 0.6), () => {
+      text('✓', 380, 290 + j * 84, {size: 34, weight: 700, color: COL.ok});
+      text(a, 430, 290 + j * 84, {size: 30});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 760, 680, 'Phần 4: attention lúc tốt và lúc hỏng  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 3', [
+  ['đưa frame thật vào khi học', 'teacher forcing', ''],
+  ['khác biệt lúc học và lúc dùng', 'exposure bias', 'lỗi dồn theo thời gian'],
+  ['tắt ngẫu nhiên nơ-ron', 'dropout', 'ở pre-net luôn bật'],
+  ['sai lệch bình phương', 'MSE loss', 'trước và sau post-net'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 's1', to: 's5', draw: shotLoop},
+    {from: 'train', to: 'dropout', draw: shotTrain},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/taco-3-buoc.wav');
+</script>
+</body>
+</html>

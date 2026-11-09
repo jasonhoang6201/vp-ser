@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GMM</title>
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="pn"></nav>
+<h1>GMM: mô tả "vùng" của một âm bằng vài quả đồi</h1>
+<p class="sub">GMM (Gaussian Mixture Model, mô hình trộn Gauss). Trang trước, mỗi frame 10 ms thành 13 số MFCC. Trang này trả lời câu hỏi: <b>frame này giống âm "a" bao nhiêu?</b></p>
+
+<section>
+<h2><span class="n">1</span>Vấn đề: có MFCC rồi, nhưng so với cái gì?</h2>
+<p>Lấy MFCC của <b>rất nhiều</b> frame âm "a" từ nhiều người nói. Mỗi frame là một điểm trong không gian 13 chiều. Để vẽ được, trang này chỉ lấy <b>2 số</b> (gọi là c1, c2), nên mỗi frame là một điểm trên mặt phẳng.</p>
+<p>Các điểm "a" không trùng nhau. Chúng tạo thành một <b>đám mây</b>: người giọng trầm, người giọng cao, "a" đứng trước "m" hay sau "t" đều lệch đi một chút. Đám mây đó thường <b>không tròn</b> và có thể có <b>vài cụm</b>.</p>
+<div class="tablewrap"><table>
+<tr><th>Cách đơn giản</th><th>Vướng</th></tr>
+<tr><td>Lấy <b>trung bình</b> các điểm "a", đo khoảng cách từ frame mới tới trung bình</td><td>bỏ qua hình dạng đám mây: đám mây dẹt thì đi dọc theo nó vẫn là "a", đi ngang thì đã ra ngoài</td></tr>
+<tr><td>Giữ <b>mọi điểm</b> đã thấy, tìm điểm gần nhất</td><td>hàng triệu frame, chậm và dễ bị một điểm lạ đánh lừa</td></tr>
+</table></div>
+<div class="note blue"><b>Mục tiêu của GMM:</b> mô tả đám mây "a" bằng <b>vài con số</b> (không phải giữ mọi điểm), sao cho với một frame mới thì tính được ngay một điểm số: <b>frame này nằm trong vùng của "a" đến đâu</b>.</div>
+</section>
+
+<section>
+<h2><span class="n">2</span>Cách GMM làm: 3 thành phần</h2>
+<div class="tablewrap"><table>
+<tr><th>Thành phần</th><th>Là gì</th><th>Gỡ vướng gì</th><th>Ở mục</th></tr>
+<tr><td><b>quả đồi Gauss</b> (Gaussian)</td><td>một hình chuông, mô tả bằng <b>tâm</b> (mean, μ) và <b>độ rộng</b> (variance σ², ở nhiều chiều là covariance)</td><td>mô tả một cụm, kể cả cụm dẹt, bằng vài số</td><td>3</td></tr>
+<tr><td><b>trộn</b> (mixture)</td><td>cộng K quả đồi, mỗi quả có một <b>trọng số</b> (weight), tổng trọng số = 1</td><td>đám mây có nhiều cụm</td><td>4</td></tr>
+<tr><td><b>EM</b> (Expectation-Maximization)</td><td>thuật toán lặp: chia điểm cho các quả đồi, rồi dời đồi theo điểm được chia</td><td>tự tìm tâm, độ rộng, trọng số từ dữ liệu</td><td>4</td></tr>
+</table></div>
+<p>Kết quả: một hàm <b>p(x | "a")</b>, đọc là "độ cao của địa hình 'a' tại điểm x". Gọi là <b>likelihood</b> (độ hợp lý). Điểm nằm giữa cụm thì cao, điểm ở xa thì gần 0. Có một GMM cho mỗi âm, frame mới thuộc về âm nào cho likelihood cao nhất (mục 5).</p>
+</section>
+
+<section>
+<h2><span class="n">3</span>Một quả đồi Gauss</h2>
+<p>Bắt đầu với <b>1 chiều</b>: chỉ nhìn số c1 của 300 frame "a". Cột xám là số frame rơi vào mỗi khoảng (histogram). Đường cam là một quả đồi Gauss:</p>
+<div class="formula">p(x) = 1 / (σ√(2π)) × exp( −(x − μ)² / (2σ²) )</div>
+<p>Kéo μ (tâm) và σ (độ rộng) để quả đồi ôm sát các cột.</p>
+<div class="ctrl">
+  <span class="grp">μ <input type="range" id="mu" min="-2" max="3" step="0.05" value="-0.5"> <b id="muv"></b></span>
+  <span class="grp">σ <input type="range" id="sg" min="0.15" max="2" step="0.05" value="1.4"> <b id="sgv"></b></span>
+  <button id="fit1">Đặt theo dữ liệu</button>
+</div>
+<div class="fig"><canvas id="c3"></canvas></div>
+<div class="readout" id="r3"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Mỗi frame được chấm bằng <b>độ cao của đồi tại vị trí của nó</b>. Cộng log của các độ cao lại thì được <b>log-likelihood</b> của cả bộ dữ liệu. Số càng lớn (càng ít âm) thì đồi càng khớp.
+<br>• Đồi quá rộng thì điểm nào cũng được chấm thấp. Đồi quá hẹp thì điểm ở rìa bị chấm gần 0. Có một chỗ cân bằng.
+<br>• Bấm "Đặt theo dữ liệu": μ = trung bình, σ = độ lệch chuẩn của các điểm. Đây đúng là chỗ cho log-likelihood <b>lớn nhất</b> (maximum likelihood), nên một quả đồi thì không cần thuật toán lặp.</div>
+</section>
+
+<section>
+<h2><span class="n">4</span>Trộn nhiều quả đồi và thuật toán EM</h2>
+<p>Bây giờ 2 chiều (c1, c2), và đám mây "a" có <b>3 cụm</b>. Mỗi elip là một quả đồi (vòng trong: 1σ, vòng ngoài: 2σ). Màu của điểm là quả đồi đang "nhận" điểm đó.</p>
+<div class="ctrl">
+  <span class="grp">Số quả đồi K: <button data-k="1">1</button><button data-k="2">2</button><button data-k="3" class="on">3</button><button data-k="4">4</button></span>
+  <button id="em1">1 bước EM</button><button id="emrun">▶ Chạy đến khi đứng yên</button><button id="eminit">Khởi tạo lại</button>
+</div>
+<div class="fig"><canvas id="c4"></canvas></div>
+<div class="readout" id="r4"></div>
+<p>Mỗi bước EM gồm hai nửa:</p>
+<div class="tablewrap"><table>
+<tr><th>Nửa bước</th><th>Làm gì</th></tr>
+<tr><td><b>E</b> (Expectation)</td><td>với mỗi điểm, tính xem mỗi quả đồi "nhận" bao nhiêu phần trăm điểm đó (gọi là responsibility). Đồi nào cao hơn tại điểm đó thì nhận nhiều hơn.</td></tr>
+<tr><td><b>M</b> (Maximization)</td><td>mỗi quả đồi dời tâm về trung bình <b>có trọng số</b> của các điểm nó nhận, đổi độ rộng theo độ tản của các điểm đó, trọng số = phần dữ liệu nó nhận.</td></tr>
+</table></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Bấm "1 bước EM" vài lần: các elip trượt về phía các cụm, và log-likelihood <b>không bao giờ giảm</b>. Đó là tính chất của EM.
+<br>• K = 1: một elip to bao cả ba cụm, chấm điểm cao cả vùng trống ở giữa. K = 3 thì khớp. K = 4: một cụm bị chia đôi, log-likelihood chỉ nhích lên một chút. K lớn hơn luôn khớp tốt hơn trên dữ liệu đã thấy, nhưng dễ học thuộc lòng.
+<br>• Khởi tạo khác thì có thể dừng ở kết quả khác (EM chỉ tìm được đỉnh <b>gần</b>, không chắc là tốt nhất). Bấm "Khởi tạo lại" vài lần để thấy.</div>
+</section>
+
+<section>
+<h2><span class="n">5</span>Dùng GMM để chấm điểm một frame mới</h2>
+<p>Đã học sẵn 2 GMM: một cho "a" (3 đồi, xanh), một cho "i" (2 đồi, tím). Nền được tô theo GMM nào cho likelihood cao hơn. <b>Bấm vào bất kỳ đâu</b> để đặt một frame mới.</p>
+<div class="fig"><canvas id="c5"></canvas></div>
+<div class="readout" id="r5"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Đường ranh giới <b>cong</b> và đi theo hình dạng các cụm, không phải đường thẳng giữa hai trung bình.
+<br>• Bấm ra rất xa cả hai đám mây: một bên vẫn "thắng", nhưng cả hai log-likelihood đều rất thấp. GMM luôn đưa ra một câu trả lời, kể cả khi frame không giống gì cả.
+<br>• Chấm <b>từng frame một</b> như vậy thì chưa đủ: một frame ở vùng ranh giới có thể bị chấm nhầm, và không có gì cho biết âm nào đứng trước âm nào. Đó là việc của trang sau.</div>
+</section>
+
+<section>
+<h2>Tóm tắt</h2>
+<ul>
+<li>Mỗi âm là một đám mây điểm MFCC. GMM mô tả đám mây đó bằng K quả đồi Gauss: mỗi đồi có tâm, độ rộng (covariance), trọng số.</li>
+<li>Likelihood p(x | âm) = độ cao của địa hình tại điểm x. Frame được gán cho âm có likelihood cao nhất.</li>
+<li>EM học các con số từ dữ liệu: E chia điểm cho các đồi, M dời đồi theo điểm được chia. Log-likelihood không giảm qua các bước.</li>
+<li>Trong thực tế: 39 chiều (13 MFCC cộng độ thay đổi theo thời gian), mỗi GMM có 8 đến vài chục đồi, và thường chỉ dùng phần <b>đường chéo</b> của covariance (coi các chiều không liên quan nhau) để đỡ tính. Cách này hợp lý một phần nhờ DCT trong MFCC đã làm các hệ số ít lên xuống cùng nhau.</li>
+</ul>
+<h3>Thuật ngữ mới</h3>
+<div class="tablewrap"><table>
+<tr><th>Nói thường</th><th>Thuật ngữ</th></tr>
+<tr><td>quả đồi hình chuông</td><td>phân phối Gauss (Gaussian, normal distribution)</td></tr>
+<tr><td>tâm, độ rộng của đồi</td><td>mean μ, variance σ² (nhiều chiều: covariance matrix Σ)</td></tr>
+<tr><td>độ cao của địa hình tại một điểm</td><td>likelihood, mật độ xác suất (probability density)</td></tr>
+<tr><td>cộng log các độ cao của mọi điểm</td><td>log-likelihood</td></tr>
+<tr><td>chọn tham số cho log-likelihood lớn nhất</td><td>maximum likelihood estimation (MLE)</td></tr>
+<tr><td>phần trăm một đồi nhận một điểm</td><td>responsibility (xác suất hậu nghiệm của thành phần)</td></tr>
+<tr><td>chỉ dùng phần đường chéo</td><td>diagonal covariance</td></tr>
+</table></div>
+<p class="muted">Dữ liệu trên trang là giả lập để vẽ được trên 2 chiều, không phải MFCC thật. Công thức và hành vi của EM thì giống hệt.</p>
+</section>
+<nav class="pn"></nav>
+</div>
+<script src="assets/learn.js"></script>
+<script>
+function cloud(seed, specs) {
+  const r = rng(seed), pts = [];
+  specs.forEach(([mx, my, sx, sy, rho, n]) => {
+    for (let j = 0; j < n; j++) {
+      const z1 = randn(r), z2 = randn(r);
+      pts.push([mx + sx * z1, my + sy * (rho * z1 + Math.sqrt(1 - rho * rho) * z2)]);
+    }
+  });
+  return pts;
+}
+const A_PTS = cloud(11, [[-1.3, 0.9, 0.45, 0.28, 0.5, 120], [1.1, 1.1, 0.35, 0.6, -0.4, 90], [0.1, -0.9, 0.7, 0.3, 0.3, 90]]);
+const I_PTS = cloud(23, [[1.9, -1.4, 0.4, 0.3, 0.2, 90], [2.4, 0.1, 0.3, 0.45, 0.3, 70]]);
+
+function pdf2(p, g) {
+  const [a, b, c] = g.cov, det = a * c - b * b, dx = p[0] - g.mu[0], dy = p[1] - g.mu[1];
+  const q = (c * dx * dx - 2 * b * dx * dy + a * dy * dy) / det;
+  return Math.exp(-0.5 * q) / (2 * Math.PI * Math.sqrt(det));
+}
+const mixPdf = (p, gs) => gs.reduce((s, g) => s + g.w * pdf2(p, g), 0);
+const avgLL = (pts, gs) => pts.reduce((s, p) => s + Math.log(mixPdf(p, gs) + 1e-300), 0) / pts.length;
+
+function initGmm(pts, K, seed) {
+  const r = rng(seed), n = pts.length;
+  const mx = pts.reduce((s, p) => s + p[0], 0) / n, my = pts.reduce((s, p) => s + p[1], 0) / n;
+  const vx = pts.reduce((s, p) => s + (p[0] - mx) ** 2, 0) / n, vy = pts.reduce((s, p) => s + (p[1] - my) ** 2, 0) / n;
+  return Array.from({length: K}, () => ({mu: pts[Math.floor(r() * n)].slice(), cov: [vx * 0.5, 0, vy * 0.5], w: 1 / K}));
+}
+function resp(pts, gs) {
+  return pts.map(p => { const v = gs.map(g => g.w * pdf2(p, g)), s = v.reduce((x, y) => x + y, 0) || 1e-300; return v.map(x => x / s); });
+}
+function emStep(pts, gs) {
+  const R = resp(pts, gs), n = pts.length;
+  return gs.map((g, k) => {
+    const Nk = R.reduce((s, r) => s + r[k], 0) + 1e-9;
+    const mu = [0, 1].map(d => R.reduce((s, r, j) => s + r[k] * pts[j][d], 0) / Nk);
+    let a = 0, b = 0, c = 0;
+    R.forEach((r, j) => { const dx = pts[j][0] - mu[0], dy = pts[j][1] - mu[1]; a += r[k] * dx * dx; b += r[k] * dx * dy; c += r[k] * dy * dy; });
+    // A small floor keeps a component from collapsing onto one point (variance -> 0, likelihood -> infinity).
+    return {mu, cov: [a / Nk + 1e-3, b / Nk, c / Nk + 1e-3], w: Nk / n};
+  });
+}
+function trainGmm(pts, K, seed, iters = 80) { let g = initGmm(pts, K, seed); for (let t = 0; t < iters; t++) g = emStep(pts, g); return g; }
+
+const XR = [-3, 3.6], YR = [-2.6, 2.4];
+function plane(id, h) {
+  const R = setup(id, h), B = {l: 40, t: 12, w: R.w - 56, h: h - 40};
+  const X = v => B.l + (v - XR[0]) / (XR[1] - XR[0]) * B.w, Y = v => B.t + B.h - (v - YR[0]) / (YR[1] - YR[0]) * B.h;
+  const inv = (px, py) => [XR[0] + (px - B.l) / B.w * (XR[1] - XR[0]), YR[0] + (B.t + B.h - py) / B.h * (YR[1] - YR[0])];
+  return {...R, B, X, Y, inv};
+}
+function axes2(P) {
+  const {g, B} = P;
+  g.strokeStyle = C.line; g.strokeRect(B.l + .5, B.t + .5, B.w, B.h);
+  text(g, 'c1 →', B.l + B.w, B.t + B.h + 16, C.mute, 'right');
+  text(g, 'c2 ↑', B.l - 6, B.t + 8, C.mute, 'right');
+}
+function ellipse(P, gm, k, color, lw = 2) {
+  const [a, b, c] = gm.cov, tr = (a + c) / 2, df = Math.sqrt(((a - c) / 2) ** 2 + b * b), l1 = tr + df, l2 = Math.max(tr - df, 1e-9);
+  const th = 0.5 * Math.atan2(2 * b, a - c), ct = Math.cos(th), st = Math.sin(th), xs = [], ys = [];
+  for (let t = 0; t <= 64; t++) {
+    const u = 2 * Math.PI * t / 64, e1 = k * Math.sqrt(l1) * Math.cos(u), e2 = k * Math.sqrt(l2) * Math.sin(u);
+    xs.push(P.X(gm.mu[0] + e1 * ct - e2 * st)); ys.push(P.Y(gm.mu[1] + e1 * st + e2 * ct));
+  }
+  poly(P.g, xs, ys, color, lw);
+}
+
+// Section 3
+const D1 = (() => { const r = rng(31); return Array.from({length: 300}, () => 0.7 + 0.65 * randn(r)); })();
+const m1 = D1.reduce((s, v) => s + v, 0) / D1.length, s1 = Math.sqrt(D1.reduce((s, v) => s + (v - m1) ** 2, 0) / D1.length);
+let MU = -0.5, SG = 1.4;
+function draw3() {
+  document.getElementById('muv').textContent = r2(MU);
+  document.getElementById('sgv').textContent = r2(SG);
+  const R = setup('c3', 230), g = R.g, B = {l: 40, t: 14, w: R.w - 56, h: 180}, lo = -2.5, hi = 3.5, nb = 30, bw = (hi - lo) / nb;
+  const X = v => B.l + (v - lo) / (hi - lo) * B.w;
+  const cnt = new Array(nb).fill(0);
+  D1.forEach(v => { const j = Math.floor((v - lo) / bw); if (j >= 0 && j < nb) cnt[j]++; });
+  const dens = cnt.map(c => c / (D1.length * bw)), top = Math.max(1 / (SG * Math.sqrt(2 * Math.PI)), ...dens) * 1.1;
+  const Y = v => B.t + B.h - v / top * B.h;
+  dens.forEach((d, j) => box(g, X(lo + j * bw) + 1, Y(d), B.w / nb - 2, B.t + B.h - Y(d), '#e3e2de'));
+  hline(g, B.l, B.l + B.w, B.t + B.h, C.grey);
+  const xs = [], ys = [];
+  for (let j = 0; j <= 300; j++) { const v = lo + (hi - lo) * j / 300; xs.push(X(v)); ys.push(Y(Math.exp(-0.5 * ((v - MU) / SG) ** 2) / (SG * Math.sqrt(2 * Math.PI)))); }
+  poly(g, xs, ys, C.frame, 2.5);
+  vline(g, X(MU), B.t, B.t + B.h, alpha(C.frame, 0.5));
+  for (let v = -2; v <= 3; v++) text(g, String(v), X(v), B.t + B.h + 14, C.mute, 'center');
+  text(g, 'c1', B.l + B.w, B.t + B.h + 28, C.mute, 'right');
+  const ll = D1.reduce((s, v) => s + (-0.5 * ((v - MU) / SG) ** 2 - Math.log(SG * Math.sqrt(2 * Math.PI))), 0);
+  const best = D1.reduce((s, v) => s + (-0.5 * ((v - m1) / s1) ** 2 - Math.log(s1 * Math.sqrt(2 * Math.PI))), 0);
+  document.getElementById('r3').innerHTML = `Log-likelihood của 300 frame: <b>${r1(ll)}</b> &nbsp; <span class="muted">(lớn nhất có thể: ${r1(best)}, khi μ = ${r2(m1)}, σ = ${r2(s1)})</span>`;
+}
+document.getElementById('mu').addEventListener('input', e => { MU = +e.target.value; draw3(); });
+document.getElementById('sg').addEventListener('input', e => { SG = +e.target.value; draw3(); });
+document.getElementById('fit1').addEventListener('click', () => {
+  MU = m1; SG = s1; document.getElementById('mu').value = MU; document.getElementById('sg').value = SG; draw3();
+});
+
+// Section 4
+let K4 = 3, SEED4 = 3, G4 = initGmm(A_PTS, K4, SEED4), STEP4 = 0, runT;
+function draw4() {
+  const P = plane('c4', 360), g = P.g;
+  axes2(P);
+  const R = resp(A_PTS, G4);
+  A_PTS.forEach((p, j) => { const k = R[j].indexOf(Math.max(...R[j])); dot(g, P.X(p[0]), P.Y(p[1]), 2.6, alpha(PALETTE[k], 0.75)); });
+  G4.forEach((gm, k) => {
+    ellipse(P, gm, 1, PALETTE[k], 2); ellipse(P, gm, 2, alpha(PALETTE[k], 0.5), 1.2);
+    dot(g, P.X(gm.mu[0]), P.Y(gm.mu[1]), 5, '#fff', PALETTE[k]);
+    text(g, `đồi ${k + 1}: w = ${r2(gm.w)}`, P.B.l + 8, P.B.t + 12 + k * 16, PALETTE[k], 'left', true);
+  });
+  document.getElementById('r4').innerHTML = `Đã chạy <b>${STEP4}</b> bước EM. Log-likelihood trung bình mỗi frame: <b>${r2(avgLL(A_PTS, G4))}</b>`;
+}
+const stopRun = () => { clearInterval(runT); runT = null; };
+function reset4() { stopRun(); G4 = initGmm(A_PTS, K4, SEED4); STEP4 = 0; draw4(); }
+document.getElementById('em1').addEventListener('click', () => { stopRun(); G4 = emStep(A_PTS, G4); STEP4++; draw4(); });
+document.getElementById('emrun').addEventListener('click', () => {
+  stopRun();
+  runT = setInterval(() => {
+    const before = avgLL(A_PTS, G4);
+    G4 = emStep(A_PTS, G4); STEP4++; draw4();
+    if (avgLL(A_PTS, G4) - before < 1e-5 || STEP4 > 300) stopRun();
+  }, 120);
+});
+document.getElementById('eminit').addEventListener('click', () => { SEED4++; reset4(); });
+document.addEventListener('click', e => {
+  const b = e.target.closest('button[data-k]');
+  if (b) { K4 = +b.dataset.k; toggle('k', b.dataset.k); reset4(); }
+});
+
+// Section 5
+const GA = trainGmm(A_PTS, 3, 5), GI = trainGmm(I_PTS, 2, 9);
+let PICK = [0.9, -0.2];
+function draw5() {
+  const P = plane('c5', 360), g = P.g, step = 6;
+  for (let px = P.B.l; px < P.B.l + P.B.w; px += step) for (let py = P.B.t; py < P.B.t + P.B.h; py += step) {
+    const q = P.inv(px + step / 2, py + step / 2), la = Math.log(mixPdf(q, GA) + 1e-300), li = Math.log(mixPdf(q, GI) + 1e-300);
+    box(g, px, py, step, step, la > li ? '#eef5fa' : '#f4eff8');
+  }
+  axes2(P);
+  A_PTS.forEach(p => dot(g, P.X(p[0]), P.Y(p[1]), 2.2, alpha(C.acc, 0.45)));
+  I_PTS.forEach(p => dot(g, P.X(p[0]), P.Y(p[1]), 2.2, alpha(C.i, 0.45)));
+  GA.forEach(gm => ellipse(P, gm, 2, C.acc, 1.5));
+  GI.forEach(gm => ellipse(P, gm, 2, C.i, 1.5));
+  text(g, 'GMM "a"', P.B.l + 8, P.B.t + 12, C.acc, 'left', true);
+  text(g, 'GMM "i"', P.B.l + 8, P.B.t + 28, C.i, 'left', true);
+  const la = Math.log(mixPdf(PICK, GA) + 1e-300), li = Math.log(mixPdf(PICK, GI) + 1e-300), win = la > li ? 'a' : 'i';
+  dot(g, P.X(PICK[0]), P.Y(PICK[1]), 7, C.frame, '#fff');
+  text(g, 'frame mới', P.X(PICK[0]) + 10, P.Y(PICK[1]), C.frame, 'left', true, true);
+  document.getElementById('r5').innerHTML = `Frame mới tại (${r2(PICK[0])}, ${r2(PICK[1])}): log p(x | "a") = <b>${r1(la)}</b>, log p(x | "i") = <b>${r1(li)}</b> → chọn <b>"${win}"</b>` +
+    (Math.max(la, li) < -8 ? ' <span class="muted">(cả hai đều rất thấp: frame này không giống âm nào)</span>' : '');
+  P.c.onclick = e => { const rc = P.c.getBoundingClientRect(); PICK = P.inv(e.clientX - rc.left, e.clientY - rc.top); draw5(); };
+  P.c.style.cursor = 'crosshair';
+}
+
+function drawAll() { draw3(); draw4(); draw5(); }
+drawAll();
+onResize(drawAll);
+</script>
+</body>
+</html>

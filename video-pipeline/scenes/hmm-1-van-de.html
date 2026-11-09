@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>HMM 1: Vấn đề</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../lib/hmm.js"></script>
+<script src="../build/hmm-1-van-de.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Thành phần', '3 Tự lặp, độ dài', '4 Viterbi', '5 Forward, Baum-Welch'];
+const SC = HMM.scores(5, 1.0), PF = HMM.perFrame(SC), VT = HMM.viterbi(SC, 0.9).path, TR = HMM.TRUTH;
+const RX = 250, RW = 38;
+
+function rowLabel(s, y, c = COL.mute) { text(s, RX - 20, y + 22, {size: 22, weight: 700, color: c, align: 'right'}); }
+const stateBox = HMM.stateBox;
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('HMM', 'Phần 1/5: chấm từng frame riêng lẻ thì nhảy lung tung', 0, PARTS);
+
+function shotRecap(G, t) {
+  const s = S('recap'), d = D('recap');
+  heading('Trang trước: GMM chấm từng frame');
+  fade(G, P(t, s + 0.3, 0.6), () => {
+    rrect(300, 420, 120, 120, 12, COL.frameSoft, COL.frame, 3);
+    text('1 frame', 360, 480, {size: 26, weight: 700, color: COL.frame, align: 'center'});
+    [0, 1, 2].forEach(k => {
+      const y = 300 + k * 140, c = HMM.stateCol(k);
+      arrow(440, 480, 640, y + 45, COL.line2, 2.5);
+      rrect(660, y, 260, 90, 12, c + '18', c, 2);
+      text(`GMM "${HMM.STATES[k]}"`, 790, y + 45, {size: 28, weight: 700, color: c, align: 'center'});
+      text(['−2,1', '−0,3', '−3,4'][k], 960, y + 45, {size: 28, weight: 700, color: c});
+    });
+  });
+  fade(G, P(t, s + d * 0.55, 0.6), () => {
+    card(1180, 330, 560, 300, {stroke: COL.frame});
+    text('nhưng một từ là', 1210, 390, {size: 28, color: COL.mute});
+    text('một chuỗi frame', 1210, 450, {size: 36, weight: 700, color: COL.frame});
+    text('có thứ tự', 1210, 510, {size: 36, weight: 700, color: COL.frame});
+  });
+}
+
+function shotMai(G, t) {
+  const s = S('mai'), sf = S('frame'), df = D('frame');
+  heading('Từ "mai": 0,4 giây = 40 frame');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    rowLabel('thật', 300);
+    HMM.row(RX, 300, TR, {upto: P(t, s + 0.5, D('mai') * 0.6)});
+    [[0, 10, '10 frame m'], [10, 28, '18 frame a'], [28, 40, '12 frame i']].forEach(([a, b, l], k) => fade(G, P(t, s + D('mai') * 0.6 + k * 0.4, 0.4), () => {
+      line(RX + a * RW, 370, RX + b * RW - 4, 370, HMM.stateCol(k), 3);
+      text(l, RX + (a + b) / 2 * RW, 396, {size: 22, weight: 700, color: HMM.stateCol(k), align: 'center'});
+    }));
+  });
+  fade(G, P(t, sf + 0.3, 0.5), () => {
+    rowLabel('từng frame', 480, COL.frame);
+    HMM.row(RX, 480, PF, {upto: P(t, sf + 0.8, df * 0.45), truth: TR});
+  });
+  fade(G, P(t, sf + df * 0.65, 0.5), () => {
+    card(660, 600, 600, 140, {stroke: COL.hl, lw: 3});
+    text('sai 7 / 40 frame, rải rác khắp nơi', 960, 670, {size: 30, weight: 700, color: COL.hl, align: 'center'});
+  });
+}
+
+function shotPains(G, t) {
+  const sj = S('jump'), so = S('order'), sl = S('length'), dl = D('length');
+  heading('Ba vấn đề');
+  rowLabel('thật', 230); HMM.row(RX, 230, TR);
+  rowLabel('từng frame', 300, COL.frame); HMM.row(RX, 300, PF, {truth: TR});
+  const box = (a, b, c) => rrect(RX + a * RW - 6, 222, (b - a) * RW + 8, 132, 8, null, c, 3);
+  fade(G, P(t, sj + 0.3, 0.5), () => {
+    box(1, 6, COL.hl);
+    card(160, 420, 520, 330, {stroke: COL.hl, lw: 2});
+    text('1. nhảy qua lại vô lý', 190, 470, {size: 27, weight: 700, color: COL.hl});
+    text('"m m a m m"', 190, 540, {size: 30, weight: 700, mono: true});
+    text('miệng không đổi âm rồi quay lại trong 10 ms', 190, 610, {size: 23, color: COL.mute, maxW: 460});
+  });
+  fade(G, P(t, so + 0.3, 0.5), () => {
+    box(9, 12, COL.frame);
+    card(700, 420, 520, 330, {stroke: COL.frame, lw: 2});
+    text('2. không dùng thứ tự', 730, 470, {size: 27, weight: 700, color: COL.frame});
+    text('m → a → i', 730, 540, {size: 34, weight: 700});
+    text('frame 11 bị chấm "i" khi còn chưa tới "a"', 730, 610, {size: 23, color: COL.mute, maxW: 460});
+  });
+  fade(G, P(t, sl + 0.3, 0.5), () => {
+    card(1240, 420, 520, 330, {stroke: COL.acc, lw: 2});
+    text('3. độ dài thay đổi', 1270, 470, {size: 27, weight: 700, color: COL.acc});
+    const u = P(t, sl + 1, 1.2);
+    text('nhanh', 1270, 540, {size: 22, color: COL.mute}); rrect(1360, 525, 8 * 11 * u, 30, 4, COL.acc);
+    text('8 frame', 1370 + 8 * 11 * u, 540, {size: 22, weight: 700, color: COL.acc});
+    text('chậm', 1270, 600, {size: 22, color: COL.mute}); rrect(1360, 585, 30 * 11 * u, 30, 4, COL.acc);
+    text('30', 1370 + 30 * 11 * u, 600, {size: 22, weight: 700, color: COL.acc});
+    fade(G, P(t, sl + dl * 0.6, 0.5), () => text('không cố định được "frame 10–28 là a"', 1270, 680, {size: 22, color: COL.mute, maxW: 460}));
+  });
+}
+
+function shotDtw(G, t) {
+  const s = S('dtw'), d = D('dtw');
+  heading('Trước HMM: DTW (1970s)');
+  const A = [0, 0, 0, 1, 1, 1, 1, 2, 2, 2], Bq = TR.filter((_, k) => k % 2 === 0);
+  const xa = 560, xb = 300, wa = 72, wb = 38;
+  fade(G, P(t, s + 0.3, 0.6), () => {
+    text('mẫu đã lưu', xa - 20, 290, {size: 22, weight: 700, color: COL.mute, align: 'right'});
+    HMM.row(xa, 270, A, {w: wa, h: 44});
+    text('bản ghi mới', xb - 20, 470, {size: 22, weight: 700, color: COL.mute, align: 'right'});
+    HMM.row(xb, 450, Bq, {w: wb * 2, h: 44});
+  });
+  fade(G, P(t, s + 1.3, 1.0), () => {
+    Bq.forEach((sv, k) => {
+      const ia = Math.min(A.length - 1, Math.round(k / (Bq.length - 1) * (A.length - 1)));
+      line(xa + ia * wa + wa / 2 - 2, 318, xb + k * wb * 2 + wb - 2, 448, HMM.stateCol(sv) + '88', 1.5);
+    });
+    text('co giãn mẫu cho khớp (Sakoe, Chiba 1978)', 960, 560, {size: 26, weight: 700, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.5, 0.5), () => {
+    card(300, 620, 1320, 150);
+    text('✓ xử lý được độ dài', 340, 665, {size: 25, color: COL.ok, weight: 700});
+    text('✗ cần mẫu cho từng từ, từng người', 340, 725, {size: 25, color: COL.hl, weight: 700});
+    text('✗ không có mô hình xác suất', 980, 725, {size: 25, color: COL.hl, weight: 700});
+  });
+}
+
+function shotGoal(G, t) {
+  const s = S('goal'), d = D('goal');
+  heading('Mục tiêu của HMM');
+  fade(G, P(t, s + 0.3, 0.6), () => {
+    [0, 1, 2].forEach(k => { stateBox(560 + k * 300, 330, k, {loop: true}); if (k < 2) arrow(690 + k * 300, 375, 850 + k * 300, 375, COL.mute, 3); });
+    text('chuỗi trạng thái theo thứ tự, mỗi trạng thái dài bao lâu cũng được', 960, 236, {size: 26, color: COL.mute, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.5, 0.6), () => {
+    HMM.row(RX, 560, TR);
+    [[0, 10], [10, 28], [28, 40]].forEach(([a, b], k) => {
+      line(RX + a * RW, 630, RX + b * RW - 4, 630, HMM.stateCol(k), 4);
+      arrow(620 + k * 300, 430, RX + (a + b) / 2 * RW, 552, HMM.stateCol(k) + '99', 2);
+    });
+    text('chia 40 frame cho các trạng thái sao cho cả chuỗi hợp lý nhất', 960, 690, {size: 28, weight: 700, color: COL.acc, align: 'center'});
+  });
+}
+
+function shotPreview(G, t) {
+  const s = S('preview'), d = D('preview');
+  heading('Cùng điểm GMM, xét cả chuỗi');
+  rowLabel('thật', 300); HMM.row(RX, 300, TR);
+  rowLabel('từng frame', 400, COL.frame); HMM.row(RX, 400, PF, {truth: TR});
+  text('sai 7', RX + 40 * RW + 10, 422, {size: 24, weight: 700, color: COL.hl});
+  fade(G, P(t, s + d * 0.3, 0.5), () => {
+    rowLabel('HMM', 500, COL.ok); HMM.row(RX, 500, VT, {truth: TR, upto: P(t, s + d * 0.3, 1.5)});
+    fade(G, P(t, s + d * 0.3 + 1.5, 0.4), () => text('sai 0', RX + 40 * RW + 10, 522, {size: 24, weight: 700, color: COL.ok}));
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['chấm từng frame: nhảy lung tung', COL.hl], ['bỏ phí thứ tự m → a → i', COL.hl], ['không chịu được độ dài thay đổi', COL.hl], ['HMM: xét cả chuỗi', COL.ok]].forEach(([a, c], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.3, 0.6), () => {
+      text(j < 3 ? '✗' : '✓', 520, 300 + j * 84, {size: 34, weight: 700, color: c});
+      text(a, 570, 300 + j * 84, {size: 32, color: j < 3 ? COL.ink : COL.ok, weight: j < 3 ? 400 : 700});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 740, 680, 'Phần 2: thành phần của HMM  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 1', [
+  ['chấm từng frame riêng', 'frame-level classification', 'không dùng ngữ cảnh thời gian'],
+  ['co giãn mẫu theo thời gian', 'DTW (Dynamic Time Warping)', 'Sakoe, Chiba 1978'],
+  ['mẫu đã lưu', 'template', 'cần cho từng từ, từng người'],
+  ['mô hình Markov ẩn', 'HMM (Hidden Markov Model)', 'chuỗi trạng thái có thứ tự'],
+  ['chia frame cho các âm', 'segmentation, alignment', 'ranh giới giữa các âm'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'recap', to: 'recap', draw: shotRecap},
+    {from: 'mai', to: 'frame', draw: shotMai},
+    {from: 'jump', to: 'length', draw: shotPains},
+    {from: 'dtw', to: 'dtw', draw: shotDtw},
+    {from: 'goal', to: 'goal', draw: shotGoal},
+    {from: 'preview', to: 'preview', draw: shotPreview},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/hmm-1-van-de.wav');
+</script>
+</body>
+</html>

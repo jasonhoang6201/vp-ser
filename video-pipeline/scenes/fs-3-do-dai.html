@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>FastSpeech 2 · 3: Bộ điều chỉnh độ dài</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/fs.js"></script>
+<script src="../build/fs-3-do-dai.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Cách làm', '3 Bộ điều chỉnh độ dài', '4 Cao độ, năng lượng'];
+const B = {x: 260, y: 230, w: 1400};
+const PW = 120, PX = B.x + (B.w - 6 * PW) / 2;
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('FastSpeech 2', 'Phần 3/4: bộ điều chỉnh độ dài', 2, PARTS);
+
+function state(t) {
+  if (t >= S('one')) return {spd: 1, over: {4: Math.round(lerp(18, 28, P(t, S('one') + 0.8, 1.5)))}};
+  if (t >= S('slow')) return {spd: lerp(1.5, 0.7, P(t, S('slow') + 0.3, 1.5)), over: {}};
+  if (t >= S('fast')) return {spd: lerp(1, 1.5, P(t, S('fast') + 0.8, 1.5)), over: {}};
+  return {spd: 1, over: {}};
+}
+
+function shotMain(G, t) {
+  const sp = S('ph'), sd = S('dur'), sc = S('copy'), dc = D('copy'), spar = S('par'), ss = S('safe'), sf = S('fast');
+  heading(t < sd ? 'Câu "xin chào": 6 âm vị' : t < sc ? 'Bộ dự đoán độ dài' : t < spar ? 'Length regulator: chép vector' : t < sf ? 'Mọi frame cùng lúc' : 'Vặn độ dài');
+  const {spd, over} = state(t), Dd = FS.durs(spd, over);
+  fade(G, P(t, sp + 0.3, 0.5), () => {
+    let cells = 0;
+    if (t >= spar) cells = Infinity;
+    else if (t >= sc) cells = Math.floor(71 * P(t, sc + 0.5, Math.min(dc * 0.6, 6)));
+    const r = FS.drawRow(B, Dd, cells, t < sc ? 0 : P(t, sc + 0.3, 0.6));
+    if (t < sd) fade(G, P(t, sp + 1.5, 0.5), () => text('mỗi âm vị: một vector từ encoder', 960, B.y + 120, {size: 26, color: COL.mute, align: 'center'}));
+    if (t >= sd) Dd.forEach((d, i) => fade(G, P(t, sd + 0.6 + i * 0.4, 0.4), () => {
+      const on = t >= S('one') && i === 4;
+      text(d + '', PX + (i + 0.5) * PW, B.y + 100, {size: on ? 32 : 26, weight: 700, color: on ? COL.hl : FS.PCOL[i], align: 'center'});
+    }));
+    if (t >= sc) {
+      const n = Math.min(r.total, cells);
+      text(`${n} frame = ${n * 10} ms`, B.x, r.y2 + 110, {size: 28, weight: 700, color: COL.ink});
+    }
+    if (t >= sf) text('tốc độ × ' + spd.toFixed(2).replace('.', ','), B.x + B.w, r.y2 + 110, {size: 28, weight: 700, color: COL.frame, align: 'right'});
+    if (t >= spar && t < ss) {
+      const pulse = 0.5 + 0.5 * Math.sin((t - spar) * 6);
+      Clip.g.save(); Clip.g.globalAlpha *= 0.35 * pulse;
+      rrect(B.x - 6, r.y2 - 6, r.total * r.cw + 12, 76, 8, null, COL.ok, 6);
+      Clip.g.restore();
+      fade(G, P(t, spar + 0.5, 0.5), () => text('biết tổng 71 frame từ đầu → decoder tính tất cả một lượt', 960, 690, {size: 28, weight: 700, color: COL.ok, align: 'center'}));
+    }
+  });
+  if (t >= ss && t < sf) fade(G, P(t, ss + 0.3, 0.5), () => {
+    card(240, 650, 1440, 120, {stroke: COL.ok});
+    text('thứ tự âm vị cố định, mỗi âm vị đọc đúng một lần: hết lặp chữ, bỏ chữ', 960, 710, {size: 28, weight: 700, color: COL.ok, align: 'center'});
+  });
+  if (t >= S('slow') && t < S('one')) fade(G, P(t, S('slow') + D('slow') * 0.6, 0.5), () => text('một "tham số vặn" Tacotron không có', 960, 720, {size: 28, weight: 700, color: COL.frame, align: 'center'}));
+  if (t >= S('one')) fade(G, P(t, S('one') + 0.3, 0.5), () => text('chỉ kéo dài "a" (18 → 28): nhấn giọng, âm khác giữ nguyên', 960, 720, {size: 28, weight: 700, color: COL.hl, align: 'center'}));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['đoán độ dài → chép vector theo độ dài'], ['decoder sinh mọi frame song song'], ['không lặp, không bỏ chữ · vặn được tốc độ']].forEach(([a], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text('✓', 420, 300 + j * 90, {size: 34, weight: 700, color: COL.ok});
+      text(a, 470, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 720, 640, 'Phần 4: cao độ và năng lượng  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 3', [
+  ['chép vector âm vị theo số frame', 'length regulator', 'âm vị → frame'],
+  ['số frame của mỗi âm vị', 'duration', 'đơn vị: frame 10 ms'],
+  ['hệ số nhân độ dài', 'α trong bài báo', 'α = 1 / tốc độ: α < 1 đọc nhanh'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'ph', to: 'one', draw: shotMain},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/fs-3-do-dai.wav');
+</script>
+</body>
+</html>

@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>CTC 5: Giải mã</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../lib/nn.js"></script>
+<script src="../lib/ctc.js"></script>
+<script src="../build/ctc-5-giai-ma.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn thành phần', '3 Trống, rút gọn', '4 Loss cộng mọi cách căn', '5 Giải mã'];
+// Noise/seed pairs from the page's slider: clean, a stray "n", and an "a" split by a blank.
+const RUNS = {clean: CTC.post(0.8, 2), n: CTC.post(1.6, 5), split: CTC.post(1.6, 3)};
+const G0 = {x: 330, y: 250, cw: 42, rh: 56};
+
+function grid(Pm, o = {}) {
+  const {x, y, cw, rh} = G0, cols = o.cols == null ? 30 : o.cols, best = CTC.greedy(Pm);
+  Pm.forEach((p, t) => p.forEach((v, k) => rrect(x + t * cw, y + k * rh, cw - 3, rh - 3, 4, t < cols ? Clip.heat(0.08 + 0.85 * v) : '#f4f3f0')));
+  CTC.SYM.forEach((s, k) => text(s === '-' ? '− (trống)' : s, x - 16, y + k * rh + rh / 2, {size: 24, weight: 700, color: COL.mute, align: 'right', mono: true}));
+  if (o.best) {
+    text('cao nhất', x - 16, y + 5 * rh + 36, {size: 22, color: COL.mute, align: 'right'});
+    best.split('').forEach((c, t) => {
+      const bad = o.bad && o.bad.includes(t);
+      if (t < cols) text(c === '-' ? '−' : c, x + t * cw + cw / 2 - 1, y + 5 * rh + 36, {size: 26, weight: 700, color: bad ? COL.hl : c === '-' ? COL.line2 : COL.frame, align: 'center', mono: true});
+    });
+  }
+  return best;
+}
+function outcome(best, y, ok) {
+  const a = CTC.collapse(best), out = a.replace(/-/g, '');
+  text('gộp lặp:', 600, y, {size: 24, color: COL.mute, align: 'right'});
+  text(a, 620, y, {size: 26, mono: true});
+  text(`→  "${out}"`, 1300, y, {size: 36, weight: 700, color: ok ? COL.ok : COL.hl});
+  if (!ok) text('✗ (đúng là "mai")', 1300, y + 44, {size: 24, color: COL.hl});
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('CTC', 'Phần 5/5: giải mã và điểm yếu', 4, PARTS);
+
+function shotGrid(G, t) {
+  const sg = S('grid'), ss = S('spikes'), sy = S('greedy'), dy = D('greedy');
+  heading(t < sy ? 'Đầu ra mạng CTC cho "mai", 30 frame' : 'Giải mã tham lam (greedy)');
+  grid(RUNS.clean, {cols: Math.ceil(30 * P(t, sg + 0.3, 1.5)), best: t >= sy});
+  fade(G, P(t, ss + 0.3, 0.5), () => {
+    [[6, 7, 'm'], [14, 16, 'a'], [23, 23, 'i']].forEach(([a, b, c]) => {
+      const k = CTC.SYM.indexOf(c);
+      rrect(G0.x + a * G0.cw - 4, G0.y + k * G0.rh - 4, (b - a + 1) * G0.cw + 2, G0.rh + 2, 6, null, COL.hl, 3);
+    });
+  });
+  fade(G, P(t, sy + dy * 0.4, 0.5), () => outcome(CTC.greedy(RUNS.clean), 640, true));
+}
+
+function shotNoise(G, t) {
+  const s1 = S('noise1'), s2 = S('noise2');
+  const two = t >= s2, Pm = two ? RUNS.split : RUNS.n, best = CTC.greedy(Pm);
+  heading('Mạng phân vân hơn');
+  const bad = two ? best.split('').map((c, k) => (c === 'a' && best[k - 1] === '-' && best[k - 2] === 'a') || (c === 'm' && k > 20) ? k : -1).filter(k => k >= 0)
+    : best.split('').map((c, k) => (c === 'n' ? k : -1)).filter(k => k >= 0);
+  fade(G, P(t, (two ? s2 : s1) + 0.2, 0.4), () => {
+    grid(Pm, {best: true, bad});
+    outcome(best, 640, false);
+  });
+}
+
+function shotIndep(G, t) {
+  const si = S('indep'), di = D('indep'), sp = S('spell');
+  heading(t < sp ? 'Điểm yếu gốc: các frame độc lập' : 'Hệ quả: nghe sao viết vậy');
+  fade(G, P(t, si + 0.3, 0.5), () => {
+    for (let k = 0; k < 8; k++) {
+      const x = 360 + k * 150;
+      rrect(x, 300, 110, 70, 10, COL.accSoft, COL.acc, 2);
+      text(`frame ${k + 1}`, x + 55, 335, {size: 20, color: COL.acc, align: 'center'});
+      arrow(x + 55, 380, x + 55, 450, COL.acc, 2.5);
+      rrect(x + 20, 460, 70, 56, 8, COL.card, COL.line2, 2);
+      text('?', x + 75 - 20, 488, {size: 26, weight: 700, color: COL.mute, align: 'center'});
+    }
+    text('mỗi frame tự quyết, không nhìn chữ đã viết', 960, 580, {size: 28, weight: 700, color: COL.hl, align: 'center'});
+  });
+  fade(G, P(t, si + di * 0.55, 0.5), () => text('giả định độc lập có điều kiện (conditional independence)', 960, 640, {size: 26, color: COL.mute, align: 'center'}));
+  fade(G, P(t, sp + 0.3, 0.5), () => {
+    card(560, 690, 800, 110, {stroke: COL.hl});
+    text('không gì trong mạng nói rằng "nmai" không phải một từ', 960, 745, {size: 26, weight: 700, color: COL.hl, align: 'center'});
+  });
+}
+
+function shotLm(G, t) {
+  const sl = S('lm'), dl = D('lm'), sn = S('next');
+  heading('Cách chữa: beam search + mô hình ngôn ngữ');
+  const cands = [['nmai', -3.1, -14.2], ['mai', -3.4, -4.1], ['nmui', -6.0, -15.0]];
+  const cx = [560, 900, 1150, 1420];
+  fade(G, P(t, sl + 0.3, 0.5), () => {
+    ['chuỗi', 'điểm CTC', 'điểm LM', 'tổng'].forEach((h, j) => text(h, cx[j], 270, {size: 24, weight: 600, color: COL.mute, align: 'center'}));
+    line(420, 296, 1540, 296, COL.line2, 2);
+    const withLm = t > sl + dl * 0.45;
+    const rows = cands.map(([w, a, l]) => ({w, a, l, s: withLm ? a + 0.5 * l : a})).sort((p, q) => q.s - p.s);
+    rows.forEach((r, i) => {
+      const y = 350 + i * 76, win = i === 0;
+      if (win) rrect(420, y - 32, 1120, 64, 10, '#e8f3ec', COL.ok, 2);
+      text(`"${r.w}"`, cx[0], y, {size: 30, weight: 700, color: win ? COL.ok : COL.ink, align: 'center'});
+      text(r.a.toFixed(1).replace('.', ',').replace('-', '−'), cx[1], y, {size: 28, align: 'center'});
+      if (withLm) text(r.l.toFixed(1).replace('.', ',').replace('-', '−'), cx[2], y, {size: 28, align: 'center'});
+      text(r.s.toFixed(1).replace('.', ',').replace('-', '−'), cx[3], y, {size: 30, weight: 700, color: win ? COL.ok : COL.ink, align: 'center'});
+    });
+    text(withLm ? 'tổng = CTC + 0,5 × LM · số minh họa' : 'chỉ CTC · số minh họa', 420, 590, {size: 20, color: COL.mute});
+  });
+  fade(G, P(t, sn + 0.3, 0.5), () => {
+    card(460, 660, 1000, 120, {stroke: COL.frame});
+    text('trang sau: bộ giải mã nhìn chữ đã viết (attention)', 960, 720, {size: 28, weight: 700, color: COL.frame, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['greedy: cao nhất mỗi frame, rồi rút gọn', COL.ok, '✓'], ['frame độc lập: hay sai chính tả', COL.hl, '✗'], ['thêm LM bằng beam search', COL.ok, '✓'], ['không cần nhãn frame, không cần từ điển', COL.ok, '✓']].forEach(([a, c, m], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text(m, 420, 290 + j * 84, {size: 34, weight: 700, color: c});
+      text(a, 470, 290 + j * 84, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.85, 0.5), () => chip(G, 780, 680, 'Trang sau: attention  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 5', [
+  ['chọn cao nhất mỗi frame', 'greedy / best-path decoding', 'nhanh, không dùng LM'],
+  ['giữ vài chuỗi tốt nhất', 'beam search (prefix beam search)', 'có thể cộng điểm LM'],
+  ['các frame quyết định riêng', 'conditional independence', 'điểm yếu gốc của CTC'],
+  ['ghép LM khi giải mã', 'shallow fusion', 'tổng = CTC + λ × LM'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'grid', to: 'greedy', draw: shotGrid},
+    {from: 'noise1', to: 'noise2', draw: shotNoise},
+    {from: 'indep', to: 'spell', draw: shotIndep},
+    {from: 'lm', to: 'next', draw: shotLm},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/ctc-5-giai-ma.wav');
+</script>
+</body>
+</html>

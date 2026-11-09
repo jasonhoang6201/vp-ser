@@ -1,0 +1,64 @@
+{
+  "name": "sensevoice_small_zeroshot",
+  "dataset": "iemocap",
+  "split": "test",
+  "notes": "SenseVoice-Small, no training, ban_emo_unk=True",
+  "asr": {
+    "wer": 0.11152344999680082,
+    "n_utts": 1222,
+    "n_ref_words": 15629,
+    "n_empty_ref_skipped": 19,
+    "wer_by_emotion": {
+      "anger": 0.09466721785861927,
+      "joy": 0.13007988885029523,
+      "neutral": 0.09697402906838218,
+      "sadness": 0.10998463901689708
+    }
+  },
+  "ser": {
+    "wa": 0.6792908944399678,
+    "ua": 0.6601039574483639,
+    "macro_f1": 0.6728662439219045,
+    "weighted_f1": 0.6811992321490445,
+    "recall_by_emotion": {
+      "neutral": 0.8151041666666666,
+      "joy": 0.5904977375565611,
+      "anger": 0.4470588235294118,
+      "sadness": 0.7877551020408163
+    },
+    "n": 1241,
+    "n_invalid_pred": 18,
+    "labels": [
+      "neutral",
+      "joy",
+      "anger",
+      "sadness"
+    ],
+    "confusion": [
+      [
+        313,
+        17,
+        0,
+        52
+      ],
+      [
+        127,
+        261,
+        6,
+        39
+      ],
+      [
+        56,
+        20,
+        76,
+        12
+      ],
+      [
+        36,
+        15,
+        0,
+        193
+      ]
+    ]
+  }
+}

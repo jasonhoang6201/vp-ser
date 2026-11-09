@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wav2vec 2.0, HuBERT, Whisper</title>
+<link rel="stylesheet" href="assets/learn.css">
+<style>
+.tok{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}
+.tok span{font-family:ui-monospace,Menlo,monospace;font-size:13px;padding:3px 7px;border-radius:5px;border:1px solid var(--line2);background:var(--soft)}
+.tok span.sp{border-color:var(--frame);background:#fdf1e6;color:var(--frame)}
+.tok span.tx{border-color:var(--acc);background:var(--acc-soft);color:var(--acc)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="pn"></nav>
+<h1>wav2vec 2.0, HuBERT, Whisper: học khi thiếu dữ liệu có nhãn</h1>
+<p class="sub">Trang trước có kiến trúc tốt (Transformer, Conformer). Trang này nói về <b>dữ liệu</b>: lấy đâu ra đủ để huấn luyện.</p>
+
+<section>
+<h2><span class="n">1</span>Vấn đề: âm thanh có chữ đi kèm rất đắt</h2>
+<div class="tablewrap"><table>
+<tr><th>Vướng</th><th>Ví dụ</th></tr>
+<tr><td>mô hình end-to-end cần rất nhiều giờ có chép lời</td><td>để đạt WER thấp trên tiếng Anh, các hệ thường dùng hàng nghìn giờ có chép lời đúng từng chữ</td></tr>
+<tr><td>chép lời tốn công</td><td>một giờ âm thanh cần vài giờ người nghe và gõ lại</td></tr>
+<tr><td>đa số ngôn ngữ không có nhiều dữ liệu như vậy</td><td>tiếng Việt có ít dữ liệu công khai hơn tiếng Anh nhiều lần</td></tr>
+<tr><td>âm thanh <b>không có chữ</b> thì rất nhiều</td><td>podcast, video, radio: hàng trăm nghìn giờ</td></tr>
+</table></div>
+<div class="note blue"><b>Mục tiêu:</b> tận dụng âm thanh không nhãn (hoặc nhãn "tạm được") để mô hình học sẵn cách nghe, rồi chỉ cần <b>ít</b> dữ liệu có nhãn chuẩn để dạy nó viết ra chữ.</div>
+</section>
+
+<section>
+<h2><span class="n">2</span>Hai hướng gỡ vướng</h2>
+<div class="tablewrap"><table>
+<tr><th>Hướng</th><th>Ý chính</th><th>Đại diện</th><th>Ở mục</th></tr>
+<tr><td><b>tự giám sát</b> (self-supervised learning, SSL)</td><td>che một phần âm thanh, bắt mô hình đoán phần bị che từ phần còn lại. Không cần chữ. Sau đó <b>tinh chỉnh</b> (fine-tune) với ít dữ liệu có nhãn, thường bằng CTC</td><td>wav2vec 2.0 (2020), HuBERT (2021), WavLM (2022)</td><td>3, 4</td></tr>
+<tr><td><b>giám sát yếu ở quy mô lớn</b> (weak supervision)</td><td>gom rất nhiều âm thanh có phụ đề sẵn trên mạng. Phụ đề không hoàn hảo, nhưng số lượng bù chất lượng</td><td>Whisper (2022)</td><td>5</td></tr>
+</table></div>
+<p>Hai bài toán phụ của hướng tự giám sát: <b>che cái gì</b> (đoạn frame liên tiếp), và <b>đoán ra cái gì</b>. Không thể bắt đoán chính xác từng số của frame bị che (quá khó, và phần lớn là chi tiết vô ích như nhiễu). Nên mỗi phương pháp đổi frame thành một <b>đơn vị rời rạc</b> (một mã số trong một bảng có hạn), rồi đoán mã số đó.</p>
+</section>
+
+<section>
+<h2><span class="n">3</span>wav2vec 2.0: che rồi chọn đáp án đúng</h2>
+<div class="pipe"><span class="done">sóng âm thô</span><i>→</i><span class="new">CNN: 1 vector mỗi 20 ms</span><i>→</i><span class="new">che khoảng một nửa</span><i>→</i><span class="new">Transformer</span><i>→</i><span class="done">đoán vector bị che</span></div>
+<div class="tablewrap"><table>
+<tr><th>Thành phần</th><th>Làm gì</th></tr>
+<tr><td>CNN đọc sóng âm thô</td><td>không dùng log-Mel nữa: mạng tự học bộ lọc. Ra một vector mỗi 20 ms, mỗi vector nhìn khoảng 25 ms sóng âm</td></tr>
+<tr><td>lượng tử hóa (quantization)</td><td>đổi mỗi vector thành mã gần nhất trong một bảng mã học được: đây là "đáp án" rời rạc</td></tr>
+<tr><td>che (mask)</td><td>chọn ngẫu nhiên các đoạn 10 frame liên tiếp để che, tổng cộng khoảng một nửa số frame</td></tr>
+<tr><td>loss tương phản (contrastive)</td><td>ở mỗi frame bị che, Transformer phải chỉ ra mã đúng trong số đó và 100 mã "nhiễu" lấy từ các frame khác cùng câu</td></tr>
+</table></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Muốn đoán đúng phần bị che thì mô hình phải hiểu âm nào hay đi với âm nào: chính là kiến thức âm học và một phần ngôn ngữ, học từ âm thanh không nhãn.
+<br>• Theo bài báo: tiền huấn luyện trên 53 000 giờ không nhãn, rồi tinh chỉnh bằng CTC với chỉ <b>10 phút</b> có nhãn, mô hình lớn vẫn đạt WER 4,8% / 8,2% trên LibriSpeech test-clean / test-other (có dùng LM).</div>
+</section>
+
+<section>
+<h2><span class="n">4</span>HuBERT: đáp án lấy từ phân cụm</h2>
+<p>HuBERT tạo đáp án rời rạc theo cách khác: <b>phân cụm k-means</b> các frame, mỗi cụm là một mã số. Vòng 1 phân cụm MFCC. Vòng 2 phân cụm chính đặc trưng mà HuBERT vòng 1 học được (tốt hơn MFCC), rồi huấn luyện lại. Bài toán là đoán mã cụm của frame bị che, giống đoán chữ bị che trong câu.</p>
+<p>Thử k-means trên 60 frame của câu "a s i" (mỗi frame vẽ thành một điểm 2 chiều):</p>
+<div class="ctrl">
+  <span class="grp">Số cụm K: <button data-k="2">2</button><button data-k="3">3</button><button data-k="5" class="on">5</button><button data-k="8">8</button></span>
+  <button id="km1">1 bước k-means</button><button id="kmrun">▶ Chạy đến khi đứng yên</button><button id="kminit">Khởi tạo lại</button>
+</div>
+<div class="fig"><canvas id="c4"></canvas></div>
+<div class="readout" id="r4"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Mỗi bước k-means: gán mỗi điểm cho tâm gần nhất, rồi dời tâm về trung bình các điểm được gán. Giống EM của GMM ở trang 06, nhưng gán "cứng" thay vì chia phần trăm.
+<br>• Dải màu bên dưới là <b>chuỗi mã</b> theo thời gian. Các mã không trùng khớp hoàn toàn với âm vị: với K lớn, trong một âm mã vẫn nhảy qua lại giữa vài mã. Nhưng các ranh giới âm gần như luôn là chỗ đổi mã. Đó là "nhãn giả" đủ tốt để bắt đầu học.
+<br>• Bài báo HuBERT dùng 100 cụm ở vòng 1 (trên MFCC) và 500 cụm ở vòng 2.</div>
+</section>
+
+<section>
+<h2><span class="n">5</span>Whisper: rất nhiều nhãn "tạm được", nhiều việc trong một mô hình</h2>
+<p>Whisper (OpenAI) không tự giám sát. Nó là encoder-decoder Transformer bình thường (trang 11), nhưng huấn luyện trên <b>680 000 giờ</b> âm thanh có chép lời gom từ Internet, gồm nhiều ngôn ngữ. Đầu vào là log-Mel 80 kênh (frame 25 ms, dịch 10 ms) của từng đoạn 30 giây.</p>
+<p>Điều đặc biệt: <b>việc cần làm được ghi bằng token</b> ở đầu câu mà decoder viết. Chọn thử:</p>
+<div class="ctrl">
+  <span class="grp">Ngôn ngữ: <button data-lang="vi" class="on">vi</button><button data-lang="en">en</button><button data-lang="ja">ja</button></span>
+  <span class="grp">Việc: <button data-task="transcribe" class="on">chép lời</button><button data-task="translate">dịch sang tiếng Anh</button></span>
+  <span class="grp">Mốc thời gian: <button data-ts="0" class="on">không</button><button data-ts="1">có</button></span>
+</div>
+<div class="tok" id="tok"></div>
+<div class="readout muted" id="r5"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Cùng một mô hình làm được: nhận diện ngôn ngữ (đoán token ngôn ngữ), chép lời, dịch sang tiếng Anh, phát hiện không có tiếng nói (&lt;|nospeech|&gt;), và đánh mốc thời gian.
+<br>• Nhãn từ Internet có lỗi. Bài báo phải lọc bớt, ví dụ bỏ các bản chép lời có dấu hiệu do máy tạo ra.
+<br>• Điểm yếu thường gặp: đôi khi <b>bịa</b> ra chữ khi âm thanh im lặng hoặc nhiễu (hallucination), vì decoder là một mô hình ngôn ngữ mạnh, có xu hướng viết ra câu "hợp lý" kể cả khi không nghe thấy gì.</div>
+</section>
+
+<section>
+<h2>Tóm tắt</h2>
+<div class="tablewrap"><table>
+<tr><th></th><th>wav2vec 2.0</th><th>HuBERT</th><th>Whisper</th></tr>
+<tr><td>dữ liệu chính</td><td>âm thanh không nhãn</td><td>âm thanh không nhãn</td><td>680 000 giờ có chép lời từ Internet</td></tr>
+<tr><td>đáp án khi học</td><td>mã lượng tử, chọn trong các mã nhiễu</td><td>mã cụm k-means của frame bị che</td><td>câu chữ (cùng token chỉ việc)</td></tr>
+<tr><td>kiến trúc</td><td>CNN + Transformer encoder</td><td>CNN + Transformer encoder</td><td>Transformer encoder-decoder</td></tr>
+<tr><td>dùng thế nào</td><td>tinh chỉnh với ít nhãn (thường CTC), hoặc lấy đặc trưng</td><td>như wav2vec 2.0</td><td>dùng ngay không cần tinh chỉnh, hoặc tinh chỉnh thêm</td></tr>
+</table></div>
+<h3>Thuật ngữ mới</h3>
+<div class="tablewrap"><table>
+<tr><th>Nói thường</th><th>Thuật ngữ</th></tr>
+<tr><td>học từ dữ liệu không nhãn bằng cách che rồi đoán</td><td>tự giám sát (self-supervised learning, SSL), masked prediction</td></tr>
+<tr><td>học trước / dạy thêm việc cụ thể</td><td>tiền huấn luyện (pre-training) / tinh chỉnh (fine-tuning)</td></tr>
+<tr><td>đổi vector thành mã trong bảng</td><td>lượng tử hóa (quantization), codebook</td></tr>
+<tr><td>chọn đáp án đúng giữa các đáp án nhiễu</td><td>contrastive loss, negative samples</td></tr>
+<tr><td>phân nhóm theo tâm gần nhất</td><td>k-means clustering</td></tr>
+<tr><td>nhãn có sẵn nhưng không hoàn hảo</td><td>giám sát yếu (weak supervision)</td></tr>
+<tr><td>mô hình viết ra chữ không có trong âm thanh</td><td>hallucination</td></tr>
+</table></div>
+</section>
+<nav class="pn"></nav>
+</div>
+<script src="assets/learn.js"></script>
+<script>
+const SEGS = [['a', [-1.2, 0.8], 22], ['s', [1.4, 1.2], 14], ['i', [0.6, -1.3], 24]];
+const FR = (() => {
+  const r = rng(12), out = [];
+  SEGS.forEach(([lab, c, n], si) => {
+    for (let j = 0; j < n; j++) {
+      const u = j / (n - 1), drift = si === 2 ? [0.5 * u - 0.25, 0.35 * u] : [0, 0];
+      // Edges drift toward the neighbouring sound, which is what makes clusters straddle boundaries.
+      const prev = si > 0 && u < 0.2 ? SEGS[si - 1][1] : null, nxt = si < 2 && u > 0.8 ? SEGS[si + 1][1] : null, pull = prev ? (0.2 - u) * 2 : nxt ? (u - 0.8) * 2 : 0, tgt = prev || nxt || c;
+      out.push({lab, si, p: [c[0] + drift[0] + pull * (tgt[0] - c[0]) * 0.5 + 0.28 * randn(r), c[1] + drift[1] + pull * (tgt[1] - c[1]) * 0.5 + 0.28 * randn(r)]});
+    }
+  });
+  return out;
+})();
+let K = 5, SEEDK = 2, CENT, ASG, IT = 0, runT;
+const d2 = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2;
+function initK() { const r = rng(SEEDK * 31); CENT = Array.from({length: K}, () => FR[Math.floor(r() * FR.length)].p.slice()); assign(); IT = 0; }
+function assign() { ASG = FR.map(f => { let b = 0; CENT.forEach((c, k) => { if (d2(f.p, c) < d2(f.p, CENT[b])) b = k; }); return b; }); }
+function kstep() {
+  CENT = CENT.map((c, k) => { const m = FR.filter((_, j) => ASG[j] === k); return m.length ? [m.reduce((s, f) => s + f.p[0], 0) / m.length, m.reduce((s, f) => s + f.p[1], 0) / m.length] : c; });
+  const old = ASG.join(); assign(); IT++; return old !== ASG.join();
+}
+const KCOL = [C.acc, C.frame, C.ok, C.i, C.hl, '#b8860b', '#4b8b9b', C.grey];
+function draw4() {
+  const R = setup('c4', 380), g = R.g, S = 290, B = {l: 30, t: 10, w: S, h: S}, lo = -2.6, hi = 2.6;
+  const X = v => B.l + (v - lo) / (hi - lo) * S, Y = v => B.t + S - (v - lo) / (hi - lo) * S;
+  g.strokeStyle = C.line; g.strokeRect(B.l + .5, B.t + .5, S, S);
+  FR.forEach((f, j) => { dot(g, X(f.p[0]), Y(f.p[1]), 4, KCOL[ASG[j]], '#fff'); });
+  CENT.forEach((c, k) => { g.strokeStyle = C.ink; g.lineWidth = 2; const x = X(c[0]), y = Y(c[1]); g.beginPath(); g.moveTo(x - 6, y - 6); g.lineTo(x + 6, y + 6); g.moveTo(x + 6, y - 6); g.lineTo(x - 6, y + 6); g.stroke(); text(g, 'mã ' + k, x + 8, y - 8, KCOL[k], 'left', true, true); });
+  SEGS.forEach(([lab, c]) => text(g, `"${lab}"`, X(c[0]), Y(c[1]) - 34, C.ink, 'center', true, true, 13));
+  const T0 = B.l + S + 40, TW = R.w - T0 - 20, cw = TW / FR.length;
+  text(g, 'chuỗi mã theo thời gian', T0, 40, C.ink, 'left', true);
+  FR.forEach((f, j) => { box(g, T0 + j * cw, 56, cw - 0.5, 34, KCOL[ASG[j]]); box(g, T0 + j * cw, 96, cw - 0.5, 12, alpha([C.acc, C.frame, C.i][f.si], 0.5)); });
+  text(g, 'mã', T0 - 6, 73, C.mute, 'right'); text(g, 'âm thật', T0 - 6, 102, C.mute, 'right');
+  SEGS.reduce((acc, [lab, , n]) => { text(g, lab, T0 + (acc + n / 2) * cw, 120, C.ink, 'center', true); return acc + n; }, 0);
+  text(g, 'Ví dụ 20 mã đầu:', T0, 160, C.mute, 'left');
+  text(g, ASG.slice(0, 20).join(' '), T0, 180, C.ink, 'left', false, false, 13);
+  const inertia = FR.reduce((s, f, j) => s + d2(f.p, CENT[ASG[j]]), 0);
+  document.getElementById('r4').innerHTML = `Bước <b>${IT}</b>. Tổng bình phương khoảng cách tới tâm: <b>${r1(inertia)}</b> <span class="muted">(giảm dần, dừng khi không điểm nào đổi cụm)</span>`;
+}
+const stopK = () => { clearInterval(runT); runT = null; };
+document.getElementById('km1').addEventListener('click', () => { stopK(); kstep(); draw4(); });
+document.getElementById('kmrun').addEventListener('click', () => { stopK(); runT = setInterval(() => { const ch = kstep(); draw4(); if (!ch || IT > 50) stopK(); }, 300); });
+document.getElementById('kminit').addEventListener('click', () => { stopK(); SEEDK++; initK(); draw4(); });
+
+let LANG = 'vi', TASK = 'transcribe', TS = '0';
+const TEXT = {vi: {transcribe: ['hôm', ' nay', ' trời', ' mưa'], translate: ['It', "'s", ' raining', ' today']}, en: {transcribe: ['It', "'s", ' raining', ' today'], translate: ['It', "'s", ' raining', ' today']}, ja: {transcribe: ['今日', 'は', '雨', 'です'], translate: ['It', "'s", ' raining', ' today']}};
+function draw5() {
+  const sp = s => `<span class="sp">${s.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>`, tx = s => `<span class="tx">${s.replace(/ /g, '·')}</span>`;
+  const words = TEXT[LANG][TASK];
+  let html = sp('<|startoftranscript|>') + sp(`<|${LANG}|>`) + sp(`<|${TASK}|>`);
+  if (TS === '0') html += sp('<|notimestamps|>') + words.map(tx).join('');
+  else html += sp('<|0.00|>') + words.slice(0, 2).map(tx).join('') + sp('<|0.84|>') + sp('<|0.84|>') + words.slice(2).map(tx).join('') + sp('<|1.92|>');
+  html += sp('<|endoftext|>');
+  document.getElementById('tok').innerHTML = html;
+  document.getElementById('r5').innerHTML = 'Cam: token đặc biệt chỉ việc cần làm (4 token đầu được đưa sẵn hoặc do mô hình tự đoán). Xanh: chữ mô hình viết ra, mỗi ô là một token (mảnh từ). Các mốc thời gian ở đây là minh họa.' +
+    (LANG === 'en' && TASK === 'translate' ? ' Dịch tiếng Anh sang tiếng Anh thì giống chép lời.' : '');
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.k) { stopK(); K = +b.dataset.k; toggle('k', b.dataset.k); initK(); draw4(); }
+  if (b.dataset.lang) { LANG = b.dataset.lang; toggle('lang', LANG); draw5(); }
+  if (b.dataset.task) { TASK = b.dataset.task; toggle('task', TASK); draw5(); }
+  if (b.dataset.ts) { TS = b.dataset.ts; toggle('ts', TS); draw5(); }
+});
+initK();
+draw4(); draw5();
+onResize(draw4);
+</script>
+</body>
+</html>

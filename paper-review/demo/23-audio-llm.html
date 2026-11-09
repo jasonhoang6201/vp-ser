@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audio-LLM</title>
+<link rel="stylesheet" href="assets/learn.css">
+<style>
+.outs td:first-child{font-family:ui-monospace,Menlo,monospace;font-size:13px}
+.ok{color:var(--ok);font-weight:700}.bad{color:var(--hl);font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="pn"></nav>
+<h1>Audio-LLM: hỏi một mô hình ngôn ngữ lớn bằng âm thanh</h1>
+<p class="sub">Ví dụ chính: Qwen2-Audio (Alibaba, 2024). Cùng họ: SALMONN, WavLLM. Thay vì huấn luyện một đầu ra cho mỗi việc, ta <b>hỏi bằng lời</b>: "Chép lại câu này và cho biết người nói đang cảm thấy thế nào."</p>
+
+<section>
+<h2><span class="n">1</span>Vấn đề: mỗi việc một đầu ra, không giải thích được</h2>
+<div class="tablewrap"><table>
+<tr><th>Vướng của các mô hình trước</th><th>Ví dụ</th></tr>
+<tr><td>mỗi việc mới cần thêm đầu ra và dữ liệu có nhãn</td><td>muốn thêm "đoán tuổi người nói" là phải huấn luyện lại</td></tr>
+<tr><td>chỉ ra nhãn, không ra lý do</td><td>"anger" mà không biết vì giọng hay vì lời</td></tr>
+<tr><td>không có hiểu biết chung về thế giới</td><td>không biết "đậu đại học" thường là tin vui</td></tr>
+</table></div>
+<p>Các mô hình ngôn ngữ lớn (LLM) đã có hiểu biết rộng về ngôn ngữ và thế giới, làm theo được câu lệnh bằng lời. Nếu cho chúng "nghe" được thì một mô hình làm được rất nhiều việc mà không cần thêm đầu ra nào.</p>
+<div class="note blue"><b>Mục tiêu:</b> nối một encoder âm thanh vào một LLM sẵn có, sao cho LLM đọc âm thanh như đọc chữ, và làm theo câu lệnh bằng lời.</div>
+</section>
+
+<section>
+<h2><span class="n">2</span>Cách làm: 3 khối và 3 giai đoạn huấn luyện</h2>
+<div class="pipe"><span class="done">âm thanh</span><i>→</i><span class="new">encoder âm thanh</span><i>→</i><span class="new">bộ chiếu (projector)</span><i>→</i><span class="done">"token" âm thanh</span><i>+</i><span class="done">token câu lệnh</span><i>→</i><span class="new">LLM</span><i>→</i><span class="done">câu trả lời bằng chữ</span></div>
+<div class="tablewrap"><table>
+<tr><th>Khối</th><th>Trong Qwen2-Audio (theo bài báo)</th><th>Vai trò</th></tr>
+<tr><td><b>encoder âm thanh</b></td><td>khởi tạo từ encoder của Whisper-large-v3 (trang 12); log-Mel 128 kênh; gộp thêm để mỗi vector ứng với khoảng 40 ms</td><td>"tai": đổi âm thanh thành chuỗi vector</td></tr>
+<tr><td><b>bộ chiếu</b></td><td>đổi vector âm thanh về đúng kích thước vector token của LLM</td><td>"phiên dịch" để LLM đọc được</td></tr>
+<tr><td><b>LLM</b></td><td>Qwen-7B (decoder-only, như GPT ở trang 17); cả mô hình khoảng 8,2 tỉ tham số</td><td>"não": hiểu câu lệnh, suy luận, viết câu trả lời</td></tr>
+</table></div>
+<div class="tablewrap"><table>
+<tr><th>Giai đoạn</th><th>Học gì</th></tr>
+<tr><td>tiền huấn luyện</td><td>rất nhiều cặp (âm thanh, mô tả bằng chữ): chép lời, mô tả âm thanh, cảm xúc… mỗi việc được nêu bằng câu lệnh tự nhiên</td></tr>
+<tr><td>tinh chỉnh theo lệnh (SFT, supervised fine-tuning)</td><td>các cặp (câu lệnh, câu trả lời mẫu) chất lượng cao, để làm theo lệnh tốt</td></tr>
+<tr><td>DPO (Direct Preference Optimization)</td><td>cho hai câu trả lời, học thích câu mà người chấm ưa hơn: đúng sự thật, đúng định dạng</td></tr>
+</table></div>
+</section>
+
+<section>
+<h2><span class="n">3</span>Âm thanh chiếm bao nhiêu chỗ trong đầu vào của LLM</h2>
+<p>Mỗi khoảng 40 ms âm thanh thành một "token" âm thanh. Kéo độ dài để thấy chuỗi đầu vào của LLM:</p>
+<div class="ctrl"><span class="grp">Độ dài âm thanh <input type="range" id="sec" min="1" max="30" step="1" value="4"> <b id="secv"></b></span></div>
+<div class="fig"><canvas id="c3"></canvas></div>
+<div class="readout" id="r3"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Câu lệnh chỉ vài chục token, âm thanh thì hàng trăm. Self-attention tốn theo <b>bình phương</b> độ dài (trang 11), nên âm thanh dài làm chậm rõ rệt. Encoder Whisper cũng chỉ nhận tối đa 30 giây mỗi lần.
+<br>• LLM sinh câu trả lời <b>từng token một</b> (tự hồi quy), mỗi token phải chạy cả mô hình 7 tỉ tham số. Vì vậy audio-LLM chậm hơn nhiều so với SenseVoice: ở dạng 16 bit cần khoảng 16 GB bộ nhớ GPU chỉ để chứa trọng số.</div>
+</section>
+
+<section>
+<h2><span class="n">4</span>Câu trả lời là chữ tự do: phải "đọc" lại cho ra nhãn</h2>
+<p>Audio-LLM không ra một trong 7 lớp, mà ra một câu. Dưới đây là 8 câu trả lời kiểu thường gặp khi hỏi "What emotion does the speaker express?". Bật dần các luật đọc để xem bao nhiêu câu được chấm đúng:</p>
+<div class="ctrl">
+  <span class="grp"><label><input type="checkbox" id="p1"> không phân biệt hoa thường, tìm từ khóa trong câu</label></span>
+  <span class="grp"><label><input type="checkbox" id="p2"> bảng đồng nghĩa (happy → joy, angry → anger…)</label></span>
+  <span class="grp"><label><input type="checkbox" id="p3"> bỏ câu dẫn trước khi chép lời</label></span>
+</div>
+<div class="tablewrap"><table class="outs" id="outs"></table></div>
+<div class="readout" id="r4"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Không có luật nào thì gần như mọi câu bị tính sai, dù mô hình đoán đúng. Kết quả <b>phụ thuộc mạnh vào cách đọc câu trả lời</b>, nên phải báo rõ cách đọc.
+<br>• Có câu không cứu được: nhãn ngoài tập ("frustrated" không có trong 7 lớp của MELD), hoặc mô hình từ chối trả lời. Quy ước hợp lý: tính là sai, và báo số câu như vậy.
+<br>• Chép lời cũng vậy: mô hình hay thêm câu dẫn ("The transcription is: …"), làm WER tăng vọt nếu không bỏ đi.
+<br>• Các rủi ro khác: đổi chữ trong câu lệnh là kết quả đổi; mô hình có thể <b>bịa</b>; và dữ liệu huấn luyện khổng lồ có thể đã chứa chính bộ test (trang 24).</div>
+</section>
+
+<section>
+<h2>Tóm tắt</h2>
+<ul>
+<li>Audio-LLM = encoder âm thanh (thường từ Whisper) + bộ chiếu + LLM. Học qua tiền huấn luyện, SFT, DPO.</li>
+<li>Làm nhiều việc bằng câu lệnh, có thể giải thích; nhưng chậm, nặng, và câu trả lời tự do phải được đọc lại thành nhãn.</li>
+<li>Khi đánh giá: cố định câu lệnh, báo luật đọc, đếm câu từ chối và câu ngoài tập nhãn.</li>
+</ul>
+<h3>Thuật ngữ mới</h3>
+<div class="tablewrap"><table>
+<tr><th>Nói thường</th><th>Thuật ngữ</th></tr>
+<tr><td>mô hình ngôn ngữ rất lớn</td><td>LLM (Large Language Model)</td></tr>
+<tr><td>lớp đổi vector âm thanh sang kích thước của LLM</td><td>projector, adapter</td></tr>
+<tr><td>câu lệnh đưa cho mô hình</td><td>prompt, instruction</td></tr>
+<tr><td>dạy làm theo lệnh bằng câu trả lời mẫu</td><td>SFT (supervised fine-tuning), instruction tuning</td></tr>
+<tr><td>dạy chọn câu trả lời được ưa hơn</td><td>DPO (Direct Preference Optimization)</td></tr>
+<tr><td>dùng ngay không huấn luyện thêm</td><td>zero-shot</td></tr>
+<tr><td>đọc câu trả lời tự do thành nhãn</td><td>output parsing, label mapping</td></tr>
+</table></div>
+<div class="note exp"><b>Gắn với thực nghiệm:</b> Qwen2-Audio-7B-Instruct zero-shot trên MELD: 1032/2574 câu chép lời có câu dẫn, làm WER 53.3; bỏ câu dẫn thì WER 31.9 (ngang Whisper turbo). UA 38.7, cao nhất trong các hệ chỉ dùng âm thanh, nhưng có thể mô hình đã thấy MELD khi huấn luyện.</div>
+</section>
+<nav class="pn"></nav>
+</div>
+<script src="assets/learn.js"></script>
+<script>
+let SEC = 4;
+function draw3() {
+  document.getElementById('secv').textContent = SEC + ' giây';
+  const nA = SEC * 25, pre = 12, post = 28, total = pre + nA + post, R = setup('c3', 90), g = R.g, B = {l: 10, t: 24, w: R.w - 20}, cw = B.w / (12 + 750 + 28);
+  let x = B.l;
+  [[pre, '#d6d5d1', 'hệ thống'], [nA, alpha(C.acc, 0.8), 'âm thanh'], [post, alpha(C.frame, 0.85), 'câu lệnh']].forEach(([n, col, lab]) => {
+    box(g, x, B.t, n * cw, 30, col); if (n * cw > 50) text(g, `${lab} (${n})`, x + 4, B.t + 15, '#fff', 'left', true); x += n * cw;
+  });
+  text(g, 'đầu vào của LLM, vẽ theo thang tối đa 30 giây', B.l, 10, C.mute, 'left');
+  document.getElementById('r3').innerHTML = `${SEC} giây × 25 token/giây = <b>${nA}</b> token âm thanh; cả đầu vào khoảng <b>${total}</b> token. <span class="muted">(số token câu lệnh là ví dụ)</span>`;
+}
+document.getElementById('sec').addEventListener('input', e => { SEC = +e.target.value; draw3(); });
+
+const OUTS = [
+  ['joy', 'joy', 'joy'], ['Happy', 'joy', 'syn'], ['The speaker sounds angry.', 'anger', 'syn'], ['The emotion is sadness.', 'sadness', 'kw'],
+  ['Neutral', 'neutral', 'kw'], ['The transcription is: "I am so happy for you." The speaker sounds sad.', 'sadness', 'pre'],
+  ['The speaker seems frustrated.', 'anger', 'never'], ["I'm sorry, I can't determine the emotion from this audio.", 'neutral', 'never'],
+];
+const LBL = ['neutral', 'joy', 'surprise', 'anger', 'sadness', 'disgust', 'fear'];
+const SYN = {happy: 'joy', happiness: 'joy', angry: 'anger', sad: 'sadness', surprised: 'surprise', scared: 'fear', afraid: 'fear', disgusted: 'disgust'};
+function parse(s, p1, p2, p3) {
+  if (!p1) return LBL.includes(s) ? s : null;
+  let t = s.toLowerCase();
+  if (p3) t = t.replace(/the transcription is:\s*"[^"]*"\s*/, '');
+  const words = t.replace(/[^a-z ]/g, ' ').split(/\s+/);
+  for (const w of words) { if (LBL.includes(w)) return w; if (p2 && SYN[w]) return SYN[w]; }
+  return null;
+}
+function draw4() {
+  const p1 = document.getElementById('p1').checked, p2 = document.getElementById('p2').checked, p3 = document.getElementById('p3').checked;
+  let ok = 0;
+  document.getElementById('outs').innerHTML = '<tr><th>Câu trả lời của mô hình</th><th>Nhãn đúng</th><th>Đọc ra</th><th></th></tr>' + OUTS.map(([s, truth]) => {
+    const got = parse(s, p1, p2, p3), good = got === truth;
+    if (good) ok++;
+    return `<tr><td>${s.replace(/</g, '&lt;')}</td><td>${truth}</td><td>${got || '(không đọc được)'}</td><td class="${good ? 'ok' : 'bad'}">${good ? '✓' : '✗'}</td></tr>`;
+  }).join('');
+  document.getElementById('r4').innerHTML = `Chấm đúng <b>${ok}/8</b> câu.`;
+}
+['p1', 'p2', 'p3'].forEach(id => document.getElementById(id).addEventListener('change', draw4));
+draw3(); draw4();
+onResize(draw3);
+</script>
+</body>
+</html>

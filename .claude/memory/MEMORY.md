@@ -1,0 +1,19 @@
+- [User profile](user-profile.md) — học viên thạc sĩ, môn Voice Processing, giao tiếp tiếng Việt
+- [Final project topic](project-final-project.md) — đề tài Emotion-Aware Speech Recognition, đang ở giai đoạn overview
+- [Output style](feedback-output-style.md) — HTML light minimal, diagram SVG, high-level trước rồi đào sâu từng phần
+- [Memory in repo](feedback-memory-location.md) — .claude/ chỉ chứa memory + research; HTML output để ở thư mục project
+- [Walkthrough từ từ](feedback-walkthrough.md) — chưa có nền tảng: giải thích rồi hỏi từng câu một
+- [Không nhắc kiến thức sau](feedback-no-forward-refs.md) — dạy nền thì không chèn SER/ASR/model/đề tài, gây loãng
+- [Sửa thuật ngữ](feedback-correct-terminology.md) — chủ động sửa từ nôm thành thuật ngữ chuẩn, ưu tiên tiếng Việt nếu tự nhiên, tiếng Anh nếu ngành không dịch; gọi tên bằng thuật ngữ, không bằng ví von (quả đồi, đám mây)
+- [Vấn đề trước](feedback-problem-first.md) — dạy khái niệm mới: vướng gì → ra đời để làm gì → thành phần + nguyên lý → chi tiết
+- [Dạy từng phần có chốt](feedback-teach-gated.md) — dạy trong chat mỗi lượt một phần, người dùng ok rồi mới sang phần sau
+- [Colab progress](reference-colab-progress.md) — notebooks/PROGRESS.md là source of truth cho thực nghiệm Colab, đọc khi resume
+- [Colab và Mac sleep](project-colab-sleep.md) — gập nắp/sleep là VM Colab bị thu hồi; giữ máy thức, tải kết quả từng phần
+- [Colab chạy bền](project-colab-durable.md) — upload lớn làm chết VM; data + trạng thái ở HF private, script IEMOCAP resume được
+- [Báo ETA](feedback-eta.md) — chạy job nào cũng báo kèm thời gian dự kiến xong (giờ local UTC+7)
+- [Research knowledge base](reference-research-kb.md) — .claude/research/papers.md; overview.html và slides.html ở root
+- [Không chạy model ở laptop](feedback-no-local-models.md) — TTS, Whisper, model nào cũng chạy trên Colab; local chỉ render, ffmpeg
+- [Clip lộ trình](project-mfcc-clips.md) — clip có giọng VieNeu cho mọi trang demo 05 MFCC đến 24, mỗi section một clip, làm theo trang; đủ 99 clip (2026-11-03), trạng thái ở video-pipeline/README.md
+- [Phạm vi session clip](feedback-session-scope-video.md) — session làm clip chỉ lo video + dạy học; không đụng training/research model, chỉ dùng Colab `tts`
+- [Văn phong trò chuyện](feedback-conversational-style.md) — trang học viết kiểu hỏi đáp "Bạn hỏi:", ví von đời thường, xác nhận đúng rồi chỉnh sai; không phóng đại số
+- [Chia việc giữa session](feedback-session-split.md) — session training/research không chạy TTS, render, sửa README clip khi có peer session làm clip

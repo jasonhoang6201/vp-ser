@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>GMM 1: Vấn đề</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/gmm.js"></script>
+<script src="../build/gmm-1-van-de.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Ba thành phần', '3 Một quả đồi Gauss', '4 Trộn đồi và EM', '5 Chấm điểm frame'];
+
+const PL = GMM.plane({x: 140, y: 210, w: 792, h: 600});
+const GA = GMM.emTrace(GMM.A_PTS, 3, 5, 80)[80];
+const MEAN = [0, 1].map(d => GMM.A_PTS.reduce((s, p) => s + p[d], 0) / GMM.A_PTS.length);
+const P1 = [-1.3, 0.9], P2 = [-0.15, 1.67];
+const RAD = Math.hypot(P1[0] - MEAN[0], P1[1] - MEAN[1]);
+// A mislabelled "a" sample far from the clouds, and a new frame right next to it.
+const ODD = [2.05, -0.15], Q = [2.25, -0.35];
+const CODES = [[-1.3, 0.9], [1.1, 1.0], [-0.4, -0.9], [0.6, -0.9]];
+const nearestCode = p => CODES.reduce((b, c, k) => (Math.hypot(p[0] - c[0], p[1] - c[1]) < Math.hypot(p[0] - CODES[b][0], p[1] - CODES[b][1]) ? k : b), 0);
+const CODE_COL = [COL.acc, COL.frame, COL.ok, COL.i];
+let TERRAIN = null;
+
+function bullets(t, x, y, rows, at, step = 0.9, size = 26) {
+  rows.forEach((r, j) => fade(Clip.g, P(t, at + j * step, 0.5), () => {
+    const [mark, s, c] = r;
+    text(mark, x, y + j * 64, {size: size + 2, weight: 700, color: c || COL.mute});
+    text(s, x + 40, y + j * 64, {size, color: COL.ink, maxW: 700});
+  }));
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('GMM', 'Phần 1/5: có MFCC rồi, nhưng so với cái gì?', 0, PARTS);
+
+function shotRecap(G, t) {
+  const s = S('recap'), d = D('recap');
+  heading('Mỗi frame là một điểm');
+  fade(G, P(t, s + 0.2, 0.6), () => {
+    card(140, 300, 520, 300);
+    text('1 frame = 13 số MFCC', 170, 340, {size: 26, weight: 700});
+    const h = [60, -90, 55, -40, 30, 20, -25, 15, -12, 10, 8, -6, 5];
+    h.forEach((v, k) => {
+      const x = 180 + k * 36, on = k === 1 || k === 2;
+      rrect(x, v > 0 ? 470 - v : 470, 26, Math.abs(v), 3, on ? COL.frame : COL.line2);
+      text('c' + k, x + 13, 580, {size: 15, color: on ? COL.frame : COL.mute, align: 'center'});
+    });
+    line(170, 470, 640, 470, COL.line2, 1.5);
+  });
+  fade(G, P(t, s + d * 0.55, 0.6), () => {
+    arrow(690, 450, 860, 450, COL.frame, 3);
+    text('chỉ lấy c1, c2', 775, 420, {size: 22, color: COL.frame, align: 'center'});
+    const B = {x: 900, y: 270, w: 528, h: 400}, Pq = GMM.plane(B);
+    Pq.frame();
+    Pq.dot([-1.1, 0.7], COL.frame, 9);
+    text('1 điểm', Pq.X(-1.1) + 18, Pq.Y(0.7) - 18, {size: 22, color: COL.frame});
+    text('(thật ra 13 chiều, vẽ 2 chiều để nhìn được)', 1460, 470, {size: 22, color: COL.mute, maxW: 320});
+  });
+}
+
+function shotCloud(G, t) {
+  const s = S('cloud'), sh = S('shape'), sq = S('question');
+  heading('Âm "a" là một đám mây');
+  PL.frame();
+  PL.dots(GMM.A_PTS, COL.acc + 'aa', 4, P(t, s + 0.3, D('cloud') * 0.8));
+  bullets(t, 1010, 290, [
+    ['•', '300 frame "a" từ nhiều người nói'],
+    ['•', 'giọng trầm, giọng cao: lệch đi'],
+    ['•', 'âm đứng trước, đứng sau: lệch đi'],
+  ], s + 1.5, D('cloud') * 0.25);
+  fade(G, P(t, sh + 0.3, 0.6), () => {
+    GA.forEach(gm => PL.ell(gm, 2, COL.line2, 2, [8, 6]));
+    text('dẹt, nghiêng, 3 cụm', 1050, 500, {size: 28, weight: 700, color: COL.acc});
+    text('đây là hình dạng thật của "vùng a"', 1050, 545, {size: 24, color: COL.mute});
+  });
+  fade(G, P(t, sq + 0.2, 0.5), () => {
+    const pulse = 9 + 3 * Math.sin((t - sq) * 5);
+    PL.dot([0.9, -0.2], COL.frame, pulse, '#fff');
+    text('frame mới', PL.X(0.9) + 22, PL.Y(-0.2) - 6, {size: 22, weight: 700, color: COL.frame});
+    card(1010, 640, 760, 150, {stroke: COL.frame});
+    text('Giống "a" bao nhiêu?', 1040, 685, {size: 30, weight: 700, color: COL.frame});
+    text('cần một con số đo mức giống, không chỉ có / không', 1040, 740, {size: 23, color: COL.mute});
+  });
+}
+
+function shotMean(G, t) {
+  const s = S('mean'), d = D('mean');
+  heading('Cách 1: khoảng cách tới trung bình');
+  PL.frame();
+  PL.dots(GMM.A_PTS, COL.acc + '55', 4);
+  fade(G, P(t, s + 0.4, 0.5), () => {
+    PL.dot(MEAN, COL.ink, 8);
+    text('trung bình', PL.X(MEAN[0]) + 14, PL.Y(MEAN[1]) + 22, {size: 22, weight: 700});
+  });
+  fade(G, P(t, s + d * 0.35, 0.6), () => {
+    G.beginPath(); G.setLineDash([8, 6]);
+    G.arc(PL.X(MEAN[0]), PL.Y(MEAN[1]), RAD * PL.scale, 0, 2 * Math.PI);
+    G.strokeStyle = COL.mute; G.lineWidth = 2; G.stroke(); G.setLineDash([]);
+    line(PL.X(MEAN[0]), PL.Y(MEAN[1]), PL.X(P1[0]), PL.Y(P1[1]), COL.ok, 2.5);
+    line(PL.X(MEAN[0]), PL.Y(MEAN[1]), PL.X(P2[0]), PL.Y(P2[1]), COL.hl, 2.5);
+    PL.dot(P1, COL.ok, 9, '#fff'); PL.dot(P2, COL.hl, 9, '#fff');
+    text('A: giữa cụm', PL.X(P1[0]) - 20, PL.Y(P1[1]) - 30, {size: 22, weight: 700, color: COL.ok, align: 'center'});
+    text('B: vùng trống', PL.X(P2[0]) + 18, PL.Y(P2[1]) - 22, {size: 22, weight: 700, color: COL.hl});
+  });
+  fade(G, P(t, s + d * 0.55, 0.6), () => {
+    card(1010, 300, 760, 330);
+    text('A và B cách trung bình bằng nhau', 1040, 345, {size: 27, weight: 700});
+    text(`khoảng cách ≈ ${RAD.toFixed(2).replace('.', ',')}  →  cùng điểm số`, 1040, 400, {size: 24, color: COL.mute});
+    text('✓', 1040, 470, {size: 30, weight: 700, color: COL.ok}); text('A thật sự là "a"', 1085, 470, {size: 25});
+    text('✗', 1040, 530, {size: 30, weight: 700, color: COL.hl}); text('B chẳng có frame "a" nào quanh nó', 1085, 530, {size: 25});
+    text('→ bỏ qua hình dạng đám mây', 1040, 590, {size: 25, weight: 700, color: COL.hl});
+  });
+}
+
+function shotTemplate(G, t) {
+  const s = S('template'), d = D('template');
+  heading('Cách 2: so với mọi mẫu đã lưu (1970s)');
+  PL.frame();
+  PL.dots(GMM.A_PTS, COL.acc + '88', 4);
+  fade(G, P(t, s + 0.4, 0.6), () => {
+    const n = Math.floor(lerp(0, 60, clamp((t - s - 0.4) / (d * 0.4))));
+    for (let i = 0; i < n; i++) { const p = GMM.A_PTS[(i * 37) % 300]; line(PL.X(-0.6), PL.Y(-1.9), PL.X(p[0]), PL.Y(p[1]), COL.frame + '33', 1); }
+    PL.dot([-0.6, -1.9], COL.frame, 9, '#fff');
+  });
+  fade(G, P(t, s + 0.6, 0.6), () => {
+    card(1010, 260, 760, 230);
+    text('template matching', 1040, 305, {size: 27, weight: 700});
+    text('mỗi frame mới so với mọi mẫu, lấy mẫu gần nhất', 1040, 355, {size: 23, color: COL.mute});
+    text('✗ hàng triệu mẫu: chậm, tốn bộ nhớ', 1040, 420, {size: 25, color: COL.hl});
+  });
+  fade(G, P(t, s + d * 0.6, 0.6), () => {
+    PL.dot(ODD, COL.acc, 6, COL.hl);
+    text('mẫu lạ', PL.X(ODD[0]) + 14, PL.Y(ODD[1]) - 20, {size: 21, weight: 700, color: COL.hl});
+    PL.dot(Q, COL.frame, 9, '#fff');
+    line(PL.X(Q[0]), PL.Y(Q[1]), PL.X(ODD[0]), PL.Y(ODD[1]), COL.hl, 3);
+    text('frame mới', PL.X(Q[0]) - 10, PL.Y(Q[1]) + 32, {size: 21, weight: 700, color: COL.frame, align: 'center'});
+    card(1010, 530, 760, 160, {stroke: COL.hl});
+    text('✗ một mẫu lạ là đủ đánh lừa', 1040, 575, {size: 25, color: COL.hl, weight: 700});
+    text('frame xa hẳn đám mây vẫn bị gán "a" vì sát mẫu lạ', 1040, 630, {size: 23, color: COL.mute});
+  });
+}
+
+function shotVq(G, t) {
+  const s = S('vq'), d = D('vq'), u = P(t, s + d * 0.25, 0.8);
+  heading('Cách 3: lượng tử hóa vector (VQ, đầu 1980s)');
+  PL.frame();
+  PL.dots(GMM.A_PTS, null, 4, 1, i => (u > 0.5 ? CODE_COL[nearestCode(GMM.A_PTS[i])] + 'aa' : COL.acc + '88'));
+  fade(G, P(t, s + 0.4, 0.6), () => CODES.forEach((c, k) => {
+    rrect(PL.X(c[0]) - 10, PL.Y(c[1]) - 10, 20, 20, 3, CODE_COL[k], '#fff', 3);
+  }));
+  fade(G, P(t, s + 0.6, 0.6), () => {
+    card(1010, 260, 760, 470);
+    text('codebook: vài điểm đại diện (ô vuông)', 1040, 305, {size: 26, weight: 700});
+    text('mỗi frame gán về đại diện gần nhất', 1040, 355, {size: 23, color: COL.mute});
+  });
+  bullets(t, 1040, 440, [
+    ['✓', 'gọn: chỉ lưu vài điểm', COL.ok],
+    ['✗', 'gán cứng: không có "chắc bao nhiêu"', COL.hl],
+    ['✗', 'mất hình dạng từng cụm', COL.hl],
+  ], s + d * 0.5, d * 0.13);
+}
+
+function shotGoal(G, t) {
+  const s = S('goal');
+  heading('Mục tiêu');
+  fade(G, P(t, s + 0.2, 0.6), () => {
+    card(360, 300, 1200, 420, {stroke: COL.acc, lw: 3});
+    text('Mô tả đám mây "a" bằng', 960, 380, {size: 32, color: COL.mute, align: 'center'});
+    text('vài con số', 960, 440, {size: 44, weight: 700, color: COL.acc, align: 'center'});
+    text('và với bất kỳ điểm nào, tính ngay', 960, 530, {size: 32, color: COL.mute, align: 'center'});
+    text('một điểm số mượt: "nằm trong vùng a đến đâu"', 960, 590, {size: 36, weight: 700, color: COL.acc, align: 'center'});
+  });
+}
+
+function shotTerrain(G, t) {
+  const st = S('terrain'), sh = S('hills');
+  heading('Biến đám mây thành địa hình');
+  if (!TERRAIN) {
+    const top = GMM.mixPdf([-1.3, 0.9], GA);
+    TERRAIN = GMM.field(PL, (x, y) => Clip.heat(Math.pow(GMM.mixPdf([x, y], GA) / top, 0.7) * 0.62));
+  }
+  PL.frame();
+  fade(G, P(t, st + 0.3, 1.0), () => G.drawImage(TERRAIN, PL.B.x, PL.B.y));
+  PL.dots(GMM.A_PTS, COL.ink + '66', 3);
+  fade(G, P(t, st + 0.6, 0.6), () => {
+    card(1010, 260, 760, 210);
+    text('chỗ điểm dày → cao (đậm)', 1040, 305, {size: 26, weight: 700, color: COL.acc});
+    text('chỗ thưa → thấp (nhạt)', 1040, 355, {size: 26, color: COL.mute});
+    text('độ cao = mật độ xác suất (probability density)', 1040, 420, {size: 23, color: COL.ink});
+  });
+  GA.forEach((gm, k) => fade(G, P(t, sh + 0.6 + k * 0.9, 0.5), () => {
+    PL.ell(gm, 1, COL.frame, 3); PL.ell(gm, 2, COL.frame + '88', 2);
+    text(`đồi ${k + 1}`, PL.X(gm.mu[0]), PL.Y(gm.mu[1]), {size: 22, weight: 700, color: COL.frame, align: 'center'});
+  }));
+  fade(G, P(t, sh + 0.4, 0.6), () => {
+    card(1010, 510, 760, 220, {stroke: COL.frame, lw: 3});
+    text('GMM: cộng vài quả đồi hình chuông', 1040, 555, {size: 26, weight: 700, color: COL.frame});
+    text('mỗi cụm một đồi Gauss', 1040, 610, {size: 24, color: COL.ink});
+    text('mỗi đồi chỉ cần vài con số', 1040, 660, {size: 24, color: COL.ink});
+  });
+}
+
+function shotEra(G, t) {
+  const s = S('era');
+  heading('So với các cách trước');
+  const x0 = 200, x1 = 1720, Xy = y => x0 + (y - 1968) / 48 * (x1 - x0), ty = 470;
+  fade(G, P(t, s + 0.2, 0.6), () => {
+    line(x0, ty, x1, ty, COL.line2, 3);
+    [1970, 1980, 1990, 2000, 2010].forEach(y => { line(Xy(y), ty - 8, Xy(y), ty + 8, COL.line2, 2); text(String(y), Xy(y), ty + 36, {size: 20, color: COL.mute, align: 'center'}); });
+  });
+  const ev = [[1972, 1980, 'template', 'giữ mọi mẫu', COL.mute], [1980, 1986, 'VQ', 'vài đại diện, gán cứng', COL.i], [1986, 2012, 'GMM (mật độ liên tục)', 'chuẩn gần 30 năm', COL.acc]];
+  ev.forEach(([a, b, n, sub, c], j) => fade(G, P(t, s + 0.6 + j * 1.2, 0.6), () => {
+    rrect(Xy(a), ty - 70 - (j % 2) * 0, Xy(b) - Xy(a) - 6, 44, 8, c + '22', c);
+    text(n, (Xy(a) + Xy(b)) / 2, ty - 48, {size: 22, weight: 700, color: c, align: 'center'});
+    text(sub, (Xy(a) + Xy(b)) / 2, ty + 90 + (j === 1 ? 40 : 0), {size: 22, color: COL.mute, align: 'center'});
+  }));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['mỗi âm = một đám mây điểm MFCC', COL.ink], ['GMM mô tả đám mây bằng vài quả đồi Gauss', COL.acc], ['mỗi frame nhận một điểm số mượt (mật độ)', COL.acc]].forEach(([s1, c], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => { text('✓', 520, 330 + j * 90, {size: 34, weight: 700, color: COL.ok}); text(s1, 570, 330 + j * 90, {size: 32, color: c}); }));
+  fade(G, P(t, s + D('result') * 0.75, 0.5), () => chip(G, 720, 640, 'Phần 2: ba thành phần của GMM  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 1', [
+  ['đám mây điểm của một âm', 'phân phối (distribution)', 'các frame của một âm trong không gian đặc trưng'],
+  ['so với mọi mẫu đã lưu', 'template matching', 'chậm, dễ bị mẫu lạ đánh lừa'],
+  ['vài điểm đại diện', 'vector quantization (VQ), codebook', 'gán cứng về đại diện gần nhất'],
+  ['độ cao của địa hình', 'mật độ xác suất (probability density)', 'chỗ điểm dày thì cao'],
+  ['cộng nhiều đồi hình chuông', 'GMM (Gaussian Mixture Model)', 'mô hình trộn Gauss'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'recap', to: 'recap', draw: shotRecap},
+    {from: 'cloud', to: 'question', draw: shotCloud},
+    {from: 'mean', to: 'mean', draw: shotMean},
+    {from: 'template', to: 'template', draw: shotTemplate},
+    {from: 'vq', to: 'vq', draw: shotVq},
+    {from: 'goal', to: 'goal', draw: shotGoal},
+    {from: 'terrain', to: 'hills', draw: shotTerrain},
+    {from: 'era', to: 'era', draw: shotEra},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/gmm-1-van-de.wav');
+</script>
+</body>
+</html>

@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mạng nơ-ron và DNN-HMM</title>
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="pn"></nav>
+<h1>Mạng nơ-ron và DNN-HMM: thay GMM bằng một bộ chấm điểm mạnh hơn</h1>
+<p class="sub">DNN (Deep Neural Network, mạng nơ-ron sâu). Hệ thống ở trang trước giữ nguyên: HMM, từ điển, mô hình ngôn ngữ, decoder. Chỉ thay <b>một mảnh</b>: phần chấm "frame này giống trạng thái nào".</p>
+
+<section>
+<h2><span class="n">1</span>Vấn đề: GMM chấm điểm còn yếu</h2>
+<div class="tablewrap"><table>
+<tr><th>Vướng</th><th>Vì sao</th></tr>
+<tr><td>mỗi GMM chỉ học <b>mô tả</b> âm của mình</td><td>GMM "a" học từ frame "a", không hề thấy frame "e". Nó không được dạy để <b>phân biệt</b> "a" với "e", là việc ta thực sự cần</td></tr>
+<tr><td>khó nhìn nhiều frame cùng lúc</td><td>một âm rõ nhất khi nhìn cả đoạn trước và sau. Ghép 11 frame × 40 số = 440 chiều thì GMM cần quá nhiều tham số</td></tr>
+<tr><td>phải dùng MFCC</td><td>GMM thường dùng covariance đường chéo, nên cần đặc trưng ít liên quan nhau. DCT và cắt còn 13 số làm mất bớt thông tin</td></tr>
+<tr><td>ranh giới phức tạp</td><td>vài trăm âm vị theo ngữ cảnh nằm chen nhau, vùng của mỗi cái có hình dạng rối</td></tr>
+</table></div>
+<div class="note blue"><b>Mục tiêu:</b> một bộ chấm điểm <b>học thẳng việc phân biệt</b> các trạng thái, nhìn được <b>nhiều frame</b> một lúc, và dùng được <b>log-Mel</b> đầy đủ thay cho MFCC.</div>
+</section>
+
+<section>
+<h2><span class="n">2</span>Cách làm: mạng nơ-ron trong khung HMM</h2>
+<div class="pipe"><span class="done">11 frame log-Mel</span><i>→</i><span class="new">DNN</span><i>→</i><span class="new">xác suất từng senone</span><i>→</i><span class="new">chia cho prior</span><i>→</i><span class="done">HMM + LM + decoder</span></div>
+<div class="tablewrap"><table>
+<tr><th>Thành phần</th><th>Là gì</th><th>Gỡ vướng gì</th><th>Ở mục</th></tr>
+<tr><td><b>nơ-ron</b> (neuron)</td><td>cộng có trọng số các số đầu vào, rồi cho qua một hàm "uốn" (hàm kích hoạt)</td><td>khối xây cơ bản</td><td>3</td></tr>
+<tr><td><b>nhiều lớp</b> (layers)</td><td>đầu ra của lớp này là đầu vào lớp sau</td><td>vẽ được ranh giới phức tạp</td><td>4</td></tr>
+<tr><td><b>softmax</b> + <b>cross-entropy</b></td><td>lớp cuối ra xác suất cho mỗi trạng thái; học bằng cách phạt khi xác suất của trạng thái đúng thấp</td><td>học thẳng việc phân biệt</td><td>4</td></tr>
+<tr><td><b>nhãn từ forced alignment</b></td><td>dùng GMM-HMM cũ chia frame cho trạng thái (trang 07), lấy làm đáp án cho DNN</td><td>DNN cần biết mỗi frame là trạng thái nào</td><td>5</td></tr>
+<tr><td><b>chia cho prior</b></td><td>đổi P(trạng thái | frame) thành điểm mà HMM cần</td><td>ghép DNN vào HMM</td><td>5</td></tr>
+</table></div>
+</section>
+
+<section>
+<h2><span class="n">3</span>Một nơ-ron</h2>
+<div class="formula">z = w₁x₁ + w₂x₂ + … + b &nbsp;&nbsp;&nbsp; đầu ra = f(z)</div>
+<p>Phần cộng có trọng số giống hệt bộ lọc tam giác ở trang Mel. Khác ở chỗ: <b>trọng số không cố định</b> mà được học từ dữ liệu. Hàm <b>f</b> (hàm kích hoạt, activation) uốn cong kết quả, ví dụ tanh (ép về −1 đến 1) hoặc ReLU (số âm thành 0).</p>
+<p>Một nơ-ron với 2 đầu vào chia mặt phẳng bằng <b>một đường thẳng</b> (nơi z = 0). Không có hàm uốn thì xếp bao nhiêu lớp vẫn chỉ ra đường thẳng, vì tổng có trọng số của tổng có trọng số vẫn là tổng có trọng số. Hàm uốn là thứ cho phép các lớp chồng lên nhau vẽ được đường cong.</p>
+</section>
+
+<section>
+<h2><span class="n">4</span>Nhiều lớp: tự học ranh giới cong</h2>
+<p>3 loại điểm (3 trạng thái). Mạng có 2 đầu vào, một lớp ẩn gồm H nơ-ron tanh, và lớp softmax 3 đầu ra. Bấm <b>Học</b> để chạy gradient descent: mỗi bước dịch mọi trọng số một chút theo hướng làm giảm lỗi. Màu nền là loại mà mạng đang đoán.</p>
+<div class="ctrl">
+  <span class="grp">Số nơ-ron ẩn H: <button data-h="0">0 (chỉ softmax)</button><button data-h="2">2</button><button data-h="8" class="on">8</button><button data-h="24">24</button></span>
+  <button id="train">▶ Học</button><button id="reinit">Khởi tạo lại</button>
+</div>
+<div class="fig"><canvas id="c4"></canvas></div>
+<div class="readout" id="r4"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• H = 0: chỉ vẽ được các đường thẳng, nên không tách được vùng giữa khỏi vòng bao quanh. Độ chính xác dừng ở khoảng 80%, lỗi dồn quanh vùng giữa.
+<br>• H = 2: có đường cong nhưng chưa đủ "nét bút", dừng ở khoảng 87%. H = 8 hoặc 24: tách được cả ba vùng, gần 100%.
+<br>• <b>Cross-entropy</b> = trung bình của −log(xác suất mạng gán cho đáp án đúng). Đoán đúng chắc chắn thì ≈ 0, phân vân đều 3 loại thì log 3 ≈ 1,10.
+<br>• Mạng thật trong DNN-HMM: đầu vào 11 frame × 40 log-Mel = 440 số, 4 đến 7 lớp ẩn mỗi lớp khoảng 1000 đến 2000 nơ-ron, đầu ra vài nghìn senone. Cùng nguyên lý, chỉ to hơn.</div>
+</section>
+
+<section>
+<h2><span class="n">5</span>Ghép DNN vào HMM</h2>
+<p><b>Lấy đáp án ở đâu?</b> DNN cần biết mỗi frame thuộc senone nào. Ta có câu chữ, chưa có ranh giới. Nên trước hết huấn luyện GMM-HMM như trang 07, rồi dùng Viterbi với câu chữ đã biết (forced alignment) để gán nhãn cho từng frame. DNN học lại từ các nhãn đó.</p>
+<p><b>Đổi xác suất cho đúng loại.</b> DNN cho <b>P(s | x)</b>: thấy frame x, xác suất là senone s. HMM lại cần <b>p(x | s)</b>: ở senone s, xác suất phát ra frame x. Theo Bayes:</p>
+<div class="formula">p(x | s) = P(s | x) × p(x) / P(s) &nbsp; ∝ &nbsp; P(s | x) / P(s)</div>
+<p>p(x) giống nhau cho mọi senone ở cùng frame nên bỏ được. <b>P(s)</b> (prior) là tỉ lệ frame thuộc senone s trong dữ liệu huấn luyện. Chia cho prior để senone hay gặp (như khoảng lặng) không được cộng điểm chỉ vì hay gặp. Kết quả gọi là <b>scaled likelihood</b>, đưa thẳng vào Viterbi như điểm GMM trước đây.</p>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Kiểu này gọi là <b>hệ lai</b> (hybrid): mạng nơ-ron chấm điểm, HMM lo thời gian và thứ tự.
+<br>• Theo các báo cáo đầu thập niên 2010 (nhóm của Hinton, Microsoft, Google, IBM), thay GMM bằng DNN giảm WER tương đối khoảng 20% đến 30% trên nhiều bộ dữ liệu, và kiểu hệ này nhanh chóng thành chuẩn.
+<br>• Hệ lai vẫn cần GMM-HMM để tạo nhãn, cần từ điển phát âm, cần nhiều bước rời nhau. Trang sau bỏ hết những thứ đó.</div>
+</section>
+
+<section>
+<h2>Tóm tắt</h2>
+<ul>
+<li>Nơ-ron = tổng có trọng số + hàm kích hoạt. Nhiều lớp chồng lên nhau vẽ được ranh giới phức tạp.</li>
+<li>Softmax ra xác suất cho từng lớp. Cross-entropy phạt khi xác suất của đáp án đúng thấp. Gradient descent (tính bằng backpropagation) chỉnh trọng số để giảm phạt.</li>
+<li>DNN-HMM: DNN nhận nhiều frame log-Mel, ra P(senone | frame), chia cho prior, đưa vào HMM. Nhãn huấn luyện lấy từ forced alignment của GMM-HMM.</li>
+</ul>
+<h3>Thuật ngữ mới</h3>
+<div class="tablewrap"><table>
+<tr><th>Nói thường</th><th>Thuật ngữ</th></tr>
+<tr><td>hàm uốn sau tổng có trọng số</td><td>hàm kích hoạt (activation function): tanh, ReLU, sigmoid</td></tr>
+<tr><td>các lớp ở giữa</td><td>lớp ẩn (hidden layer)</td></tr>
+<tr><td>đổi điểm thành xác suất cộng lại bằng 1</td><td>softmax</td></tr>
+<tr><td>điểm phạt khi đoán sai</td><td>hàm mất mát (loss), cross-entropy</td></tr>
+<tr><td>dịch trọng số theo hướng giảm lỗi</td><td>gradient descent; cách tính hướng đó: backpropagation</td></tr>
+<tr><td>mạng chấm điểm + HMM lo thời gian</td><td>hệ lai (hybrid DNN-HMM)</td></tr>
+<tr><td>tỉ lệ một senone trong dữ liệu</td><td>prior, P(s)</td></tr>
+<tr><td>mô hình mô tả dữ liệu / mô hình phân biệt</td><td>generative (GMM) / discriminative (DNN)</td></tr>
+</table></div>
+</section>
+<nav class="pn"></nav>
+</div>
+<script src="assets/learn.js"></script>
+<script>
+const DATA = (() => {
+  const r = rng(5), pts = [];
+  for (let j = 0; j < 330; j++) {
+    const cls = j % 3, a = r() * 2 * Math.PI;
+    let rad;
+    if (cls === 0) rad = 0.75 * Math.sqrt(r());
+    else rad = 1.25 + 0.5 * r();
+    let ang = a;
+    if (cls === 1) ang = Math.PI / 2 + r() * Math.PI;
+    if (cls === 2) ang = -Math.PI / 2 + r() * Math.PI;
+    pts.push({x: [rad * Math.cos(ang) + 0.08 * randn(r), rad * Math.sin(ang) + 0.08 * randn(r)], y: cls});
+  }
+  return pts;
+})();
+const KC = 3, CCOL = [C.frame, C.acc, C.i];
+let H = 8, SEED = 1, NET, STEPS = 0, runT = null;
+function initNet() {
+  const r = rng(SEED * 97), w = (n, s) => Array.from({length: n}, () => randn(r) * s);
+  const nin = H ? H : 2;
+  NET = {W1: H ? w(H * 2, 1.0) : [], b1: H ? w(H, 0.5) : [], W2: w(KC * nin, H ? 0.5 : 0.3), b2: new Array(KC).fill(0), vel: null};
+  STEPS = 0;
+}
+function fwd(x) {
+  const h = H ? Array.from({length: H}, (_, j) => Math.tanh(NET.W1[2 * j] * x[0] + NET.W1[2 * j + 1] * x[1] + NET.b1[j])) : x;
+  const nin = h.length, z = Array.from({length: KC}, (_, k) => { let s = NET.b2[k]; for (let j = 0; j < nin; j++) s += NET.W2[k * nin + j] * h[j]; return s; });
+  return {h, p: softmax(z)};
+}
+function step(lr = 0.3) {
+  const g = {W1: new Array(NET.W1.length).fill(0), b1: new Array(NET.b1.length).fill(0), W2: new Array(NET.W2.length).fill(0), b2: new Array(KC).fill(0)};
+  const n = DATA.length;
+  DATA.forEach(({x, y}) => {
+    const {h, p} = fwd(x), nin = h.length, dz = p.map((v, k) => (v - (k === y ? 1 : 0)) / n);
+    for (let k = 0; k < KC; k++) { g.b2[k] += dz[k]; for (let j = 0; j < nin; j++) g.W2[k * nin + j] += dz[k] * h[j]; }
+    if (H) for (let j = 0; j < H; j++) {
+      let dh = 0;
+      for (let k = 0; k < KC; k++) dh += dz[k] * NET.W2[k * H + j];
+      const da = dh * (1 - h[j] * h[j]);
+      g.b1[j] += da; g.W1[2 * j] += da * x[0]; g.W1[2 * j + 1] += da * x[1];
+    }
+  });
+  // Momentum keeps full-batch descent from crawling along the flat valleys of this tiny problem.
+  if (!NET.vel) NET.vel = {W1: g.W1.map(() => 0), b1: g.b1.map(() => 0), W2: g.W2.map(() => 0), b2: g.b2.map(() => 0)};
+  for (const key of ['W1', 'b1', 'W2', 'b2']) for (let i = 0; i < g[key].length; i++) {
+    NET.vel[key][i] = 0.9 * NET.vel[key][i] - lr * g[key][i];
+    NET[key][i] += NET.vel[key][i];
+  }
+  STEPS++;
+}
+function stats() {
+  let loss = 0, ok = 0;
+  DATA.forEach(({x, y}) => { const p = fwd(x).p; loss -= Math.log(p[y] + 1e-12); if (p.indexOf(Math.max(...p)) === y) ok++; });
+  return {loss: loss / DATA.length, acc: ok / DATA.length};
+}
+function draw4() {
+  const R = setup('c4', 380), g = R.g, S = Math.min(R.w - 40, 360), B = {l: (R.w - S) / 2, t: 10, w: S, h: S}, rng2 = 2.2, cell = 6;
+  const X = v => B.l + (v + rng2) / (2 * rng2) * B.w, Y = v => B.t + B.h - (v + rng2) / (2 * rng2) * B.h;
+  for (let px = 0; px < B.w; px += cell) for (let py = 0; py < B.h; py += cell) {
+    const x = [-rng2 + (px + cell / 2) / B.w * 2 * rng2, rng2 - (py + cell / 2) / B.h * 2 * rng2], p = fwd(x).p, k = p.indexOf(Math.max(...p));
+    box(g, B.l + px, B.t + py, cell, cell, alpha(CCOL[k], 0.08 + 0.22 * p[k]));
+  }
+  g.strokeStyle = C.line; g.strokeRect(B.l + .5, B.t + .5, B.w, B.h);
+  DATA.forEach(({x, y}) => dot(g, X(x[0]), Y(x[1]), 3, CCOL[y], '#fff'));
+  const s = stats();
+  document.getElementById('r4').innerHTML = `Bước <b>${STEPS}</b> &nbsp; cross-entropy <b>${r2(s.loss)}</b> &nbsp; đúng <b>${r0(100 * s.acc)}%</b> &nbsp; <span class="muted">số trọng số: ${NET.W1.length + NET.b1.length + NET.W2.length + NET.b2.length}</span>`;
+}
+const stop = () => { clearInterval(runT); runT = null; document.getElementById('train').textContent = '▶ Học'; };
+document.getElementById('train').addEventListener('click', () => {
+  if (runT) return stop();
+  document.getElementById('train').textContent = '⏸ Dừng';
+  runT = setInterval(() => { for (let j = 0; j < 15; j++) step(); draw4(); if (STEPS >= 3000) stop(); }, 60);
+});
+document.getElementById('reinit').addEventListener('click', () => { stop(); SEED++; initNet(); draw4(); });
+document.addEventListener('click', e => {
+  const b = e.target.closest('button[data-h]');
+  if (b) { stop(); H = +b.dataset.h; toggle('h', b.dataset.h); initNet(); draw4(); }
+});
+initNet(); draw4();
+onResize(draw4);
+</script>
+</body>
+</html>

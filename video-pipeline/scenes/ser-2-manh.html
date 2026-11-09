@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>SER · 2: Bốn thành phần</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/ser-2-manh.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn thành phần', '3 Nhãn và dấu hiệu', '4 Dữ liệu', '5 Thước đo'];
+const PIECES = [
+  ['label', 'kiểu nhãn', COL.acc, ['theo lớp: giận, vui, buồn, trung tính…', 'theo chiều: valence (dễ chịu?), arousal (kích động?)'], 'phần 3'],
+  ['cue', 'dấu hiệu trong giọng', COL.frame, ['ngữ điệu: f0, năng lượng, tốc độ, chất giọng', '+ chính các từ được nói'], 'phần 3'],
+  ['data', 'bộ dữ liệu', COL.ok, ['IEMOCAP', 'MELD'], 'phần 4'],
+  ['metric', 'thước đo', COL.i, ['WA, UA', 'macro-F1, weighted-F1'], 'phần 5'],
+];
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('SER: đoán cảm xúc từ giọng nói', 'Phần 2/5: bốn thành phần cần biết', 1, PARTS);
+
+function shotPieces(G, t) {
+  const sf = S('flow');
+  heading(t < sf ? 'Bốn thành phần' : 'Ghép lại');
+  PIECES.forEach(([id, l, c, rows, part], j) => fade(G, P(t, S(id) + 0.2, 0.5), () => {
+    const x = 120 + j * 430, y = 250, on = t >= S(id) && t < E(id) + 0.3;
+    rrect(x, y, 390, 330, 16, on ? c + '1c' : COL.card, c, on ? 4 : 2);
+    text(String(j + 1), x + 30, y + 50, {size: 40, weight: 700, color: c});
+    text(l, x + 80, y + 50, {size: 30, weight: 700, color: c, maxW: 290});
+    rows.forEach((r, k) => text(r, x + 30, y + 130 + k * 80, {size: 23, maxW: 340}));
+    text(part, x + 360, y + 300, {size: 20, color: COL.mute, align: 'right'});
+    if (t >= sf && j < 3) arrow(x + 396, y + 165, x + 424, y + 165, COL.ink, 4);
+  }));
+  if (t >= sf) fade(G, P(t, sf + 0.5, 0.5), () => text('chọn nhãn → nghe dấu hiệu → học trên dữ liệu → chấm bằng thước đo đúng', 960, 680, {size: 28, weight: 700, color: COL.ok, align: 'center'}));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  PIECES.forEach(([, l, c], j) => fade(G, P(t, s + 0.3 + j * 0.6, 0.5), () => {
+    const x = 260 + j * 360; rrect(x, 320, 320, 90, 14, c + '18', c, 3); text(l, x + 160, 365, {size: 26, weight: 700, color: c, align: 'center'});
+  }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 660, 560, 'Phần 3: nhãn theo lớp, theo chiều, dấu hiệu  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 2', [
+  ['dễ chịu / khó chịu', 'valence', ''],
+  ['mức kích động', 'arousal (IEMOCAP: activation)', ''],
+  ['ngữ điệu: cao độ, độ to, nhịp', 'prosody, đặc trưng paralinguistic', 'ngoài nội dung chữ'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'label', to: 'flow', draw: shotPieces},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/ser-2-manh.wav');
+</script>
+</body>
+</html>

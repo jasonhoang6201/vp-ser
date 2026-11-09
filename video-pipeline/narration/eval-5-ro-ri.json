@@ -1,0 +1,30 @@
+{
+  "clip": "eval-5-ro-ri",
+  "title": "Đánh giá cho đúng · Phần 5: Rò rỉ dữ liệu",
+  "segments": [
+    {"id": "intro",
+     "sub": "Đánh giá cho đúng, phần 5: rò rỉ dữ liệu.",
+     "say": "Đánh giá cho đúng, phần năm: rò rỉ dữ liệu."},
+    {"id": "what",
+     "sub": "Mô hình học sẵn ngày càng được huấn luyện trên \"mọi dữ liệu công khai\". Nếu bộ test của ta nằm trong đó, điểm zero-shot cao bất thường: mô hình nhớ chứ không hiểu.",
+     "say": "Mô hình học sẵn ngày càng được huấn luyện trên mọi dữ liệu công khai. Nếu bộ thử của ta nằm trong số đó, điểm khi dùng ngay sẽ cao bất thường: mô hình nhớ, chứ không hiểu."},
+    {"id": "s1",
+     "sub": "Dấu hiệu 1: zero-shot cao hơn hẳn các hệ fine-tune trên chính bộ đó. Việc cần làm: đọc tài liệu huấn luyện của mô hình, tìm tên bộ dữ liệu.",
+     "say": "Dấu hiệu thứ nhất: điểm dùng ngay cao hơn hẳn các hệ đã tinh chỉnh trên chính bộ đó. Việc cần làm: đọc tài liệu huấn luyện của mô hình, tìm tên bộ dữ liệu."},
+    {"id": "s2",
+     "sub": "Dấu hiệu 2: mô hình công bố huấn luyện trên một bộ tổng hợp (ví dụ EmoBox gồm nhiều bộ SER công khai). Kiểm tra bộ tổng hợp đó có chứa bộ test của ta không.",
+     "say": "Dấu hiệu thứ hai: mô hình công bố là huấn luyện trên một bộ tổng hợp, ví dụ I mô bốc, gồm nhiều bộ ét i a công khai. Cần kiểm tra bộ tổng hợp đó có chứa bộ thử của ta không."},
+    {"id": "s3",
+     "sub": "Không chắc chắn: ghi rõ \"có thể rò rỉ\", không dùng con số đó để kết luận; nếu được thì kiểm tra trên một bộ mới hơn mô hình.",
+     "say": "Còn nếu không chắc chắn: ghi rõ là có thể rò rỉ, không dùng con số đó để kết luận. Nếu được, kiểm tra trên một bộ dữ liệu ra đời sau mô hình."},
+    {"id": "llm",
+     "sub": "Càng đúng với mô hình lớn: emotion2vec+ (trang 19) và audio-LLM (trang 23) học trên lượng dữ liệu khổng lồ.",
+     "say": "Điều này càng đúng với các mô hình lớn, như i mô sần tu véc cộng ở trang mười chín, và âu đi ô eo eo em ở trang hai mươi ba, vốn học trên lượng dữ liệu khổng lồ."},
+    {"id": "result",
+     "sub": "Tóm lại: zero-shot cao bất thường thì nghi rò rỉ; đọc dữ liệu huấn luyện; không chắc thì ghi chú, không kết luận. Phần 6: WER phụ thuộc cách chuẩn hóa.",
+     "say": "Tóm lại: điểm dùng ngay cao bất thường thì nghi rò rỉ. Đọc dữ liệu huấn luyện của mô hình. Không chắc thì ghi chú, và không kết luận. Phần sáu: tỉ lệ lỗi từ phụ thuộc cách chuẩn hóa."},
+    {"id": "terms",
+     "sub": "Thuật ngữ của phần này.",
+     "say": "Các thuật ngữ của phần này."}
+  ]
+}

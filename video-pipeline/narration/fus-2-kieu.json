@@ -1,0 +1,30 @@
+{
+  "clip": "fus-2-kieu",
+  "title": "Ghép âm thanh và chữ · Phần 2: Các kiểu ghép",
+  "segments": [
+    {"id": "intro",
+     "sub": "Ghép âm thanh và chữ, phần 2: năm kiểu ghép.",
+     "say": "Ghép âm thanh và chữ, phần hai: năm kiểu ghép."},
+    {"id": "early",
+     "sub": "Ghép sớm (concat): nối vector âm thanh và vector chữ thành một vector dài, đưa vào một bộ phân loại. Đơn giản, tự học cách kết hợp, nhưng trọng số cố định cho mọi câu.",
+     "say": "Kiểu một, ghép sớm: nối véc tơ âm thanh và véc tơ chữ thành một véc tơ dài, đưa vào một bộ phân loại. Đơn giản, bộ phân loại tự học cách kết hợp, nhưng trọng số cố định cho mọi câu."},
+    {"id": "late",
+     "sub": "Ghép muộn: mỗi nguồn tự đoán xác suất, rồi lấy trung bình. Rất đơn giản, huấn luyện riêng được; không học được tương tác.",
+     "say": "Kiểu hai, ghép muộn: mỗi nguồn tự đoán xác suất, rồi lấy trung bình. Rất đơn giản, huấn luyện riêng được, nhưng không học được tương tác giữa hai nguồn."},
+    {"id": "gate",
+     "sub": "Cổng (gated fusion): mạng nhỏ nhìn cả hai vector, ra g từ 0 đến 1; h = g · âm thanh + (1 − g) · chữ. Trọng số đổi theo từng câu.",
+     "say": "Kiểu ba, cổng: một mạng nhỏ nhìn cả hai véc tơ, ra con số gờ từ không đến một. Kết quả bằng gờ nhân âm thanh, cộng một trừ gờ nhân chữ. Trọng số đổi theo từng câu: câu nào chữ đáng ngờ thì nghe âm thanh nhiều hơn."},
+    {"id": "cross",
+     "sub": "Cross-attention: mỗi từ làm query, nhìn vào các frame âm thanh (trang 11), lấy đúng đoạn giọng của từ đó. Tinh nhất, nhưng nhiều tham số, cần nhiều dữ liệu.",
+     "say": "Kiểu bốn, cờ rót ờ ten sần: mỗi từ làm query, nhìn vào các frame âm thanh như ở trang mười một, rồi lấy đúng đoạn giọng ứng với từ đó. Tinh nhất, nhưng nhiều tham số và cần nhiều dữ liệu."},
+    {"id": "ctx",
+     "sub": "Ngữ cảnh hội thoại: đưa thêm chữ (đôi khi cả âm thanh) của vài câu trước vào nhánh chữ. Giải được câu mơ hồ; cần biết thứ tự câu.",
+     "say": "Kiểu năm, ngữ cảnh hội thoại: đưa thêm chữ, đôi khi cả âm thanh, của vài câu trước vào nhánh chữ. Giải được câu mơ hồ, nhưng cần biết thứ tự các câu trong hội thoại."},
+    {"id": "result",
+     "sub": "Tóm lại: ghép sớm, ghép muộn, cổng, cross-attention, ngữ cảnh. Phần 3: thử tay ghép muộn và cổng.",
+     "say": "Tóm lại năm kiểu: ghép sớm, ghép muộn, cổng, cờ rót ờ ten sần, và ngữ cảnh. Phần ba: thử tay ghép muộn và cổng."},
+    {"id": "terms",
+     "sub": "Thuật ngữ của phần này.",
+     "say": "Các thuật ngữ của phần này."}
+  ]
+}

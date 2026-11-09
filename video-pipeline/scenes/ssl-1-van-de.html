@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>SSL 1: Vấn đề</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/ssl-1-van-de.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Hai hướng', '3 wav2vec 2.0', '4 HuBERT', '5 Whisper'];
+
+function painCard(j, title, col = COL.hl) {
+  const x = [180, 980][j % 2], y = [220, 545][j >> 1];
+  card(x, y, 760, 290, {stroke: col});
+  text(title, x + 30, y + 44, {size: 28, weight: 700, color: col});
+  return {x, y};
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('wav2vec 2.0, HuBERT, Whisper', 'Phần 1/5: âm thanh có chữ đi kèm rất đắt', 0, PARTS);
+
+function shotRecap(G, t) {
+  const s = S('recap'), d = D('recap');
+  heading('Kiến trúc đã có, còn dữ liệu?');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    ['Transformer', 'Conformer'].forEach((l, j) => chip(G, 640 + j * 360, 320, l, {size: 32, weight: 700, color: COL.ok, stroke: COL.ok}));
+    text('✓ kiến trúc tốt', 960, 430, {size: 30, weight: 700, color: COL.ok, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.55, 0.5), () => text('lấy đâu ra đủ dữ liệu để huấn luyện?', 960, 560, {size: 36, weight: 700, color: COL.hl, align: 'center'}));
+}
+
+function shotPains(G, t) {
+  heading('Âm thanh có chữ đi kèm rất đắt');
+  fade(G, P(t, S('p1') + 0.3, 0.5), () => {
+    const {x, y} = painCard(0, '1. end-to-end cần rất nhiều giờ chép lời');
+    for (let k = 0; k < 30; k++) rrect(x + 30 + k * 22, y + 100, 16, 60, 3, COL.acc + 'aa');
+    text('hàng nghìn giờ, đúng từng chữ', x + 30, y + 220, {size: 24});
+  });
+  fade(G, P(t, S('p2') + 0.3, 0.5), () => {
+    const {x, y} = painCard(1, '2. chép lời tốn công');
+    rrect(x + 30, y + 100, 80, 50, 6, COL.acc + 'aa');
+    text('1 giờ âm thanh', x + 30, y + 180, {size: 22, color: COL.mute});
+    arrow(x + 130, y + 125, x + 210, y + 125, COL.mute, 3);
+    for (let k = 0; k < 4; k++) rrect(x + 230 + k * 90, y + 100, 80, 50, 6, COL.frame + 'aa');
+    text('vài giờ người nghe và gõ', x + 230, y + 180, {size: 22, color: COL.mute});
+  });
+  fade(G, P(t, S('p3') + 0.3, 0.5), () => {
+    const {x, y} = painCard(2, '3. đa số ngôn ngữ thiếu dữ liệu');
+    rrect(x + 30, y + 100, 600, 40, 6, COL.acc + 'cc'); text('tiếng Anh', x + 640, y + 120, {size: 22, weight: 700, color: COL.acc});
+    rrect(x + 30, y + 160, 50, 40, 6, COL.frame + 'cc'); text('tiếng Việt', x + 90, y + 180, {size: 22, weight: 700, color: COL.frame});
+    text('dữ liệu có chép lời công khai (minh họa tỉ lệ)', x + 30, y + 245, {size: 20, color: COL.mute});
+  });
+  fade(G, P(t, S('p4') + 0.3, 0.5), () => {
+    const {x, y} = painCard(3, 'nhưng âm thanh không chữ thì rất nhiều', COL.ok);
+    ['podcast', 'video', 'radio'].forEach((l, j) => chip(G, x + 30 + j * 170, y + 100, l, {size: 26, weight: 700, color: COL.ok, stroke: COL.ok}));
+    text('hàng trăm nghìn giờ', x + 30, y + 220, {size: 28, weight: 700, color: COL.ok});
+  });
+}
+
+function shotGoal(G, t) {
+  const sc = S('child'), sg = S('goal'), dg = D('goal'), st = S('two'), dt = D('two');
+  heading(t < sg ? 'Như trẻ em: nghe nhiều trước khi biết chữ' : t < st ? 'Mục tiêu' : 'Hai bước: tiền huấn luyện, rồi tinh chỉnh');
+  if (t < sg) {
+    fade(G, P(t, sc + 0.3, 0.5), () => {
+      for (let k = 0; k < 40; k++) rrect(300 + k * 30, 340, 24, 100, 3, COL.ok + '66');
+      text('nghe rất nhiều', 900, 480, {size: 28, weight: 700, color: COL.ok, align: 'center'});
+      arrow(1520, 390, 1580, 390, COL.mute, 3);
+      ['a', 'b', 'c'].forEach((c, j) => chip(G, 1600 + j * 70, 364, c, {size: 26, weight: 700}));
+      text('ít ví dụ chữ', 1700, 480, {size: 24, color: COL.mute, align: 'center'});
+    });
+    return;
+  }
+  if (t < st) {
+    fade(G, P(t, sg + 0.3, 0.5), () => {
+      text('âm thanh không nhãn (hoặc nhãn "tạm được")', 960, 330, {size: 30, weight: 700, color: COL.ok, align: 'center'});
+      text('→ học sẵn cách nghe', 960, 390, {size: 28, align: 'center'});
+    });
+    fade(G, P(t, sg + dg * 0.5, 0.5), () => {
+      text('ít dữ liệu có nhãn chuẩn', 960, 500, {size: 30, weight: 700, color: COL.acc, align: 'center'});
+      text('→ dạy viết ra chữ', 960, 560, {size: 28, align: 'center'});
+    });
+    return;
+  }
+  fade(G, P(t, st + 0.3, 0.5), () => {
+    card(260, 300, 620, 300, {stroke: COL.ok});
+    text('1. tiền huấn luyện (pre-training)', 290, 350, {size: 28, weight: 700, color: COL.ok});
+    for (let k = 0; k < 24; k++) rrect(290 + k * 23, 400, 18, 80, 3, COL.ok + '66');
+    text('rất nhiều dữ liệu', 290, 530, {size: 24, color: COL.mute});
+    arrow(900, 450, 1020, 450, COL.mute, 4, 16);
+  });
+  fade(G, P(t, st + dt * 0.45, 0.5), () => {
+    card(1040, 300, 620, 300, {stroke: COL.acc});
+    text('2. tinh chỉnh (fine-tuning)', 1070, 350, {size: 28, weight: 700, color: COL.acc});
+    for (let k = 0; k < 3; k++) rrect(1070 + k * 23, 400, 18, 80, 3, COL.acc + 'cc');
+    text('ít dữ liệu, việc cụ thể', 1070, 530, {size: 24, color: COL.mute});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['dữ liệu có chép lời: đắt và hiếm', COL.hl, '✗'], ['nhất là tiếng Việt', COL.hl, '✗'], ['âm thanh không nhãn: rất nhiều', COL.ok, '✓']].forEach(([a, c, m], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text(m, 520, 300 + j * 84, {size: 34, weight: 700, color: c});
+      text(a, 570, 300 + j * 84, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 760, 640, 'Phần 2: hai hướng tận dụng  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 1', [
+  ['bản chép lời', 'transcript, nhãn (label)', 'đắt: người nghe và gõ'],
+  ['học trước trên dữ liệu lớn', 'tiền huấn luyện (pre-training)', ''],
+  ['dạy thêm việc cụ thể', 'tinh chỉnh (fine-tuning)', 'ít dữ liệu có nhãn'],
+  ['ngôn ngữ ít dữ liệu', 'low-resource language', 'tiếng Việt so với tiếng Anh'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'recap', to: 'recap', draw: shotRecap},
+    {from: 'p1', to: 'p4', draw: shotPains},
+    {from: 'child', to: 'two', draw: shotGoal},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/ssl-1-van-de.wav');
+</script>
+</body>
+</html>

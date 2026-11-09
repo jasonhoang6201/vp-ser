@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>ASR cổ điển 2: Bốn thành phần, một công thức</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/asr-2-cong-thuc.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn thành phần', '3 Từ điển, triphone', '4 Mô hình ngôn ngữ', '5 WER'];
+
+function wave(x, y, w, h, seed = 1) {
+  const xs = [], ys = [];
+  for (let k = 0; k <= 120; k++) {
+    const u = k / 120, env = Math.sin(Math.PI * u) ** 0.6;
+    xs.push(x + u * w); ys.push(y + h / 2 * env * Math.sin(k * 1.7 + seed) * (0.5 + 0.5 * Math.sin(k * 0.23 + seed)));
+  }
+  poly(xs, ys, COL.mute, 2);
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Hệ ASR cổ điển', 'Phần 2/5: bốn thành phần và một công thức', 1, PARTS);
+
+function shotParts(G, t) {
+  const sp = S('pipe'), sa = S('am'), sl = S('lex'), sm = S('lm'), sw = S('wer');
+  heading('Bốn thành phần');
+  fade(G, P(t, sp + 0.3, 0.5), () => {
+    chip(G, 180, 240, 'âm thanh', {size: 28});
+    arrow(340, 266, 400, 266, COL.mute, 2.5);
+    chip(G, 410, 240, 'MFCC', {size: 28});
+    arrow(540, 266, 640, 266, COL.mute, 2.5);
+    rrect(650, 220, 360, 92, 16, COL.frameSoft, COL.frame, 3);
+    text('decoder', 830, 254, {size: 32, weight: 700, color: COL.frame, align: 'center'});
+    text('bộ giải mã: tìm câu', 830, 292, {size: 20, color: COL.mute, align: 'center'});
+    arrow(1020, 266, 1100, 266, COL.mute, 2.5);
+    chip(G, 1110, 240, 'câu chữ', {...HOT, size: 28});
+  });
+  [[sa, 'mô hình âm học', 'acoustic model', 'chuỗi âm này nghe giống chuỗi frame này đến đâu?', 'GMM-HMM', COL.acc],
+   [sl, 'từ điển phát âm', 'lexicon', 'từ này gồm những âm vị nào?', '"mai" = m + a + i', COL.ok],
+   [sm, 'mô hình ngôn ngữ', 'language model, LM', 'chuỗi từ này có hay gặp không?', 'n-gram', COL.i]].forEach(([s0, n, en, q, ex, c], j) =>
+    fade(G, P(t, s0 + 0.3, 0.5), () => {
+      const x = 180 + j * 400, y = 440;
+      card(x, y, 370, 300, {stroke: c, lw: 2.5});
+      text(n, x + 24, y + 44, {size: 28, weight: 700, color: c});
+      text(en, x + 24, y + 82, {size: 22, color: COL.mute});
+      text(q, x + 24, y + 140, {size: 24, maxW: 320});
+      text(ex, x + 24, y + 260, {size: 24, weight: 700, color: c});
+      arrow(x + 185, y - 6, 830 + (j - 1) * 110, 322, c + 'aa', 2.5);
+    }));
+  fade(G, P(t, sw + 0.3, 0.5), () => {
+    const x = 1400, y = 440;
+    card(x, y, 360, 300, {stroke: COL.hl, lw: 2.5});
+    text('WER', x + 24, y + 44, {size: 28, weight: 700, color: COL.hl});
+    text('Word Error Rate', x + 24, y + 82, {size: 22, color: COL.mute});
+    text('câu đoán sai bao nhiêu so với câu đúng?', x + 24, y + 140, {size: 24, maxW: 310});
+    text('đo kết quả', x + 24, y + 260, {size: 24, weight: 700, color: COL.hl});
+    arrow(1200, 300, x + 180, y - 6, COL.hl + 'aa', 2.5);
+    text('nằm ngoài decoder', x + 180, 470, {size: 20, color: COL.mute, align: 'center'});
+  });
+}
+
+function shotBayes(G, t) {
+  const sb = S('bayes'), sx = S('px'), sw = S('pw');
+  heading('Công thức của decoder');
+  fade(G, P(t, sb + 0.3, 0.6), () => {
+    text('W*  =  argmax', 420, 360, {size: 56, weight: 700});
+    text('W', 690, 410, {size: 28, color: COL.mute, align: 'center'});
+    text('P(X | W)', 980, 360, {size: 56, weight: 700, color: t >= sx ? COL.acc : COL.ink, align: 'center'});
+    text('×', 1170, 360, {size: 56, weight: 700, align: 'center'});
+    text('P(W)', 1340, 360, {size: 56, weight: 700, color: t >= sw ? COL.i : COL.ink, align: 'center'});
+    text('X = chuỗi MFCC,  W = một câu', 960, 470, {size: 26, color: COL.mute, align: 'center'});
+  });
+  fade(G, P(t, sx + 0.3, 0.5), () => {
+    line(850, 410, 1110, 410, COL.acc, 3);
+    card(640, 540, 560, 200, {stroke: COL.acc});
+    text('nói W thì nghe ra X có hợp lý không?', 670, 600, {size: 25, weight: 700, color: COL.acc, maxW: 500});
+    text('mô hình âm học + từ điển', 670, 690, {size: 24, color: COL.mute});
+  });
+  fade(G, P(t, sw + 0.3, 0.5), () => {
+    line(1250, 410, 1430, 410, COL.i, 3);
+    card(1240, 540, 520, 200, {stroke: COL.i});
+    text('câu W có hợp lý không, chưa cần nghe?', 1270, 600, {size: 25, weight: 700, color: COL.i, maxW: 460});
+    text('mô hình ngôn ngữ', 1270, 690, {size: 24, color: COL.mute});
+  });
+}
+
+function shotWhy(G, t) {
+  const s = S('why'), d = D('why');
+  heading('Vì sao tách đôi?');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    card(240, 260, 680, 400, {stroke: COL.acc});
+    text('P(X | W) học từ', 280, 320, {size: 26, color: COL.mute});
+    text('âm thanh có kèm chữ', 280, 380, {size: 32, weight: 700, color: COL.acc});
+    wave(280, 470, 300, 80, 1);
+    text('"hôm nay trời mưa"', 610, 470, {size: 24});
+    text('đắt: người nghe và gõ lại', 280, 600, {size: 26, weight: 700, color: COL.hl});
+  });
+  fade(G, P(t, s + d * 0.55, 0.5), () => {
+    card(1000, 260, 680, 400, {stroke: COL.i});
+    text('P(W) học từ', 1040, 320, {size: 26, color: COL.mute});
+    text('chữ không kèm âm thanh', 1040, 380, {size: 32, weight: 700, color: COL.i});
+    ['báo', 'sách', 'trang web'].forEach((w, j) => chip(G, 1040 + j * 170, 446, w));
+    text('rất nhiều, gần như miễn phí', 1040, 600, {size: 26, weight: 700, color: COL.ok});
+  });
+}
+
+function shotChannel(G, t) {
+  const s = S('channel'), d = D('channel');
+  heading('Kênh nhiễu (noisy channel)');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    chip(G, 180, 340, 'W: "trời mưa"', {size: 28, weight: 700, color: COL.i, stroke: COL.i});
+    arrow(420, 366, 520, 366, COL.mute, 3);
+    rrect(530, 300, 360, 130, 16, COL.soft, COL.line2, 2);
+    text('miệng + micro', 710, 350, {size: 28, weight: 700, align: 'center'});
+    text('kênh làm nhiễu', 710, 392, {size: 22, color: COL.mute, align: 'center'});
+    arrow(900, 366, 980, 366, COL.mute, 3);
+    wave(990, 366, 240, 90, 2);
+    text('X', 1110, 450, {size: 28, weight: 700, color: COL.acc, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.3, 0.5), () => {
+    arrow(1240, 366, 1320, 366, COL.mute, 3);
+    rrect(1330, 316, 200, 100, 16, COL.frameSoft, COL.frame, 3);
+    text('decoder', 1430, 366, {size: 28, weight: 700, color: COL.frame, align: 'center'});
+    arrow(1540, 366, 1600, 366, COL.mute, 3);
+    text('W*', 1640, 366, {size: 34, weight: 700, color: COL.frame, align: 'center'});
+    text('đoán ngược lại câu đã nói', 1430, 470, {size: 24, color: COL.mute, align: 'center'});
+  });
+  fade(G, P(t, s + d * 0.65, 0.5), () => {
+    card(560, 580, 800, 130, {stroke: COL.acc});
+    text('Jelinek và nhóm ở IBM, thập niên 1970', 960, 625, {size: 28, weight: 700, color: COL.acc, align: 'center'});
+    text('đưa cách nhìn thống kê này vào tiếng nói', 960, 670, {size: 24, color: COL.mute, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result'), d = D('result');
+  heading('Tóm lại');
+  fade(G, P(t, s + 0.3, 0.6), () => {
+    text('W* = argmax P(X | W) × P(W)', 960, 290, {size: 44, weight: 700, align: 'center'});
+  });
+  [['P(X | W)', 'mô hình âm học + từ điển', COL.acc], ['P(W)', 'mô hình ngôn ngữ', COL.i], ['đo', 'WER', COL.hl]].forEach(([a, b, c], j) =>
+    fade(G, P(t, s + 1.2 + j * d * 0.18, 0.5), () => {
+      text(a, 760, 400 + j * 76, {size: 32, weight: 700, color: c, align: 'right'});
+      text(b, 800, 400 + j * 76, {size: 30});
+    }));
+  fade(G, P(t, s + d * 0.8, 0.5), () => chip(G, 760, 680, 'Phần 3: từ điển và triphone  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 2', [
+  ['bộ giải mã', 'decoder', 'tìm câu có điểm cao nhất'],
+  ['phần nghe giống', 'mô hình âm học (acoustic model)', 'P(X | W), GMM-HMM'],
+  ['bảng từ → âm vị', 'từ điển phát âm (lexicon)', '"mai" = m + a + i'],
+  ['phần câu hợp lý', 'mô hình ngôn ngữ (language model, LM)', 'P(W)'],
+  ['chọn cái lớn nhất', 'argmax', 'W* là câu thắng'],
+  ['nhìn như kênh truyền', 'noisy channel', 'Jelinek, IBM, 1970s'],
+  ['tỉ lệ lỗi từ', 'WER (Word Error Rate)', 'đo câu đoán so với câu đúng'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'pipe', to: 'wer', draw: shotParts},
+    {from: 'bayes', to: 'pw', draw: shotBayes},
+    {from: 'why', to: 'why', draw: shotWhy},
+    {from: 'channel', to: 'channel', draw: shotChannel},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/asr-2-cong-thuc.wav');
+</script>
+</body>
+</html>

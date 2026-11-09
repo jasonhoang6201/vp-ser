@@ -1,0 +1,100 @@
+{
+  "name": "combined_asr_ctx",
+  "dataset": "iemocap",
+  "split": "test",
+  "notes": "SenseVoice-FT ASR + roberta-large fine-tuned (5 ep, lr 1e-05); train text asr, eval text asr, ctx 3, audio none; 3-seed ensemble",
+  "asr": {
+    "wer": 0.09783095527544948,
+    "n_utts": 1222,
+    "n_ref_words": 15629,
+    "n_empty_ref_skipped": 19,
+    "wer_by_emotion": {
+      "anger": 0.08309218685407194,
+      "joy": 0.1149704758596735,
+      "neutral": 0.08458422682868716,
+      "sadness": 0.09554531490015361
+    }
+  },
+  "ser": {
+    "wa": 0.8082191780821918,
+    "ua": 0.8119065655108197,
+    "macro_f1": 0.8003513322361586,
+    "weighted_f1": 0.80844823165428,
+    "recall_by_emotion": {
+      "neutral": 0.7239583333333334,
+      "joy": 0.8506787330316742,
+      "anger": 0.8117647058823529,
+      "sadness": 0.8612244897959184
+    },
+    "n": 1241,
+    "n_invalid_pred": 0,
+    "labels": [
+      "neutral",
+      "joy",
+      "anger",
+      "sadness"
+    ],
+    "confusion": [
+      [
+        278,
+        36,
+        35,
+        35
+      ],
+      [
+        42,
+        376,
+        7,
+        17
+      ],
+      [
+        17,
+        2,
+        138,
+        13
+      ],
+      [
+        18,
+        6,
+        10,
+        211
+      ]
+    ]
+  },
+  "seeds": [
+    {
+      "seed": 0,
+      "best_epoch": 4,
+      "dev_ua": 0.8179751577146381,
+      "test_ua": 0.7919554720926831,
+      "test_wf1": 0.7878566303143039,
+      "gate": null
+    },
+    {
+      "seed": 1,
+      "best_epoch": 3,
+      "dev_ua": 0.8109224109521126,
+      "test_ua": 0.7997584009565364,
+      "test_wf1": 0.793990227717496,
+      "gate": null
+    },
+    {
+      "seed": 2,
+      "best_epoch": 4,
+      "dev_ua": 0.8179066435846064,
+      "test_ua": 0.8144323715062949,
+      "test_wf1": 0.80840101377059,
+      "gate": null
+    }
+  ],
+  "config": {
+    "train": "asr",
+    "eval": "asr",
+    "ctx": 3,
+    "audio": false
+  },
+  "ua_mean": 0.8020487481851714,
+  "ua_std": 0.011412143516149468,
+  "wf1_mean": 0.7967492906007966,
+  "wf1_std": 0.010546432756872653
+}

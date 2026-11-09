@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Học ASR và SER cùng lúc · 3: Hai việc kéo một bộ tham số</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/mtl.js"></script>
+<script src="../build/mtl-3-gradient.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Thành phần', '3 Kéo một bộ tham số', '4 SenseVoice', '5 ENT'];
+const B = {x: 200, y: 210, w: 800, h: 640}, XR = [-3, 3], YR = [-2.2, 2.6];
+const X = v => B.x + (v - XR[0]) / (XR[1] - XR[0]) * B.w, Y = v => B.y + B.h - (v - YR[0]) / (YR[1] - YR[0]) * B.h;
+const PATHS = {half: MTL.path(0.5), pc: MTL.path(0.5, true), asr: MTL.path(1)};
+const f2 = v => v.toFixed(2).replace('.', ',');
+
+function dot(x, y, r, c, s) { const g = Clip.g; g.beginPath(); g.arc(x, y, r, 0, 2 * Math.PI); g.fillStyle = c; g.fill(); if (s) { g.strokeStyle = s; g.lineWidth = 3; g.stroke(); } }
+function ell(c, s, col) {
+  [0.3, 1, 2.2, 4].forEach(L => {
+    const xs = [], ys = [];
+    for (let k = 0; k <= 72; k++) { const u = 2 * Math.PI * k / 72; xs.push(X(c[0] + Math.sqrt(2 * L / s[0]) * Math.cos(u))); ys.push(Y(c[1] + Math.sqrt(2 * L / s[1]) * Math.sin(u))); }
+    poly(xs, ys, col + '88', 2);
+  });
+}
+
+function plane(path, n, extra) {
+  rrect(B.x, B.y, B.w, B.h, 6, COL.card, COL.line, 2);
+  const g = Clip.g; g.save(); g.beginPath(); g.rect(B.x, B.y, B.w, B.h); g.clip();
+  ell(MTL.A, MTL.SA, COL.acc); ell(MTL.Bm, MTL.SB, COL.frame);
+  if (extra) poly(extra.map(p => X(p[0])), extra.map(p => Y(p[1])), COL.i, 3, [8, 6]);
+  const sh = path.slice(0, n + 1);
+  poly(sh.map(p => X(p[0])), sh.map(p => Y(p[1])), COL.ink, 3);
+  g.restore();
+  dot(X(MTL.A[0]), Y(MTL.A[1]), 8, COL.acc); text('tốt nhất cho ASR', X(MTL.A[0]) + 14, Y(MTL.A[1]) - 18, {size: 22, weight: 700, color: COL.acc});
+  dot(X(MTL.Bm[0]), Y(MTL.Bm[1]), 8, COL.frame); text('tốt nhất cho SER', X(MTL.Bm[0]) - 14, Y(MTL.Bm[1]) - 18, {size: 22, weight: 700, color: COL.frame, align: 'right'});
+  dot(X(MTL.START[0]), Y(MTL.START[1]), 7, COL.mute); text('khởi đầu', X(MTL.START[0]) + 14, Y(MTL.START[1]) + 4, {size: 20, color: COL.mute});
+  const p = sh[sh.length - 1];
+  dot(X(p[0]), Y(p[1]), 10, COL.ink, '#fff');
+  [[MTL.gA(p), COL.acc], [MTL.gB(p), COL.frame]].forEach(([v, c]) => {
+    const n2 = MTL.norm(v) || 1;
+    arrow(X(p[0]), Y(p[1]), X(p[0]) - 70 * v[0] / n2, Y(p[1]) + 70 * v[1] / n2, c, 4, 14);
+  });
+  return p;
+}
+
+function panel(p) {
+  const c = MTL.cos(p), x = 1100;
+  text('loss hiện tại', x, 250, {size: 22, color: COL.mute});
+  [['loss ASR', MTL.lossA(p), COL.acc], ['loss SER', MTL.lossB(p), COL.frame]].forEach(([l, v, col], j) => {
+    const y = 290 + j * 90;
+    text(l, x, y, {size: 24, weight: 700, color: col});
+    rrect(x + 140, y - 20, Math.max(3, v / 10.4 * 480), 40, 6, col);
+    text(f2(v), x + 150 + Math.max(3, v / 10.4 * 480), y, {size: 24, weight: 700});
+  });
+  text(`cosine hai gradient: ${f2(c)}`, x, 500, {size: 30, weight: 700, color: c > 0.3 ? COL.ok : c < -0.3 ? COL.hl : COL.mute});
+  text(c > 0.3 ? 'cùng hướng: giúp nhau' : c < -0.3 ? 'ngược hướng: xung đột' : 'gần vuông góc', x, 550, {size: 26, color: c > 0.3 ? COL.ok : c < -0.3 ? COL.hl : COL.mute});
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Học ASR và SER cùng lúc', 'Phần 3/5: hai việc kéo một bộ tham số', 2, PARTS);
+
+function shotMain(G, t) {
+  const ss = S('setup'), se = S('early'), de = D('early'), sl = S('late'), dl = D('late'), so = S('only'), sp = S('pcgrad'), sp2 = S('pcgrad2');
+  let path = PATHS.half, n = 0, extra = null, label = 'α = 0,5';
+  if (t >= sl && t < so) n = Math.floor(lerp(0, 120, P(t, sl + 0.3, dl * 0.5)));
+  if (t >= so && t < sp) { path = PATHS.asr; n = Math.floor(lerp(0, 120, P(t, so + 0.3, 3))); label = 'α = 1 (chỉ ASR)'; }
+  if (t >= sp) { path = PATHS.pc; n = Math.floor(lerp(0, 120, P(t, sp + 0.5, 3))); extra = PATHS.half; label = 'PCGrad (đường tím: cộng thường)'; }
+  heading(t < se ? 'Không gian tham số của encoder chung (2 chiều cho dễ nhìn)' : label);
+  fade(G, P(t, ss + 0.3, 0.5), () => {
+    const p = plane(path, n, extra);
+    if (t >= se) panel(p);
+  });
+  if (t >= sp2) fade(G, P(t, sp2 + 0.3, 0.5), () => text('điểm dừng gần như không đổi ở ví dụ này', 1100, 680, {size: 26, weight: 700, color: COL.i}));
+  if (t >= so && t < sp) fade(G, P(t, so + 3.5, 0.5), () => text(`loss SER: 4,45 → ${f2(MTL.lossB(PATHS.asr[120]))}: bị bỏ mặc`, 1100, 680, {size: 26, weight: 700, color: COL.hl}));
+}
+
+function shotReal(G, t) {
+  const s = S('real');
+  heading('Trong mô hình thật');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    arrow(760, 600, 1060, 600, COL.acc, 5); text('gradient ASR', 1080, 600, {size: 26, weight: 700, color: COL.acc});
+    arrow(760, 600, 760, 320, COL.frame, 5); text('gradient SER', 780, 320, {size: 26, weight: 700, color: COL.frame});
+    text('cosine quanh 0: gần vuông góc', 960, 700, {size: 30, weight: 700, align: 'center'});
+    text('ít giúp mà cũng ít hại · encoder đủ lớn chứa được cả hai', 960, 760, {size: 26, color: COL.mute, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['✓', 'lúc đầu: hai việc giúp nhau', COL.ok], ['✗', 'về sau: xung đột, dừng ở thỏa hiệp', COL.hl], ['✓', 'α chọn thỏa hiệp · PCGrad bỏ phần xung đột', COL.ok]].forEach(([m, a, c], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text(m, 480, 300 + j * 90, {size: 34, weight: 700, color: c});
+      text(a, 530, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 760, 640, 'Phần 4: token chỉ việc, SenseVoice  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 3', [
+  ['hướng đi xuống của loss', 'gradient (âm)', 'mũi tên'],
+  ['đo hai hướng giống nhau bao nhiêu', 'cosine similarity', '1 cùng, 0 vuông, −1 ngược'],
+  ['chiếu bỏ phần xung đột', 'PCGrad (projecting conflicting gradients)', ''],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'setup', to: 'pcgrad2', draw: shotMain},
+    {from: 'real', to: 'real', draw: shotReal},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/mtl-3-gradient.wav');
+</script>
+</body>
+</html>

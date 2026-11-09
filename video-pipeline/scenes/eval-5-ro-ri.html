@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Đánh giá · 5: Rò rỉ dữ liệu</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/eval-5-ro-ri.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Quy tắc', '3 Chọn epoch', '4 Tin cậy', '5 Rò rỉ', '6 WER'];
+
+const shotIntro = UI.introShot('Đánh giá cho đúng', 'Phần 5/6: rò rỉ dữ liệu', 4, PARTS);
+
+function shotWhat(G, t) {
+  const sw = S('what');
+  heading('Mô hình nhớ, chứ không hiểu');
+  fade(G, P(t, sw + 0.3, 0.5), () => {
+    rrect(200, 260, 820, 480, 240, COL.accSoft, COL.acc, 2);
+    text('dữ liệu huấn luyện', 610, 330, {size: 28, weight: 700, color: COL.acc, align: 'center'});
+    text('"mọi dữ liệu công khai"', 610, 380, {size: 22, color: COL.mute, align: 'center'});
+  });
+  fade(G, P(t, sw + D('what') * 0.35, 0.6), () => {
+    const x = lerp(1300, 760, P(t, sw + D('what') * 0.35, 1.2));
+    rrect(x - 140, 470, 280, 120, 12, COL.hlSoft, COL.hl, 3);
+    text('bộ test của ta', x, 540, {size: 26, weight: 700, color: COL.hl, align: 'center'});
+  });
+  fade(G, P(t, sw + D('what') * 0.65, 0.5), () => {
+    card(1180, 330, 560, 260, {stroke: COL.hl});
+    text('điểm zero-shot', 1460, 400, {size: 28, weight: 700, align: 'center'});
+    text('cao bất thường', 1460, 480, {size: 40, weight: 700, color: COL.hl, align: 'center'});
+  });
+}
+
+function shotSigns(G, t) {
+  const rows = [
+    ['s1', 'dấu hiệu 1', 'zero-shot cao hơn hẳn hệ fine-tune trên chính bộ đó', 'đọc tài liệu huấn luyện, tìm tên bộ dữ liệu', COL.hl],
+    ['s2', 'dấu hiệu 2', 'huấn luyện trên bộ tổng hợp (vd. EmoBox: nhiều bộ SER công khai)', 'kiểm tra bộ tổng hợp có chứa bộ test không', COL.hl],
+    ['s3', 'không chắc', 'ghi rõ "có thể rò rỉ", không dùng để kết luận', 'nếu được: kiểm tra trên bộ ra đời sau mô hình', COL.frame],
+  ];
+  const sl = S('llm');
+  heading(t < sl ? 'Nhận ra và xử lý' : 'Càng đúng với mô hình lớn');
+  if (t < sl) {
+    rows.forEach(([id, tag, a, b, c], j) => fade(G, P(t, S(id) + 0.3, 0.5), () => {
+      const y = 230 + j * 200;
+      card(160, y, 1600, 170, {stroke: c});
+      text(tag, 200, y + 60, {size: 26, weight: 700, color: c});
+      text(a, 420, y + 60, {size: 26, weight: 700, maxW: 1300});
+      text('→ ' + b, 420, y + 120, {size: 24, color: COL.mute, maxW: 1300});
+    }));
+    return;
+  }
+  fade(G, P(t, sl + 0.3, 0.5), () => {
+    [['emotion2vec+', 'trang 19'], ['audio-LLM', 'trang 23']].forEach(([a, b], j) => {
+      const x = 330 + j * 680;
+      card(x, 320, 580, 240, {stroke: COL.acc});
+      text(a, x + 290, 410, {size: 36, weight: 700, color: COL.acc, align: 'center'});
+      text(b, x + 290, 470, {size: 22, color: COL.mute, align: 'center'});
+    });
+    text('học trên lượng dữ liệu khổng lồ → khó biết đã thấy những gì', 960, 660, {size: 28, weight: 700, color: COL.hl, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['!', 'zero-shot cao bất thường thì nghi rò rỉ', COL.hl], ['→', 'đọc dữ liệu huấn luyện của mô hình', COL.acc], ['✓', 'không chắc thì ghi chú, không kết luận', COL.ok]].forEach(([m, a, c], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text(m, 360, 300 + j * 90, {size: 34, weight: 700, color: c});
+      text(a, 410, 300 + j * 90, {size: 30});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 700, 640, 'Phần 6: WER phụ thuộc cách chuẩn hóa  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 5', [
+  ['rò rỉ dữ liệu test vào dữ liệu huấn luyện', 'data contamination, test-set leakage', ''],
+  ['dùng ngay không huấn luyện thêm', 'zero-shot', ''],
+  ['huấn luyện thêm trên bộ đích', 'fine-tune', ''],
+  ['bộ tổng hợp nhiều bộ SER', 'EmoBox', ''],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'what', to: 'what', draw: shotWhat},
+    {from: 's1', to: 'llm', draw: shotSigns},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/eval-5-ro-ri.wav');
+</script>
+</body>
+</html>

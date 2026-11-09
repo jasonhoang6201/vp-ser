@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Audio-LLM · 4: Đọc câu trả lời</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../lib/llm.js"></script>
+<script src="../build/llm-4-doc.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Ba khối, ba giai đoạn', '3 Bao nhiêu token', '4 Đọc câu trả lời'];
+const RULES = [['r0', [0, 0, 0], 'không có luật'], ['r1', [1, 0, 0], '+ từ khóa, không phân biệt hoa thường'], ['r2', [1, 1, 0], '+ bảng đồng nghĩa'], ['r3', [1, 1, 1], '+ bỏ câu dẫn']];
+
+function table(rule, hiNever) {
+  const R = LLM.score(...(rule || [0, 0, 0]));
+  text('câu trả lời của mô hình', 160, 220, {size: 20, weight: 700, color: COL.mute});
+  text('nhãn đúng', 1300, 220, {size: 20, weight: 700, color: COL.mute});
+  if (rule) text('đọc ra', 1500, 220, {size: 20, weight: 700, color: COL.mute});
+  R.forEach((r, i) => {
+    const y = 262 + i * 62, never = i >= 6;
+    if (hiNever && never) rrect(140, y - 28, 1660, 56, 6, COL.hlSoft);
+    text(r.s, 160, y, {size: 21, mono: true, maxW: 1110});
+    text(r.truth, 1300, y, {size: 22});
+    if (!rule) return;
+    text(r.got || '(không đọc được)', 1500, y, {size: 22, weight: 700, color: r.ok ? COL.ok : COL.hl});
+    text(r.ok ? '✓' : '✗', 1760, y, {size: 26, weight: 700, color: r.ok ? COL.ok : COL.hl});
+  });
+  return R.filter(r => r.ok).length;
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Audio-LLM', 'Phần 4/4: câu trả lời tự do, phải đọc lại cho ra nhãn', 3, PARTS);
+
+function shotRules(G, t) {
+  const so = S('outs'), sn = S('never');
+  const ri = t >= S('r3') ? 3 : t >= S('r2') ? 2 : t >= S('r1') ? 1 : 0, [, rule, l] = RULES[ri];
+  heading(t < S('r0') ? '"What emotion does the speaker express?": 8 câu trả lời' : t < sn ? `Luật đọc: ${l}` : 'Hai câu không cứu được');
+  fade(G, P(t, so + 0.3, 0.5), () => {
+    const ok = table(t < S('r0') ? null : rule, t >= sn);
+    if (t >= S('r0')) text(`chấm đúng ${ok}/8`, 960, 790, {size: 34, weight: 700, color: ok >= 6 ? COL.ok : COL.hl, align: 'center'});
+  });
+  if (t >= sn) fade(G, P(t, sn + 0.5, 0.5), () => text('nhãn ngoài tập · từ chối trả lời → tính sai, báo số câu', 960, 840, {size: 24, weight: 700, color: COL.hl, align: 'center'}));
+}
+
+function shotRisk(G, t) {
+  const sa = S('asr'), sr = S('risk'), sp = S('page'), dp = D('page');
+  heading(t < sr ? 'Chép lời cũng phải đọc lại' : t < sp ? 'Rủi ro khác' : 'Tóm tắt trang');
+  if (t < sr) {
+    fade(G, P(t, sa + 0.3, 0.5), () => {
+      card(260, 300, 1400, 120, {stroke: COL.hl});
+      text('The transcription is: "I am so happy for you."', 960, 360, {size: 30, weight: 700, mono: true, align: 'center'});
+      text('câu dẫn bị tính là 3 từ chèn thêm → WER tăng vọt nếu không bỏ', 960, 500, {size: 28, weight: 700, color: COL.hl, align: 'center'});
+    });
+    return;
+  }
+  if (t < sp) {
+    fade(G, P(t, sr + 0.3, 0.5), () => {
+      [['đổi chữ trong câu lệnh', 'kết quả đổi'], ['mô hình có thể bịa', 'hallucination'], ['dữ liệu khổng lồ', 'có thể đã chứa chính bộ test (trang 24)']].forEach(([a, b], j) => {
+        const x = 200 + j * 520;
+        card(x, 300, 480, 220, {stroke: COL.hl});
+        text(a, x + 30, 360, {size: 28, weight: 700, color: COL.hl, maxW: 420});
+        text(b, x + 30, 430, {size: 24, maxW: 420});
+      });
+    });
+    return;
+  }
+  fade(G, P(t, sp + 0.3, 0.5), () => {
+    const labels = ['encoder âm thanh', 'bộ chiếu', 'LLM'], xs = UI.chipXs(G, labels, {size: 28, weight: 700}, 50);
+    labels.forEach((l, j) => { chip(G, xs[j], 260, l, {size: 28, weight: 700, color: COL.acc, stroke: COL.acc}); if (j) text('+', xs[j] - 25, 286, {size: 30, align: 'center'}); });
+    text('tiền huấn luyện → SFT → DPO', 960, 380, {size: 28, align: 'center'});
+  });
+  fade(G, P(t, sp + dp * 0.35, 0.5), () => text('✓ nhiều việc bằng câu lệnh, giải thích được · ✗ chậm, nặng', 960, 460, {size: 28, weight: 700, align: 'center'}));
+  fade(G, P(t, sp + dp * 0.6, 0.5), () => {
+    card(300, 530, 1320, 160, {stroke: COL.frame});
+    text('khi đánh giá: cố định câu lệnh · báo luật đọc', 960, 590, {size: 28, weight: 700, color: COL.frame, align: 'center'});
+    text('đếm câu từ chối và câu ngoài tập nhãn', 960, 640, {size: 28, weight: 700, color: COL.frame, align: 'center'});
+  });
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['!', 'kết quả phụ thuộc mạnh vào cách đọc câu trả lời', COL.frame], ['✓', 'báo rõ luật đọc, câu từ chối, câu ngoài tập', COL.ok]].forEach(([m, a, c], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.8, 0.6), () => {
+      text(m, 360, 320 + j * 100, {size: 34, weight: 700, color: c});
+      text(a, 410, 320 + j * 100, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 760, 620, 'Trang sau: đánh giá và rò rỉ dữ liệu  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 4', [
+  ['đọc câu trả lời tự do thành nhãn', 'output parsing, label mapping', ''],
+  ['câu thêm vào trước câu trả lời', 'preamble', '"The transcription is: …"'],
+  ['mô hình bịa ra', 'hallucination', ''],
+  ['dùng ngay không huấn luyện thêm', 'zero-shot', ''],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'outs', to: 'never', draw: shotRules},
+    {from: 'asr', to: 'page', draw: shotRisk},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/llm-4-doc.wav');
+</script>
+</body>
+</html>

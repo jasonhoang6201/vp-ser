@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Từ frame đến câu · 6: emotion2vec</title>
+<style>
+html,body{margin:0;background:#e9e8e4}
+canvas{display:block;width:min(100vw,177.78vh);height:auto;margin:0 auto;background:#fbfbfa}
+#bar{position:fixed;left:8px;bottom:6px;font:13px system-ui;color:#787774}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<script src="../lib/engine.js"></script>
+<script src="../lib/ui.js"></script>
+<script src="../build/pool-6-e2v.data.js"></script>
+<script>
+const {COL, S, E, D, P, text, rrect, line, poly, arrow, clamp, lerp} = Clip;
+const {card, heading, fade, chip, HOT} = UI;
+const PARTS = ['1 Vấn đề', '2 Bốn công cụ', '3 Pooling', '4 Trộn tầng', '5 Probe / fine-tune', '6 emotion2vec'];
+const MASK = [3, 4, 5, 9, 10, 14, 15, 16];
+
+function frames(x, y, masked, c) {
+  for (let k = 0; k < 20; k++) {
+    const m = masked && MASK.includes(k);
+    rrect(x + k * 34, y, 28, 60, 5, m ? COL.soft : c + '88', m ? COL.line2 : null, 1.5);
+    if (m) text('?', x + k * 34 + 14, y + 30, {size: 20, weight: 700, color: COL.mute, align: 'center'});
+  }
+}
+
+/* ---------- shots ---------- */
+
+const shotIntro = UI.introShot('Từ frame đến cả câu', 'Phần 6/6: emotion2vec, encoder học sẵn cho cảm xúc', 5, PARTS);
+
+function shotTrain(G, t) {
+  const sw = S('who'), s1 = S('s1'), s2 = S('s2'), s3 = S('s3'), d3 = D('s3');
+  heading(t < s1 ? 'emotion2vec (Ma và cộng sự, Findings of ACL 2024)' : 'Thầy và trò (self-distillation)');
+  if (t < s1) {
+    fade(G, P(t, sw + 0.3, 0.5), () => {
+      const xs = UI.chipXs(G, ['data2vec: tự chưng cất', 'emotion2vec'], {size: 30, weight: 700}, 140);
+      chip(G, xs[0], 360, 'data2vec: tự chưng cất', {size: 30, weight: 700});
+      arrow(xs[1] - 120, 386, xs[1] - 20, 386, COL.mute, 3);
+      chip(G, xs[1], 360, 'emotion2vec', {size: 30, weight: 700, color: COL.frame, stroke: COL.frame});
+      text('cùng cách học, dữ liệu là giọng có cảm xúc', 960, 520, {size: 26, color: COL.mute, align: 'center'});
+    });
+    return;
+  }
+  fade(G, P(t, s1 + 0.3, 0.5), () => {
+    rrect(1000, 250, 300, 110, 16, COL.accSoft, COL.acc, 3);
+    text('thầy', 1150, 290, {size: 30, weight: 700, color: COL.acc, align: 'center'});
+    text('trung bình trượt (EMA)', 1150, 330, {size: 20, color: COL.acc, align: 'center'});
+    rrect(1000, 520, 300, 110, 16, COL.frameSoft, COL.frame, 3);
+    text('trò', 1150, 575, {size: 30, weight: 700, color: COL.frame, align: 'center'});
+    arrow(1150, 514, 1150, 366, COL.mute, 2.5);
+    text('cập nhật chậm', 1170, 440, {size: 20, color: COL.mute});
+  });
+  if (t >= s2) fade(G, P(t, s2 + 0.3, 0.5), () => {
+    text('câu đầy đủ', 250, 270, {size: 22, color: COL.mute});
+    frames(250, 280, false, COL.acc);
+    arrow(936, 310, 994, 305, COL.mute, 2.5);
+    text('câu bị che nhiều đoạn', 250, 545, {size: 22, color: COL.mute});
+    frames(250, 555, true, COL.frame);
+    arrow(936, 585, 994, 575, COL.mute, 2.5);
+  });
+  if (t >= s3) fade(G, P(t, s3 + 0.3, 0.5), () => {
+    card(1360, 260, 440, 380, {stroke: COL.ok});
+    text('trò phải đoán', 1390, 310, {size: 26, weight: 700, color: COL.ok});
+    text('· vector của thầy ở', 1390, 370, {size: 22});
+    text('  frame bị che', 1390, 400, {size: 22});
+    text('  (loss mức frame)', 1390, 430, {size: 20, color: COL.mute});
+    fade(G, P(t, s3 + d3 * 0.5, 0.5), () => {
+      text('· vector trung bình cả câu', 1390, 500, {size: 22});
+      text('  qua một token riêng', 1390, 530, {size: 22});
+      text('  (loss mức câu)', 1390, 560, {size: 20, color: COL.mute});
+    });
+  });
+}
+
+function shotDiff(G, t) {
+  const sd = S('diff'), sl = S('lin'), sp = S('plus'), dp = D('plus');
+  heading(t < sl ? 'Khác wav2vec 2.0, HuBERT ở đâu?' : t < sp ? 'Chỉ cần bộ phân loại tuyến tính' : 'emotion2vec+: thêm nhãn');
+  if (t < sl) {
+    fade(G, P(t, sd + 0.3, 0.5), () => {
+      [['đáp án', 'mã rời rạc', 'vector liên tục của thầy'], ['dữ liệu tiền huấn luyện', 'giọng nói chung', 'tập trung giọng có cảm xúc'], ['cần nhãn?', 'không', 'không']].forEach((r, i) => {
+        const y = 330 + i * 100;
+        if (i === 0) { text('wav2vec 2.0, HuBERT', 900, 260, {size: 26, weight: 700, color: COL.mute, align: 'center'}); text('emotion2vec', 1400, 260, {size: 26, weight: 700, color: COL.frame, align: 'center'}); }
+        text(r[0], 300, y, {size: 26, weight: 700});
+        text(r[1], 900, y, {size: 26, align: 'center'});
+        text(r[2], 1400, y, {size: 26, weight: 700, color: COL.frame, align: 'center'});
+        line(280, y + 45, 1640, y + 45, COL.line, 1.5);
+      });
+    });
+    return;
+  }
+  if (t < sp) {
+    fade(G, P(t, sl + 0.3, 0.5), () => {
+      chip(G, 420, 380, 'emotion2vec (đóng băng)', {size: 28, weight: 700, color: COL.frame, stroke: COL.frame});
+      arrow(820, 406, 920, 406, COL.mute, 3);
+      chip(G, 940, 380, 'một lớp tuyến tính', {size: 28, weight: 700, color: COL.ok, stroke: COL.ok});
+      arrow(1250, 406, 1330, 406, COL.mute, 3);
+      chip(G, 1350, 380, 'nhãn', {size: 28, weight: 700});
+      text('đã mạnh trên nhiều bộ dữ liệu (theo bài báo)', 960, 560, {size: 28, weight: 700, color: COL.ok, align: 'center'});
+    });
+    return;
+  }
+  fade(G, P(t, sp + 0.3, 0.5), () => {
+    chip(G, 420, 320, 'emotion2vec', {size: 28, weight: 700});
+    arrow(640, 346, 760, 346, COL.mute, 3);
+    text('+ nhãn cảm xúc, dữ liệu lớn hơn nhiều', 700, 300, {size: 20, color: COL.mute, align: 'center'});
+    chip(G, 780, 320, 'emotion2vec+: dùng ngay (zero-shot)', {size: 28, weight: 700, color: COL.ok, stroke: COL.ok});
+  });
+  fade(G, P(t, sp + dp * 0.55, 0.5), () => {
+    card(360, 460, 1200, 160, {stroke: COL.hl, lw: 3});
+    text('cái giá: có thể đã thấy chính bộ dữ liệu ta dùng để kiểm tra', 960, 520, {size: 28, weight: 700, color: COL.hl, align: 'center'});
+    text('rò rỉ dữ liệu: trang 24', 960, 570, {size: 24, color: COL.mute, align: 'center'});
+  });
+}
+
+function shotPage(G, t) {
+  const s = S('page');
+  heading('Tóm tắt trang');
+  fade(G, P(t, s + 0.3, 0.5), () => {
+    const labels = ['encoder', 'trộn tầng (LayerNorm + softmax)', 'pooling (mean, stats, attention)', 'phân loại'], xs = UI.chipXs(G, labels, {size: 26, weight: 700}, 60);
+    labels.forEach((l, j) => { chip(G, xs[j], 330, l, {size: 26, weight: 700, color: COL.acc, stroke: COL.acc}); if (j) text('→', xs[j] - 30, 356, {size: 28, align: 'center'}); });
+  });
+  fade(G, P(t, s + 3, 0.5), () => text('học bằng: probe · LoRA / adapter · fine-tune', 960, 500, {size: 30, weight: 700, color: COL.frame, align: 'center'}));
+}
+
+function shotResult(G, t) {
+  const s = S('result');
+  heading('Tóm lại');
+  [['✓', 'emotion2vec: thầy-trò, tự giám sát, giọng có cảm xúc', COL.ok], ['✓', 'emotion2vec+: thêm nhãn, dùng ngay', COL.ok], ['✗', 'cẩn thận rò rỉ dữ liệu kiểm tra', COL.hl]].forEach(([m, a, c], j) =>
+    fade(G, P(t, s + 0.3 + j * 1.6, 0.6), () => {
+      text(m, 380, 300 + j * 90, {size: 34, weight: 700, color: c});
+      text(a, 430, 300 + j * 90, {size: 32});
+    }));
+  fade(G, P(t, s + D('result') * 0.8, 0.5), () => chip(G, 790, 640, 'Trang sau: nhánh chữ, BERT  →', HOT));
+}
+
+const shotTerms = UI.termsShot('Thuật ngữ phần 6', [
+  ['bản trung bình trượt của mạng', 'EMA (exponential moving average) teacher', ''],
+  ['mạng tự dạy chính nó', 'self-distillation', 'như data2vec'],
+  ['dùng ngay không học thêm', 'zero-shot', 'emotion2vec+'],
+  ['dữ liệu kiểm tra lọt vào lúc học', 'rò rỉ dữ liệu (data leakage)', 'trang 24'],
+], 'terms');
+
+Clip.init({
+  spec: window.SPEC, durations: window.DUR.durations, tail: 8,
+  shots: [
+    {from: 'intro', to: 'intro', draw: shotIntro},
+    {from: 'who', to: 's3', draw: shotTrain},
+    {from: 'diff', to: 'plus', draw: shotDiff},
+    {from: 'page', to: 'page', draw: shotPage},
+    {from: 'result', to: 'result', draw: shotResult},
+    {from: 'terms', to: '$end', draw: shotTerms},
+  ],
+});
+if (!window.RENDERING) Clip.preview('../build/pool-6-e2v.wav');
+</script>
+</body>
+</html>

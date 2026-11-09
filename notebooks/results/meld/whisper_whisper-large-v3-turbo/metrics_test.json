@@ -1,0 +1,21 @@
+{
+  "name": "whisper_whisper-large-v3-turbo",
+  "dataset": "meld",
+  "split": "test",
+  "notes": "ASR only, no SER",
+  "asr": {
+    "wer": 0.31825665020362187,
+    "n_utts": 2572,
+    "n_ref_words": 23082,
+    "n_empty_ref_skipped": 2,
+    "wer_by_emotion": {
+      "anger": 0.26459591601955706,
+      "disgust": 0.21621621621621623,
+      "fear": 0.3313253012048193,
+      "joy": 0.3789279112754159,
+      "neutral": 0.3119733308639689,
+      "sadness": 0.2501098901098901,
+      "surprise": 0.4718004338394794
+    }
+  }
+}

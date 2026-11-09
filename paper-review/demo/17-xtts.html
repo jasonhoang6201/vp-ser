@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XTTS</title>
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body>
+<div class="wrap">
+<nav class="pn"></nav>
+<h1>XTTS: đổi âm thanh thành token, để một mô hình kiểu GPT "viết" ra giọng nói</h1>
+<p class="sub">XTTS (Coqui; Casanova và cộng sự, Interspeech 2024: <i>XTTS: a Massively Multilingual Zero-Shot Text-to-Speech Model</i>), xây trên kiến trúc Tortoise. Cùng hướng với VALL-E (Microsoft, 2023): coi tổng hợp tiếng nói như <b>mô hình ngôn ngữ trên token âm thanh</b>.</p>
+
+<section>
+<h2><span class="n">1</span>Vấn đề: muốn giọng mới thì phải có nhiều giờ thu âm</h2>
+<div class="tablewrap"><table>
+<tr><th>Vướng</th><th>Ví dụ</th></tr>
+<tr><td>mỗi giọng một mô hình</td><td>VITS, Tacotron 2 thường cần vài giờ thu âm sạch của <b>một</b> người để học giọng đó</td></tr>
+<tr><td>giọng người lạ</td><td>chỉ có 6 giây ghi âm của một người, chưa từng thấy khi huấn luyện, mà muốn đọc câu bất kỳ bằng giọng đó</td></tr>
+<tr><td>nhiều ngôn ngữ</td><td>muốn giọng người Việt đọc câu tiếng Anh, hoặc ngược lại, trong cùng một mô hình</td></tr>
+<tr><td>dữ liệu lớn mà nhiễu</td><td>hàng chục nghìn giờ từ nhiều nguồn, nhiều người, chất lượng không đều: mô hình phải học được cả sự đa dạng đó</td></tr>
+</table></div>
+<p>Quan sát then chốt: các mô hình ngôn ngữ lớn (GPT) rất giỏi một việc: <b>học từ thật nhiều dữ liệu, rồi viết tiếp một chuỗi token</b> theo một đoạn mở đầu. Nếu đổi âm thanh thành chuỗi token, thì "nói giọng người này" chỉ là <b>viết tiếp</b> theo một đoạn mở đầu chứa giọng người đó.</p>
+<div class="note blue"><b>Mục tiêu:</b> một mô hình chung cho mọi giọng và nhiều ngôn ngữ, nhân bản giọng người lạ chỉ từ <b>vài giây</b> mẫu, không cần huấn luyện lại (zero-shot).</div>
+</section>
+
+<section>
+<h2><span class="n">2</span>Cách XTTS làm: 4 khối</h2>
+<div class="pipe"><span class="done">vài giây giọng mẫu</span><i>→</i><span class="new">vector giọng</span><i>+</i><span class="done">chữ</span><i>→</i><span class="new">GPT sinh token âm thanh</span><i>→</i><span class="new">decoder HiFi-GAN</span><i>→</i><span class="done">sóng âm</span></div>
+<div class="tablewrap"><table>
+<tr><th>Khối</th><th>Là gì</th><th>Gỡ vướng gì</th><th>Ở mục</th></tr>
+<tr><td><b>bộ token hóa âm thanh</b> (VQ-VAE)</td><td>nén Mel thành chuỗi <b>mã rời rạc</b>, mỗi mã là số thứ tự trong một bảng mã (codebook). Ý giống HuBERT ở trang 12, nhưng học bằng cách nén rồi dựng lại</td><td>đổi âm thanh thành "chữ" để GPT viết</td><td>3</td></tr>
+<tr><td><b>điều kiện giọng</b> (speaker conditioning)</td><td>Mel của giọng mẫu đi qua một Perceiver Resampler, ra một số cố định vector mô tả giọng, cách nói, chất âm</td><td>nói bằng giọng người lạ</td><td>5</td></tr>
+<tr><td><b>GPT-2</b> (decoder-only Transformer)</td><td>đọc [vector giọng][token chữ] rồi viết tiếp từng token âm thanh, như GPT viết tiếp câu</td><td>học từ dữ liệu khổng lồ, đa dạng</td><td>4</td></tr>
+<tr><td><b>decoder HiFi-GAN</b></td><td>nhận các vector ẩn của GPT (không phải mã rời rạc) cùng vector đặc trưng người nói, dựng thẳng sóng âm</td><td>bỏ bước Mel trung gian, giữ chất giọng</td><td>13</td></tr>
+</table></div>
+<p>Theo bài báo, XTTS hỗ trợ 16 ngôn ngữ. Bản XTTS-v2 phát hành công khai có thêm tiếng Hindi; tiếng Việt <b>không</b> có trong danh sách chính thức (cộng đồng có các bản tinh chỉnh riêng).</p>
+</section>
+
+<section>
+<h2><span class="n">3</span>Lượng tử hóa vector: đổi frame thành mã số</h2>
+<p>Mỗi frame (ở đây vẽ thành điểm 2 chiều) được thay bằng <b>mã gần nhất</b> trong bảng mã. Bảng mã học bằng k-means. Kéo số mã K:</p>
+<div class="ctrl"><span class="grp">Số mã K <input type="range" id="kk" min="1" max="7" step="1" value="3"> <b id="kkv"></b></span></div>
+<div class="fig"><canvas id="c3"></canvas></div>
+<div class="readout" id="r3"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Mỗi đường mảnh nối frame với mã thay cho nó. Đường càng dài thì càng mất chi tiết.
+<br>• K nhỏ: ít mã, chuỗi token ngắn gọn, GPT dễ học, nhưng mất nhiều chi tiết. K lớn: giữ chi tiết, nhưng "từ vựng" của GPT to ra. XTTS dùng bảng mã vài nghìn mã.
+<br>• Số bit mỗi giây = số frame mỗi giây × log₂(K). Dù K = 8192 (13 bit), chuỗi token vẫn gọn hơn sóng âm thô hàng trăm lần, đủ ngắn để GPT xử lý.</div>
+</section>
+
+<section>
+<h2><span class="n">4</span>GPT viết tiếp token âm thanh: nhiệt độ</h2>
+<p>GPT viết từng token một: ở mỗi bước nó cho một phân phối xác suất trên các mã, rồi <b>bốc mẫu</b>. <b>Nhiệt độ</b> (temperature) chia các điểm trước softmax: nhỏ thì gần như luôn chọn mã cao nhất, lớn thì chọn lung tung. Dưới đây là một "GPT đồ chơi" 8 mã, mỗi hàng là một lần sinh 60 token.</p>
+<div class="ctrl"><span class="grp">Nhiệt độ <input type="range" id="tp" min="0.05" max="2.5" step="0.05" value="0.8"> <b id="tpv"></b></span><button id="re4">Sinh lại</button></div>
+<div class="fig"><canvas id="c4"></canvas></div>
+<div class="readout" id="r4"></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• Nhiệt độ rất thấp: chuỗi rơi vào <b>vòng lặp</b>, cứ lặp đi lặp lại cùng vài mã. Với giọng nói, đó là kéo dài một âm hoặc lặp một tiếng.
+<br>• Nhiệt độ rất cao: chuỗi gần như ngẫu nhiên, nghe như lảm nhảm, sai chữ.
+<br>• Ở giữa: có cấu trúc nhưng vẫn đa dạng. Mỗi lần sinh ra một cách đọc khác: đây là cách GPT gánh bài toán "một chữ nhiều cách đọc".
+<br>• Vì là mô hình tự hồi quy giống Tacotron (trang 14), XTTS cũng có thể bỏ chữ, lặp chữ, hoặc nói thêm âm lạ ở cuối, nhất là với câu rất ngắn hoặc rất dài.</div>
+</section>
+
+<section>
+<h2><span class="n">5</span>Nhân bản giọng từ vài giây mẫu</h2>
+<div class="tablewrap"><table>
+<tr><th>Bước</th><th>Việc</th></tr>
+<tr><td>1</td><td>lấy vài giây giọng mẫu (Coqui gợi ý khoảng 6 giây), tính Mel</td></tr>
+<tr><td>2</td><td>Perceiver Resampler nén Mel đó thành một số cố định vector, dù mẫu dài hay ngắn; một bộ mã hóa người nói riêng tính vector đặc trưng người nói cho decoder</td></tr>
+<tr><td>3</td><td>GPT đọc [vector giọng][token của câu cần đọc] rồi viết token âm thanh. Vì khi huấn luyện, đoạn mẫu và đoạn cần nói luôn cùng một người, GPT học được: "viết tiếp sao cho giống người trong đoạn mở đầu"</td></tr>
+<tr><td>4</td><td>decoder HiFi-GAN dựng sóng âm, có thêm vector người nói để giữ chất giọng</td></tr>
+</table></div>
+<div class="note"><b>Khoanh vùng:</b>
+<br>• "Zero-shot" ở đây nghĩa là không huấn luyện lại cho giọng mới. Chất lượng phụ thuộc mạnh vào mẫu: mẫu nhiễu, có nhạc nền, hoặc vang thì giọng sinh ra cũng mang các thứ đó theo.
+<br>• Giọng mẫu ngôn ngữ A đọc câu ngôn ngữ B thì thường mang theo giọng địa phương (accent) của ngôn ngữ A.
+<br>• Nhân bản giọng người khác mà không được đồng ý là vấn đề đạo đức và pháp lý (giả mạo giọng, lừa đảo). Các hệ thương mại thường yêu cầu xác nhận đồng ý, và có nghiên cứu riêng về phát hiện giọng giả.</div>
+</section>
+
+<section>
+<h2>Tóm tắt: bốn thế hệ TTS trong lộ trình</h2>
+<div class="tablewrap"><table>
+<tr><th></th><th>Tacotron 2</th><th>FastSpeech 2</th><th>VITS</th><th>XTTS</th></tr>
+<tr><td>sinh</td><td>tự hồi quy, từng frame Mel</td><td>song song, mọi frame Mel</td><td>song song, ra thẳng sóng</td><td>tự hồi quy, từng token âm thanh</td></tr>
+<tr><td>độ dài từ</td><td>attention tự học</td><td>dự đoán, đáp án từ MFA</td><td>dự đoán ngẫu nhiên, đáp án từ MAS</td><td>GPT tự quyết (token kết thúc)</td></tr>
+<tr><td>vocoder</td><td>riêng (WaveNet)</td><td>riêng (thường HiFi-GAN)</td><td>có sẵn bên trong</td><td>decoder HiFi-GAN bên trong</td></tr>
+<tr><td>giọng mới</td><td>huấn luyện lại</td><td>huấn luyện lại</td><td>huấn luyện lại (hoặc bản nhiều người nói)</td><td>vài giây mẫu, không huấn luyện lại</td></tr>
+<tr><td>điểm yếu</td><td>chậm, lặp/bỏ chữ</td><td>ngữ điệu phẳng</td><td>một giọng cần vài giờ dữ liệu</td><td>chậm hơn, đôi khi lặp/bỏ/bịa âm</td></tr>
+</table></div>
+<h3>Thuật ngữ mới</h3>
+<div class="tablewrap"><table>
+<tr><th>Nói thường</th><th>Thuật ngữ</th></tr>
+<tr><td>đổi âm thanh thành mã rời rạc</td><td>audio tokenizer, VQ-VAE (vector-quantized VAE), neural codec</td></tr>
+<tr><td>bảng các mã</td><td>codebook</td></tr>
+<tr><td>nói giọng mới không cần học lại</td><td>zero-shot voice cloning</td></tr>
+<tr><td>đoạn giọng mẫu đưa vào đầu</td><td>reference audio, prompt</td></tr>
+<tr><td>Transformer chỉ có phần viết tiếp</td><td>decoder-only Transformer (GPT)</td></tr>
+<tr><td>độ "liều" khi bốc mẫu</td><td>nhiệt độ (temperature); thường kèm top-k, top-p</td></tr>
+<tr><td>giọng địa phương</td><td>accent</td></tr>
+</table></div>
+<p class="muted">Dữ liệu ở mục 3 và "GPT đồ chơi" ở mục 4 là tự tạo để minh họa. Kích thước cụ thể của các khối XTTS xem trong bài báo.</p>
+</section>
+<nav class="pn"></nav>
+</div>
+<script src="assets/learn.js"></script>
+<script>
+const PTS = (() => {
+  const r = rng(21), out = [], cs = [[-1.4, 1], [1.2, 1.3], [0.3, -1.2], [-1.2, -0.8], [1.6, -0.4]];
+  for (let j = 0; j < 160; j++) { const c = cs[j % 5]; out.push([c[0] + 0.45 * randn(r), c[1] + 0.4 * randn(r)]); }
+  return out;
+})();
+const d2 = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2;
+function kmeans(K) {
+  const r = rng(K * 13 + 1);
+  // k-means++ style seeding so that small codebooks spread out instead of collapsing into one cluster.
+  let C2 = [PTS[Math.floor(r() * PTS.length)].slice()];
+  while (C2.length < K) {
+    const w = PTS.map(p => Math.min(...C2.map(c => d2(p, c)))), s = w.reduce((a, b) => a + b, 0);
+    let u = r() * s, j = 0;
+    while (u > w[j]) { u -= w[j]; j++; }
+    C2.push(PTS[Math.min(j, PTS.length - 1)].slice());
+  }
+  let A = [];
+  for (let it = 0; it < 40; it++) {
+    A = PTS.map(p => { let b = 0; C2.forEach((c, k) => { if (d2(p, c) < d2(p, C2[b])) b = k; }); return b; });
+    C2 = C2.map((c, k) => { const m = PTS.filter((_, j) => A[j] === k); return m.length ? [m.reduce((s, p) => s + p[0], 0) / m.length, m.reduce((s, p) => s + p[1], 0) / m.length] : c; });
+  }
+  return {C2, A};
+}
+let KE = 3;
+function draw3() {
+  const K = 2 ** (KE - 1);
+  document.getElementById('kkv').textContent = K;
+  const {C2, A} = kmeans(K), R = setup('c3', 320), g = R.g, S = 300, B = {l: (R.w - S) / 2, t: 8}, lo = -3, hi = 3;
+  const X = v => B.l + (v - lo) / (hi - lo) * S, Y = v => B.t + S - (v - lo) / (hi - lo) * S;
+  g.strokeStyle = C.line; g.strokeRect(B.l + .5, B.t + .5, S, S);
+  PTS.forEach((p, j) => { const c = C2[A[j]]; poly(g, [X(p[0]), X(c[0])], [Y(p[1]), Y(c[1])], alpha(C.grey, 0.5), 1); dot(g, X(p[0]), Y(p[1]), 2.8, alpha(C.acc, 0.8)); });
+  C2.forEach(c => dot(g, X(c[0]), Y(c[1]), 5.5, C.frame, '#fff'));
+  const err = PTS.reduce((s, p, j) => s + d2(p, C2[A[j]]), 0) / PTS.length;
+  document.getElementById('r3').innerHTML = `K = <b>${K}</b> mã (${KE - 1} bit mỗi frame). Sai lệch trung bình khi thay frame bằng mã: <b>${r2(err)}</b>. ` +
+    `<span class="muted">Ví dụ: nếu có 25 frame mỗi giây thì cần ${r0(25 * (KE - 1))} bit/giây; với 8192 mã thì 25 × 13 = 325 bit/giây, trong khi sóng âm 16 kHz, 16 bit là 256 000 bit/giây.</span>`;
+}
+document.getElementById('kk').addEventListener('input', e => { KE = +e.target.value; draw3(); });
+
+const NT = 8, LOGITS = (() => {
+  const r = rng(4);
+  return Array.from({length: NT}, (_, a) => Array.from({length: NT}, (_, b) => (b === (a + 1) % NT ? 2.2 : b === a ? 1.6 : b === (a + 3) % NT ? 1.0 : 0) + 0.6 * randn(r)));
+})();
+let TP = 0.8, SEED4 = 1;
+const TCOL = [C.acc, C.frame, C.ok, C.i, C.hl, '#b8860b', '#4b8b9b', C.grey];
+function draw4() {
+  document.getElementById('tpv').textContent = r2(TP);
+  const R = setup('c4', 200), g = R.g, B = {l: 60, t: 8, w: R.w - 80}, L = 60, cw = B.w / L, r = rng(SEED4 * 7);
+  let distinct = 0;
+  for (let n = 0; n < 5; n++) {
+    const seq = [Math.floor(r() * NT)];
+    while (seq.length < L) {
+      const p = softmax(LOGITS[seq[seq.length - 1]], TP);
+      let u = r(), k = 0;
+      while (u > p[k] && k < NT - 1) { u -= p[k]; k++; }
+      seq.push(k);
+    }
+    const y = B.t + n * 36;
+    seq.forEach((k, t) => box(g, B.l + t * cw, y, cw - 0.5, 28, TCOL[k]));
+    text(g, `lần ${n + 1}`, B.l - 8, y + 14, C.mute, 'right');
+    distinct += new Set(seq.slice(1).map((v, i) => seq[i] * NT + v)).size;
+  }
+  document.getElementById('r4').innerHTML = `Trong mỗi lần sinh, số kiểu "mã này rồi đến mã kia" khác nhau trung bình: <b>${r0(distinct / 5)}</b> <span class="muted">(dưới 10: lặp đi lặp lại vài bước quen; khoảng 20 đến 30: có cấu trúc mà vẫn đa dạng; trên 30: gần như ngẫu nhiên. Tối đa là 59 vì mỗi lần chỉ có 59 cặp)</span>`;
+}
+document.getElementById('tp').addEventListener('input', e => { TP = +e.target.value; draw4(); });
+document.getElementById('re4').addEventListener('click', () => { SEED4++; draw4(); });
+function drawAll() { draw3(); draw4(); }
+drawAll();
+onResize(drawAll);
+</script>
+</body>
+</html>

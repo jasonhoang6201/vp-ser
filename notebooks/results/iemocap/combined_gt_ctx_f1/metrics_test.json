@@ -2,17 +2,17 @@
   "name": "combined_gt_ctx_f1",
   "dataset": "iemocap",
   "split": "test",
-  "notes": "SenseVoice-FT ASR + roberta-large fine-tuned (5 ep, lr 1e-05); train text gt, eval text gt, ctx 3, audio none; 1-seed ensemble; GROUND-TRUTH text (upper bound)",
+  "notes": "SenseVoice-FT ASR; roberta-large fine-tuned (5 ep, lr 1e-05) on gt text; ctx 3; audio none; seed 42; GROUND-TRUTH text (upper bound)",
   "ser": {
-    "wa": 0.7225806451612903,
-    "ua": 0.7608690217304616,
-    "macro_f1": 0.7309820308257331,
-    "weighted_f1": 0.7120650195022257,
+    "wa": 0.7188940092165899,
+    "ua": 0.7536395097080172,
+    "macro_f1": 0.7302430824362347,
+    "weighted_f1": 0.7112981674586202,
     "recall_by_emotion": {
-      "neutral": 0.4921875,
-      "joy": 0.841726618705036,
-      "anger": 0.8384279475982532,
-      "sadness": 0.8711340206185567
+      "neutral": 0.5182291666666666,
+      "joy": 0.8165467625899281,
+      "anger": 0.8034934497816594,
+      "sadness": 0.8762886597938144
     },
     "n": 1085,
     "n_invalid_pred": 0,
@@ -24,49 +24,40 @@
     ],
     "confusion": [
       [
-        189,
-        63,
-        54,
-        78
+        199,
+        62,
+        47,
+        76
       ],
       [
-        39,
-        234,
-        2,
+        47,
+        227,
+        1,
         3
       ],
       [
-        28,
+        37,
         4,
-        192,
-        5
+        184,
+        4
       ],
       [
-        7,
-        12,
-        6,
-        169
+        10,
+        9,
+        5,
+        170
       ]
     ]
   },
-  "seeds": [
-    {
-      "seed": 0,
-      "best_epoch": 4,
-      "dev_ua": 0.8600886960461428,
-      "test_ua": 0.7608690217304616,
-      "test_wf1": 0.7120650195022257,
-      "gate": null
-    }
-  ],
+  "seed": 42,
+  "best_epoch": 4,
+  "dev_ua": 0.8587331189990765,
+  "gate": null,
   "config": {
     "train": "gt",
     "eval": "gt",
     "ctx": 3,
-    "audio": false
-  },
-  "ua_mean": 0.7608690217304616,
-  "ua_std": NaN,
-  "wf1_mean": 0.7120650195022257,
-  "wf1_std": NaN
+    "audio": false,
+    "text": true
+  }
 }

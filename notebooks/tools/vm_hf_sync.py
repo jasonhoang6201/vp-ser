@@ -1,9 +1,11 @@
-"""Keep a Colab VM's IEMOCAP state in private HuggingFace dataset repos, so a reclaimed VM can resume.
+"""Keep a Colab VM's dataset state in private HuggingFace dataset repos, so a reclaimed VM can resume.
 
   python3 vm_hf_sync.py restore          data tar + manifest, then every saved cache/result/checkpoint
   python3 vm_hf_sync.py push [--ckpt] [--wait]   upload cache/results (+ SenseVoice-FT checkpoint with --ckpt)
+  python3 vm_hf_sync.py push-data        upload data/<ds>_16k.tar + manifest built on this VM (MELD: notebook 00)
 
-Both repos must stay private: IEMOCAP's license forbids redistribution.
+EAASR_DATASET picks the corpus (default iemocap). All repos must stay private: IEMOCAP's license forbids
+redistribution.
 """
 import fcntl
 import os
@@ -12,24 +14,34 @@ import sys
 from huggingface_hub import HfApi, snapshot_download
 
 ROOT = "/content/vp-ck"
-DATA_REPO = "jasonhoang6201/iemocap-16k"
-RUNS_REPO = "jasonhoang6201/iemocap-runs"
-DIRS = ["cache/iemocap", "results/iemocap"]
-CKPT = "checkpoints/sensevoice_iemocap"
+DS = os.environ.get("EAASR_DATASET", "iemocap")
+DATA_REPO = f"jasonhoang6201/{DS}-16k"
+RUNS_REPO = os.environ.get("EAASR_RUNS_REPO", "jasonhoang6201/iemocap-runs")
+DIRS = [f"cache/{DS}", f"results/{DS}"]
+CKPT = f"checkpoints/sensevoice_{DS}"
+TAR = f"{ROOT}/data/{DS}_16k.tar"
 
 api = HfApi()
 
 
+def private_repo(repo):
+    api.create_repo(repo, repo_type="dataset", private=True, exist_ok=True)
+    assert api.dataset_info(repo).private, f"{repo} is public, refusing to upload"
+
+
 def restore():
     os.makedirs(f"{ROOT}/data", exist_ok=True)
-    if not os.path.exists(f"{ROOT}/data/iemocap_16k.tar"):
+    # MELD has no data repo until notebook 00 has built the tar once; the chain checks for the tar itself.
+    if not os.path.exists(TAR) and api.repo_exists(DATA_REPO, repo_type="dataset"):
         snapshot_download(DATA_REPO, repo_type="dataset", local_dir=f"{ROOT}/data")
     if api.repo_exists(RUNS_REPO, repo_type="dataset"):
         snapshot_download(RUNS_REPO, repo_type="dataset", local_dir=ROOT)
     for d in DIRS + [CKPT]:
         p = f"{ROOT}/{d}"
         print(d, len(os.listdir(p)) if os.path.isdir(p) else "-")
-    assert os.path.getsize(f"{ROOT}/data/iemocap_16k.tar") > 1_000_000_000
+    if DS == "iemocap":
+        assert os.path.getsize(TAR) > 1_000_000_000
+    print("DATA", os.path.exists(TAR))
     print("RESTORED")
 
 
@@ -41,8 +53,7 @@ def push(ckpt, wait):
     except BlockingIOError:
         print("push already running")
         return
-    api.create_repo(RUNS_REPO, repo_type="dataset", private=True, exist_ok=True)
-    assert api.dataset_info(RUNS_REPO).private, "runs repo is public, refusing to upload"
+    private_repo(RUNS_REPO)
     for d in DIRS + ([CKPT] if ckpt else []):
         if os.path.isdir(f"{ROOT}/{d}"):
             # Embedding matrices in .npy are rebuilt in minutes and would dominate the upload.
@@ -51,5 +62,18 @@ def push(ckpt, wait):
     print("pushed", "with ckpt" if ckpt else "")
 
 
+def push_data():
+    private_repo(DATA_REPO)
+    for f in [TAR, f"{ROOT}/data/{DS}_manifest.csv"]:
+        api.upload_file(path_or_fileobj=f, path_in_repo=os.path.basename(f), repo_id=DATA_REPO, repo_type="dataset")
+    print("DATA PUSHED")
+
+
 if __name__ == "__main__":
-    restore() if sys.argv[1] == "restore" else push("--ckpt" in sys.argv, "--wait" in sys.argv)
+    cmd = sys.argv[1]
+    if cmd == "restore":
+        restore()
+    elif cmd == "push-data":
+        push_data()
+    else:
+        push("--ckpt" in sys.argv, "--wait" in sys.argv)

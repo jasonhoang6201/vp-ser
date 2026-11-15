@@ -10,7 +10,6 @@
 | Notebook | Việc | Runtime | Thời gian ước tính (MELD) |
 |---|---|---|---|
 | `00_data_meld` | tải MELD, tách wav 16 kHz, manifest | CPU | 30–60 phút, chạy 1 lần |
-| `01_data_iemocap_hf` | IEMOCAP bản HF + kiểm tra ngẫu nhiên | CPU | 15–30 phút, chạy 1 lần |
 | `10_sensevoice` | SenseVoice-Small zero-shot + fine-tune | A100 / L4 | 1–2 giờ |
 | `11_mtl_ctc` | wav2vec2 + CTC + emotion head (asr / ser / joint) | A100 | khoảng 1.5 giờ mỗi mode |
 | `12_cascade_fusion` | Whisper + emotion2vec + RoBERTa, fusion | A100 | khoảng 1 giờ |

@@ -16,4 +16,7 @@
 - [Clip lộ trình](project-mfcc-clips.md) — clip có giọng VieNeu cho mọi trang demo 05 MFCC đến 24, mỗi section một clip, làm theo trang; đủ 99 clip (2026-11-03), trạng thái ở video-pipeline/README.md
 - [Phạm vi session clip](feedback-session-scope-video.md) — session làm clip chỉ lo video + dạy học; không đụng training/research model, chỉ dùng Colab `tts`
 - [Văn phong trò chuyện](feedback-conversational-style.md) — trang học viết kiểu hỏi đáp "Bạn hỏi:", ví von đời thường, xác nhận đúng rồi chỉnh sai; không phóng đại số
+- [Kế hoạch ablation](project-ablation-plan.md) — 4 bước WER → WER FT → encoder → ablation; 2026-11-15 chốt ASR là Whisper turbo FT (WER thấp hơn), chạy lại encoder + ablation trên transcript Whisper
+- [Không bàn seed](feedback-no-seed-talk.md) — chốt 1 seed 42, chạy lại mọi thứ cho đồng nhất, report không nhắc seed, không đề xuất thêm seed
+- [Hình và bảng trong report](feedback-report-figures.md) — kiến trúc vẽ draw.io theo style ảnh mẫu (tổng quan + luồng có số), kết quả để bảng, sườn theo bài nlp-ck
 - [Chia việc giữa session](feedback-session-split.md) — session training/research không chạy TTS, render, sửa README clip khi có peer session làm clip

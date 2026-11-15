@@ -1,7 +1,7 @@
 """Build the IEMOCAP manifest and 16 kHz wav tar from the official USC release (run locally, stdlib only).
 
 Input: an extracted IEMOCAP_full_release/ holding Session*/sentences/wav, dialog/EmoEvaluation, dialog/transcriptions.
-Output (same layout as the HuggingFace loader, so notebooks 10/12/20/21 need no change):
+Output (layout read by notebooks 10/12/20/21):
   <out>/iemocap_manifest.csv  id, relpath, session, speaker, type, text, emotion, emotion_raw, duration,
                               dialogue_id, start, end
   <out>/iemocap_16k.tar       iemocap/wav/<id>.wav

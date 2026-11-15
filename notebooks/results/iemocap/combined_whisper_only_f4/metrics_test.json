@@ -1,0 +1,75 @@
+{
+  "name": "combined_whisper_only_f4",
+  "dataset": "iemocap",
+  "split": "test",
+  "notes": "SenseVoice-FT ASR; no text; ctx 0; audio whisper; seed 42",
+  "asr": {
+    "wer": 0.0607826155420833,
+    "n_utts": 1026,
+    "n_ref_words": 12701,
+    "n_empty_ref_skipped": 5,
+    "wer_by_emotion": {
+      "anger": 0.030036630036630037,
+      "joy": 0.08034321372854915,
+      "neutral": 0.1019786910197869,
+      "sadness": 0.03377110694183865
+    }
+  },
+  "ser": {
+    "wa": 0.7041707080504365,
+    "ua": 0.6949839653755794,
+    "macro_f1": 0.6934029225155118,
+    "weighted_f1": 0.695120453869512,
+    "recall_by_emotion": {
+      "neutral": 0.6705426356589147,
+      "joy": 0.49834983498349833,
+      "anger": 0.9327217125382263,
+      "sadness": 0.6783216783216783
+    },
+    "n": 1031,
+    "n_invalid_pred": 0,
+    "labels": [
+      "neutral",
+      "joy",
+      "anger",
+      "sadness"
+    ],
+    "confusion": [
+      [
+        173,
+        24,
+        47,
+        14
+      ],
+      [
+        57,
+        151,
+        81,
+        14
+      ],
+      [
+        16,
+        1,
+        305,
+        5
+      ],
+      [
+        32,
+        4,
+        10,
+        97
+      ]
+    ]
+  },
+  "seed": 42,
+  "best_epoch": 4,
+  "dev_ua": 0.8001017441957271,
+  "gate": null,
+  "config": {
+    "train": "asr",
+    "eval": "asr",
+    "ctx": 0,
+    "audio": true,
+    "text": false
+  }
+}

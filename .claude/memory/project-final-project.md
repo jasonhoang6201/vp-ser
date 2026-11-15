@@ -22,8 +22,8 @@ Ràng buộc quan trọng nhất: phải reproduce được (train + ra kết qu
 ưu tiên paper có code công khai và model nhỏ (ENT, SenseVoice-Small fine-tune).
 
 Cập nhật 2026-11-01: bắt đầu thực nghiệm trên Colab Pro (có A100). Notebook ở `notebooks/` (xem README ở đó),
-trạng thái chi tiết ghi trong `paper-review/progress.md`. Dataset trước mắt: MELD; IEMOCAP
-bản HF dùng được nếu spot-check ổn; người dùng đi xin license IEMOCAP chính thức. Bước kế: người dùng chạy
+trạng thái chi tiết ghi trong `paper-review/progress.md`. Dataset: MELD và IEMOCAP bản có
+license của USC. Bản IEMOCAP trên HF (không license) đã bỏ hẳn (2026-11-12), không dùng số của nó ở đâu cả. Bước kế: người dùng chạy
 baseline, gửi kết quả, rồi thiết kế model kết hợp dựa trên những gì baseline cho thấy.
 
 **Why:** cần một hướng khả thi trong phạm vi bài cuối kì nhưng vẫn có điểm mới.

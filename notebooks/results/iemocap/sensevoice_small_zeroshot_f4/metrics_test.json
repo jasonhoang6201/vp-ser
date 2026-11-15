@@ -4,15 +4,15 @@
   "split": "test",
   "notes": "SenseVoice-Small, no training, ban_emo_unk=True",
   "asr": {
-    "wer": 0.0720125786163522,
+    "wer": 0.07188410361388867,
     "n_utts": 1026,
-    "n_ref_words": 12720,
+    "n_ref_words": 12701,
     "n_empty_ref_skipped": 5,
     "wer_by_emotion": {
-      "anger": 0.035296981499513144,
-      "joy": 0.096078940534926,
-      "neutral": 0.11948249619482496,
-      "sadness": 0.040787623066104076
+      "anger": 0.035164835164835165,
+      "joy": 0.09620384815392616,
+      "neutral": 0.1187214611872146,
+      "sadness": 0.04080675422138837
     }
   },
   "ser": {

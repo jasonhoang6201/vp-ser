@@ -1,0 +1,126 @@
+{
+  "name": "combined_asr_ctx_whisper",
+  "dataset": "meld",
+  "split": "test",
+  "notes": "SenseVoice-FT ASR; roberta-large fine-tuned (5 ep, lr 1e-05) on asr text; ctx 3; audio whisper; seed 42",
+  "asr": {
+    "wer": 0.2736320570211656,
+    "n_utts": 2572,
+    "n_ref_words": 23009,
+    "n_empty_ref_skipped": 2,
+    "wer_by_emotion": {
+      "anger": 0.28517877739331027,
+      "disgust": 0.23840206185567012,
+      "fear": 0.33484848484848484,
+      "joy": 0.2732612055641422,
+      "neutral": 0.2654217762913415,
+      "sadness": 0.2659902955447728,
+      "surprise": 0.3028820010875476
+    }
+  },
+  "ser": {
+    "wa": 0.48795648795648794,
+    "ua": 0.427093305324591,
+    "macro_f1": 0.38890369286857457,
+    "weighted_f1": 0.5008289659545064,
+    "recall_by_emotion": {
+      "neutral": 0.46408393866020986,
+      "joy": 0.6272040302267002,
+      "surprise": 0.5755395683453237,
+      "anger": 0.44807121661721067,
+      "sadness": 0.470873786407767,
+      "disgust": 0.22388059701492538,
+      "fear": 0.18
+    },
+    "n": 2574,
+    "n_invalid_pred": 0,
+    "labels": [
+      "neutral",
+      "joy",
+      "surprise",
+      "anger",
+      "sadness",
+      "disgust",
+      "fear"
+    ],
+    "confusion": [
+      [
+        575,
+        264,
+        143,
+        83,
+        118,
+        19,
+        37
+      ],
+      [
+        60,
+        249,
+        48,
+        16,
+        12,
+        6,
+        6
+      ],
+      [
+        31,
+        35,
+        160,
+        20,
+        13,
+        12,
+        7
+      ],
+      [
+        45,
+        47,
+        48,
+        151,
+        21,
+        18,
+        7
+      ],
+      [
+        31,
+        20,
+        18,
+        21,
+        97,
+        6,
+        13
+      ],
+      [
+        14,
+        10,
+        3,
+        15,
+        8,
+        15,
+        2
+      ],
+      [
+        10,
+        8,
+        8,
+        5,
+        8,
+        2,
+        9
+      ]
+    ]
+  },
+  "seed": 42,
+  "best_epoch": 2,
+  "dev_ua": 0.44680695418958327,
+  "gate": [
+    0.6821869015693665,
+    0.31781309843063354
+  ],
+  "config": {
+    "train": "asr",
+    "eval": "asr",
+    "ctx": 3,
+    "audio": true,
+    "text": true
+  }
+}

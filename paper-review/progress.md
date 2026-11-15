@@ -9,6 +9,17 @@
 
 Bước kế: người dùng tick chọn khoảng 5 paper trên `01-papers.html`, rồi làm P3 (roadmap) cho từng paper đã chọn.
 
+## P6 dàn ý (2026-11-14)
+
+Người dùng xin khung report IEEE và khung slide trước khi có số (số để placeholder). Đã viết `03-outline.md` (khung
+paper thực nghiệm của chính người dùng, không phải review paper: Abstract, Intro, Related Work, Method, Setup, Results
+theo 4 bước WER zero-shot → WER fine-tune → encoder audio → ablation, Limitations, Conclusion) và `03-slides-outline.md`
+(14 slide). Đang ở DỪNG 2: chờ người dùng sửa dàn ý.
+Góp ý 1: lấy sườn bài cũ `~/Desktop/nlp-ck/overleaf_nlp_ck/main.tex` (không phải tốt nhất, cải thiện thêm); kiến trúc
+phải có hình draw.io theo style ảnh mẫu (pastel, viền cùng màu, mũi tên nét đứt), gồm hình tổng quan module và hình
+luồng chạy có số; kết quả để bảng. Đã viết lại dàn ý (draft 2) và vẽ `figures/fig_overview`, `figures/fig_flow`
+(script `figures/make_arch_figures.py`).
+
 ## Thực nghiệm Colab (2026-11-01)
 
 Notebook ở `notebooks/` (root project), nguồn `notebooks/src/*.py`, code đánh giá chung `notebooks/eaasr/common.py`.

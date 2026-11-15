@@ -1,0 +1,75 @@
+{
+  "name": "combined_wasr_ctx",
+  "dataset": "iemocap",
+  "split": "test",
+  "notes": "Whisper-turbo-FT ASR; roberta-large fine-tuned (5 ep, lr 1e-05) on asr text; ctx 3; audio none; seed 42",
+  "asr": {
+    "wer": 0.07705611068408916,
+    "n_utts": 1222,
+    "n_ref_words": 15612,
+    "n_empty_ref_skipped": 19,
+    "wer_by_emotion": {
+      "anger": 0.06423539162867799,
+      "joy": 0.09003997914131757,
+      "neutral": 0.06434699714013346,
+      "sadness": 0.08
+    }
+  },
+  "ser": {
+    "wa": 0.8122481869460113,
+    "ua": 0.8100668392356942,
+    "macro_f1": 0.8052815576334441,
+    "weighted_f1": 0.8133861628654746,
+    "recall_by_emotion": {
+      "neutral": 0.7760416666666666,
+      "joy": 0.8529411764705882,
+      "anger": 0.8235294117647058,
+      "sadness": 0.7877551020408163
+    },
+    "n": 1241,
+    "n_invalid_pred": 0,
+    "labels": [
+      "neutral",
+      "joy",
+      "anger",
+      "sadness"
+    ],
+    "confusion": [
+      [
+        298,
+        32,
+        33,
+        21
+      ],
+      [
+        51,
+        377,
+        2,
+        12
+      ],
+      [
+        15,
+        1,
+        140,
+        14
+      ],
+      [
+        34,
+        6,
+        12,
+        193
+      ]
+    ]
+  },
+  "seed": 42,
+  "best_epoch": 4,
+  "dev_ua": 0.8387782807432878,
+  "gate": null,
+  "config": {
+    "train": "asr",
+    "eval": "asr",
+    "ctx": 3,
+    "audio": false,
+    "text": true
+  }
+}

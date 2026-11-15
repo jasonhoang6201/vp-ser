@@ -33,16 +33,7 @@ Mỗi job đang chạy phải có ETA (giờ Việt Nam, UTC+7). Giờ trên VM 
 | Dataset | Trạng thái | Ghi chú |
 |---|---|---|
 | MELD | xong, trên VM (`meld_16k.tar` 1.4 GB) | thiếu mp4 dev/dia110_utt7; ffmpeg lỗi train/dia125_utt3; còn 7 transcript có ký tự không phải ASCII (từ mượn như Café), giữ nguyên |
-| IEMOCAP (HF AbstractTTS) | 2026-11-02 09:02 bắt đầu chuỗi 01 → 10 → 20 → 12 (3 seed) → 21 (`asr_e2v`, `asr`, `gt2asr`, `gt`) bằng `scratchpad/iem.sh`, log `runs/*_iemocap.log`, ETA ~12:00 | người dùng: chưa có phản hồi USC, dùng bản HF luôn (học tập, không thương mại). 10039 câu khớp gốc; transcript có 2 dấu cách sau dấu câu như file gốc; **không có timestamp** nên IEMOCAP chạy không ngữ cảnh. Có 264 câu chứa tag gốc ([LAUGHTER] 166, [BREATHING] 57, [GARBAGE] 46) nên transcript là bản gốc, không phải ASR.
-`major_emotion` = argmax soft vote cho mọi câu (4 lớp 6877, không có "xxx"); notebook 01 bỏ câu hòa phiếu (top1 - top2 ≤ 0.05) còn 5498 (neu 1654, joy 1663, ang 1110, sad 1071; gốc 5531).
-IEMOCAP test (session 5, 1209 câu có ref): SV zero-shot WER 11.03, WA 67.18, UA 65.47; **SV fine-tune WER 9.97, WA 71.74, UA 73.09, wF1 71.65**; Whisper turbo WER 16.41;
-**emotion2vec+ zero-shot UA 86.17 (WA 86.89): gần như chắc bị rò rỉ** (bản seed train trên EmoBox, có IEMOCAP) nên số audio e2v trên IEMOCAP chỉ để tham khảo; SenseVoice cũng có thể đã thấy IEMOCAP.
-Chuỗi HF xong 11:26, đã tải về `results/iemocap/`, VM đã stop (còn 95.09 CU). Notebook 21 IEMOCAP (3 seed, UA ensemble / mean±std):
-`asr_e2v` 88.94 / 88.88±0.74 (gate audio 0.82, rò rỉ); `asr` 72.04 / 71.64±0.99; `gt2asr` 71.97 / 70.91±0.93; `gt` 72.78 / 70.49±0.49.
-Cascade: e2v probe UA 90.01 (rò rỉ), text ASR probe 67.24, text GT probe 65.72, fusion concat 89.14.
-Kết luận: trên IEMOCAP lỗi ASR (WER ~10–16) gần như không hại SER từ text; text fine-tune > probe ~4.5 UA.
-Notebook 21 đã thêm `AUDIO = "wavlm"` (WavLM-large, mọi layer, trọng số layer học được) để thay e2v trên IEMOCAP; chưa chạy.
-Kết quả và cache bản HF đã dời sang `results/iemocap_hf/`, `cache/iemocap_hf/` (để bản chính thức dùng lại tên `iemocap`).
+| IEMOCAP | xem bên dưới | Chỉ dùng bản có license của USC. Bản HF không license (`AbstractTTS/IEMOCAP`) đã bỏ khỏi project ngày 2026-11-12 (notebook 01 và `results/iemocap_hf/` đã xóa); emotion2vec+ rò rỉ IEMOCAP (train trên EmoBox), nên audio dùng WavLM-large.
 **Bản chính thức USC** (người dùng đăng ký, tải `dataset/IEMOCAP_full_release_withoutVideos.tar.gz` 12 GB, 14:12 2026-11-02):
 giải nén riêng `sentences/wav`, `dialog/EmoEvaluation/Ses*.txt`, `dialog/transcriptions` vào `dataset/iemocap_extract/`;
 `tools/prep_iemocap_official.py` (chạy local, chỉ stdlib) → `dataset/iemocap_official/` (manifest + `iemocap_16k.tar` 1.4 GB).
@@ -330,6 +321,133 @@ Mục 3 xong 22:30, chuỗi `ALL DONE`, VM đã tắt. `asr_ctx_pros_whisper`, 3
 Thắng 3/5 fold, sign test p 1.0. McNemar trên ensemble: 187 câu chỉ prosody đúng, 225 câu chỉ không prosody đúng, p 0.068. Prosody không cải thiện rõ khi audio là Whisper; hai chiều mean và ensemble còn ngược dấu. `asr_ctx_whisper` vẫn là hệ thống chính vì đơn giản hơn. So với `asr_ctx_pros_wavlm` chưa so 3 seed được: hệ đó chỉ có seed 0.
 
 Sự cố kết nối: `colab exec` ngay sau một job dài hay rớt `Connection was lost` hoặc treo, kể cả khi job trên VM đã xong (lần 17:12 phải kill tay). Đã sửa `chain_lib.sh`: `pull` có retry và chỉ tải khi có `tar ok`; `push` chạy nền trên VM và được hỏi bằng lệnh ngắn.
+
+## Kế hoạch ablation (2026-11-14, chờ người dùng chọn)
+
+Chi tiết ở `.claude/memory/project-ablation-plan.md`. Hệ cuối: `asr_ctx_whisper` (81.67 ± 3.03). Mỗi thí nghiệm bỏ
+hoặc thay một module, chạy 5 fold × 3 seed. Đã có số: thay Whisper encoder bằng WavLM, text đúng so với transcript
+(bản chỉ text), so sánh WER. Chưa chạy: bỏ ngữ cảnh (`asr_whisper`), bỏ text, transcript Whisper thay SV-FT. Còn thiếu
+seed 1, 2 cho `asr_ctx` (bỏ audio) ở fold 1-4. Cắt prosody, attention pooling, emotion2vec.
+
+## Đợt chạy lại seed 42 (bắt đầu 2026-11-14 19:27)
+
+Người dùng chốt: mọi thứ chạy lại một lần với seed 42, 5 fold, kết quả mới ghi đè kết quả cũ.
+Đã xóa local trước khi chạy: `results/iemocap/` của SenseVoice zero-shot/fine-tune, `combined_asr_ctx`,
+`combined_asr_ctx_whisper`, `combined_asr_ctx_wavlm`, `combined_gt_ctx` (mọi fold; metrics cũ còn trong git),
+và `cache/iemocap/asr_sensevoice_ft*.csv` (bản cũ còn trên HF `iemocap-runs`). Các kết quả khác (cascade, prosody,
+pooling, `asr`, `gt`, ...) vẫn là số cũ, chạy trên transcript cũ; report chỉ dùng các hệ của đợt này.
+
+- Code: `src/10` thêm `++seed=42` (FunASR đọc `kwargs["seed"]`); `src/21` viết gọn lại: bỏ prosody, frame pooling,
+  cấu hình `gt2asr`/`asr`/`gt`; thêm `e2v_only` (bỏ text); một seed, không ensemble. `src/15_whisper_ft.py` mới:
+  Whisper large-v3-turbo zero-shot + fine-tune toàn bộ (3 ep, lr 1e-5, batch 16, chọn epoch theo dev WER).
+- Chuỗi: `caffeinate -i zsh notebooks/tools/run_iemocap_s42.sh`, log `runs/iem_s42_chain.out`. Trạng thái nằm ở repo HF
+  private riêng `jasonhoang6201/iemocap-runs-s42` (biến `RUNS_REPO` trong `chain_lib.sh`). Đã xóa các chuỗi cũ.
+- Thứ tự: mỗi fold (5, 1, 2, 3, 4): 10 → 20 → 21 Whisper (`asr_ctx_e2v`, `asr_ctx`, `asr_e2v`, `e2v_only`, `gt_ctx`)
+  → 21 WavLM (`asr_ctx_e2v`); sau đó 15 cho cả 5 fold.
+- Ước tính khoảng 2 giờ mỗi fold cho phần SER, khoảng 1 giờ mỗi fold cho 15: **ETA phần SER ~05:30 ngày 15/11,
+  cả chuỗi ~10:30 ngày 15/11**.
+- 19:31 đổi tài khoản Colab CLI: token cũ là `jasonhoang6201@gmail.com` (38.62 CU), người dùng đăng nhập lại bằng
+  `jasonhoang1206@gmail.com` (300 CU, kiểm bằng Google tokeninfo). HF vẫn là `jasonhoang6201`. Chạy lại chuỗi 19:32.
+  Kiểm tài khoản: gọi `oauth2.googleapis.com/tokeninfo` với token trong `~/.config/colab-cli/token.json`.
+- ETA tính lại (thêm overhead push/pull và cache lần đầu): khoảng 2.5 giờ mỗi fold phần SER, Whisper FT khoảng 1-1.2 giờ
+  mỗi fold (chưa đo). **Phần SER ~07:30-08:30, cả chuỗi ~13:00-14:30 ngày 15/11**, khoảng 35 CU.
+- 19:33-19:48 bước restore treo ở `colab exec` local (VM không nhận lệnh), kill lệnh treo thì `need()` thử lại và chạy
+  ngay. Setup xong 19:48, bước 10 bắt đầu 19:48. **ETA mới: SER ~07:45-08:45, cả chuỗi ~13:15-14:45 ngày 15/11.**
+- Thực tế mỗi fold phần SER chỉ ~1.5 giờ (10 ~30-44 phút, 20 ~12 phút, 21 Whisper ~30 phút, 21 WavLM ~13 phút).
+  **Phần SER xong 03:33 ngày 15/11**, bước 15 (Whisper turbo) bắt đầu 03:33.
+
+### Kết quả seed 42, IEMOCAP 5 fold (trung bình 5 fold, %; thứ tự fold S5, S1, S2, S3, S4)
+
+| Hệ | WER | UA | WA | UA từng fold |
+|---|---|---|---|---|
+| SenseVoice-Small zero-shot | 11.20 | | | |
+| SenseVoice-Small fine-tune | 9.73 | | | |
+| Đầy đủ: ASR text + ctx + Whisper enc | | **81.44** | 79.98 | 82.6, 77.7, 84.8, 80.7, 81.4 |
+| Đầy đủ với WavLM enc | | 80.16 | 78.69 | 82.5, 76.8, 83.8, 78.3, 79.5 |
+| Bỏ audio (ASR text + ctx) | | 78.03 | 76.78 | 80.3, 75.0, 81.6, 76.7, 76.6 |
+| Bỏ context (ASR text + Whisper enc) | | 78.21 | 77.03 | 78.7, 75.4, 83.7, 75.3, 77.9 |
+| Bỏ text (chỉ Whisper enc) | | 72.41 | 70.97 | 76.1, 72.1, 73.8, 70.6, 69.5 |
+| GT text + ctx, không audio (cận trên text) | | 78.57 | 77.24 | 80.9, 75.4, 82.9, 77.2, 76.5 |
+
+Bước 15 (Whisper large-v3-turbo, 3 ep, chọn epoch theo dev WER) xong 10:16 ngày 15/11, **ALL DONE 10:16**.
+
+| ASR | WER TB | S5 | S1 | S2 | S3 | S4 |
+|---|---|---|---|---|---|---|
+| SenseVoice-Small zero-shot | 11.20 | 11.16 | 13.70 | 11.77 | 12.20 | 7.19 |
+| SenseVoice-Small fine-tune | 9.73 | 9.81 | 12.17 | 10.05 | 10.62 | 6.01 |
+| Whisper large-v3-turbo zero-shot | 13.19 | 16.36 | 13.73 | 11.51 | 12.91 | 11.43 |
+| Whisper large-v3-turbo fine-tune | **9.18** | 7.90 | 12.82 | 8.29 | 12.66 | 4.25 |
+
+Bước 15 không lưu checkpoint hay transcript train/dev, nên muốn chạy SER trên transcript Whisper thì phải fine-tune lại.
+
+## Đợt Whisper ASR (bắt đầu 2026-11-15 11:01)
+
+Người dùng chốt: Whisper turbo FT có WER thấp hơn nên làm ASR của hệ đề xuất; chọn encoder và ablation chạy lại trên
+transcript Whisper. Code: `src/15` thêm `ZERO_SHOT` và phần C ghi `cache/iemocap/asr_whisper_ft{FOLD}.csv` cho mọi câu
+(chạy lại fine-tune nên `whisper_turbo_finetune*` bị ghi đè bằng run có transcript); `src/21` thêm `ASR`
+("sensevoice"/"whisper"), kết quả `combined_wasr_*`. Chuỗi: `caffeinate -i zsh notebooks/tools/run_iemocap_whisper_asr.sh`,
+log `runs/iem_wasr_chain.out`, cùng repo HF `iemocap-runs-s42`. Mỗi fold: 15 → 21 Whisper (`asr_ctx_e2v`, `asr_ctx`,
+`asr_e2v`) → 21 WavLM (`asr_ctx_e2v`). `e2v_only`, `gt_ctx` dùng lại. Ước tính khoảng 2 giờ mỗi fold:
+**ETA ~21:00-22:00 ngày 15/11**, khoảng 20 CU.
+
+**ALL DONE 00:11 ngày 16/11** (VM bị thu hồi lúc 19:35 giữa fold S3, chạy lại mất ~50 phút). VM `eaasr` đã stop.
+Fine-tune Whisper chạy lại nên WER fine-tune mới là 8.32 (lần trước 9.18), vẫn thấp hơn SV-FT 9.73.
+
+| ASR, test (trung bình 5 fold) | S5 | S1 | S2 | S3 | S4 | Mean ± std |
+|---|---|---|---|---|---|---|
+| SenseVoice-Small zero-shot | 11.16 | 13.70 | 11.77 | 12.20 | 7.19 | 11.20 ± 2.18 |
+| SenseVoice-Small fine-tune | 9.81 | 12.17 | 10.05 | 10.62 | 6.01 | 9.73 ± 2.04 |
+| Whisper large-v3-turbo zero-shot | 16.36 | 13.73 | 11.51 | 12.91 | 11.43 | 13.19 ± 1.81 |
+| Whisper large-v3-turbo fine-tune | 7.71 | 10.90 | 8.22 | 10.17 | 4.61 | **8.32 ± 2.20** |
+
+| SER, transcript Whisper-FT | UA | WA | macro F1 | wF1 | Δ UA | Thắng full | gate audio |
+|---|---|---|---|---|---|---|---|
+| Đầy đủ (ctx + Whisper enc) | **81.17 ± 3.41** | 80.02 | 80.23 | 79.84 | | | 0.47 |
+| Encoder WavLM | 80.24 ± 3.48 | 78.88 | 79.23 | 78.74 | −0.94 | 2/5 | 0.31 |
+| Bỏ audio | 77.54 ± 3.49 | 76.53 | 76.57 | 76.33 | −3.63 | 0/5 | |
+| Bỏ ngữ cảnh | 78.85 ± 2.66 | 77.42 | 77.95 | 77.27 | −2.32 | 2/5 | 0.60 |
+| Bỏ text (chỉ Whisper enc) | 72.41 ± 2.32 | 70.97 | 71.14 | 70.29 | −8.76 | 0/5 | |
+| Text đúng + ctx, chỉ text | 78.57 ± 2.85 | 77.24 | 77.68 | 77.20 | | | |
+| (tham khảo) đầy đủ, transcript SV-FT | 81.44 ± 2.31 | 79.98 | 80.26 | 79.90 | +0.27 | 3/5 | 0.45 |
+
+UA từng fold (S5 S1 S2 S3 S4): đầy đủ 85.36 77.68 83.97 76.73 82.13; WavLM 82.88 75.96 85.15 76.87 80.32; bỏ audio
+81.01 73.38 82.14 74.43 76.77; bỏ ngữ cảnh 78.63 76.66 84.00 77.08 77.89; bỏ text 76.05 72.14 73.76 70.61 69.50.
+Cái giá lỗi ASR (cùng điều kiện chỉ text + ctx): text đúng 78.57 so với transcript Whisper-FT 77.54, mất 1.03 UA.
+Recall theo lớp (neutral/joy/anger/sadness): đầy đủ 69.3/85.4/87.6/82.5; bỏ audio 64.1/82.7/80.9/82.5 (audio giúp
+anger, neutral); bỏ ngữ cảnh 70.7/76.6/86.0/82.1 (ngữ cảnh giúp joy).
+
+## Đợt MELD seed 42 (bắt đầu 2026-11-15 12:03, VM thứ hai)
+
+Người dùng cho chạy kiến trúc cuối trên MELD (split chính thức, 7 lớp), cùng 4 bước như IEMOCAP. `chain_lib.sh` nhận
+`DS` và `SESSION` (mặc định iemocap / eaasr), `vm_hf_sync.py` nhận `EAASR_DATASET` và lệnh `push-data`. Chuỗi:
+`caffeinate -i zsh notebooks/tools/run_meld_s42.sh`, session Colab `eaasr-meld`, log `runs/meld_s42_chain.out`,
+state ở `jasonhoang6201/meld-runs-s42`, data ở `jasonhoang6201/meld-16k` (cả hai private). Bước: 00 dựng
+`meld_16k.tar` (lần đầu) → 10 SV → 15 Whisper turbo (có transcript) → chọn ASR theo WER fine-tune → (20 nếu SV thắng)
+→ 21 Whisper audio (5 cấu hình) → 21 WavLM. Kết quả SV MELD cũ chuyển sang `data_backup/meld_old/` (metrics cũ còn
+trong git). Ước tính ~7-8 giờ: **ETA ~19:00-20:30 ngày 15/11**, khoảng 15 CU.
+
+**ALL DONE 19:28.** 17:09 bước 15 chạm giới hạn 4 giờ của `step`, chạy lại thì kiểm tra "job còn sống" báo sai nên
+khởi động job thứ hai (OOM vì job gốc giữ GPU); job gốc vẫn chạy xong và lưu transcript, nên không mất gì.
+
+| MELD test (2576 câu) | WER | wF1 | UA | WA |
+|---|---|---|---|---|
+| SenseVoice-Small zero-shot | 29.21 | | | |
+| SenseVoice-Small fine-tune | **27.33** | | | |
+| Whisper large-v3-turbo zero-shot | 31.87 | | | |
+| Whisper large-v3-turbo fine-tune | 34.25 | | | |
+| Đầy đủ: SV text + ctx + Whisper enc | | 50.08 | 42.71 | 48.80 |
+| Đầy đủ với WavLM enc | | 52.25 | 43.16 | 50.93 |
+| Bỏ audio | | 49.98 | 44.05 | 48.25 |
+| Bỏ context | | **52.31** | 43.55 | 50.85 |
+| Bỏ text | | 39.26 | 35.99 | 37.92 |
+| GT text + ctx, không audio | | 63.96 | 52.45 | 63.17 |
+
+Whisper FT thua vì lặp từ: 22 câu test (0.9%) sinh ra ~3000 từ thừa. Cùng model, dev WER 21.50 khi giải mã bằng
+`generate` (max 128 token) nhưng 35.92 khi giải mã bằng `pipeline`. HF chỉ bật compression-ratio fallback cho
+long-form, nên câu ngắn không có cơ chế chống lặp. Chưa chốt có sửa giải mã và chạy lại không.
+
+WER là trung bình WER từng fold (không gộp câu). Thư mục kết quả: `results/iemocap/combined_*` và
+`sensevoice_small_*` (hậu tố `_f1`..`_f4`, không hậu tố là S5).
 
 ## Ý tưởng chưa làm (người dùng sẽ quay lại nếu cần)
 

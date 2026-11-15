@@ -50,7 +50,6 @@
   tr.group td { background: var(--slate-soft); font-weight: 600; font-size: 13px; color: var(--muted); }
   .tag { display: inline-block; font-size: 11.5px; padding: 0 7px; border-radius: 999px; font-weight: 600; vertical-align: 1px; }
   .tag.leak { background: var(--rose-soft); color: var(--rose); }
-  .tag.run { background: var(--amber-soft); color: var(--amber); }
   .tag.ok { background: var(--teal-soft); color: var(--teal); }
   ol.timeline { list-style: none; padding: 0; margin: 18px 0; border-left: 2px solid var(--line); }
   ol.timeline li { position: relative; padding: 0 0 16px 22px; }
@@ -77,106 +76,76 @@
 <main>
 
 <header>
-  <div class="kicker">Báo cáo thực nghiệm · cập nhật 2026-11-04, 01:30</div>
-  <h1>Emotion-Aware Speech Recognition: đã làm gì, thử gì, được gì</h1>
-  <p class="lead">Mục tiêu: từ một câu nói, vừa nhận dạng nội dung (ASR, đo bằng WER) vừa nhận dạng cảm xúc (SER, đo bằng UA). Trang này tóm tắt các baseline đã chạy, model kết hợp mình đề xuất, kết quả trên MELD và IEMOCAP, và các sự cố trong quá trình chạy.</p>
+  <div class="kicker">Báo cáo thực nghiệm · cập nhật 2026-11-12</div>
+  <h1>Emotion-Aware Speech Recognition trên IEMOCAP: đã làm gì, thử gì, được gì</h1>
+  <p class="lead">Mục tiêu: từ một câu nói, vừa nhận dạng nội dung (ASR, đo bằng WER) vừa nhận dạng cảm xúc (SER, đo bằng UA). Mọi so sánh trong trang này làm trên IEMOCAP (bản có license của USC). Trang tóm tắt các baseline, model kết hợp đề xuất, kiểm định chéo 5 fold, các ý tưởng đã thử thêm và các sự cố trong quá trình chạy.</p>
   <nav class="toc">
     <a href="#tomtat">1. Tóm tắt</a>
     <a href="#thietlap">2. Thiết lập</a>
-    <a href="#baseline">3. Baseline MELD</a>
+    <a href="#baseline">3. Baseline</a>
     <a href="#combined">4. Model kết hợp</a>
-    <a href="#iemocap">5. IEMOCAP</a>
-    <a href="#nhanxet">6. Nhận xét</a>
-    <a href="#quatrinh">7. Quá trình và sự cố</a>
-    <a href="#tiep">8. Hạn chế và hướng phát triển</a>
+    <a href="#cv">5. Kiểm định chéo 5 fold</a>
+    <a href="#thuthem">6. Thử thêm</a>
+    <a href="#nhanxet">7. Nhận xét</a>
+    <a href="#quatrinh">8. Quá trình và sự cố</a>
+    <a href="#tiep">9. Hạn chế và hướng phát triển</a>
   </nav>
 </header>
 
 <h2 id="tomtat"><span class="num">1</span>Tóm tắt</h2>
 <div class="grid">
-  <div class="stat"><div class="v">43.21</div><div class="l">UA tốt nhất trên MELD test (model kết hợp, ASR text + ngữ cảnh + audio, ensemble 3 seed)</div></div>
-  <div class="stat"><div class="v">+4.5</div><div class="l">UA so với baseline mạnh nhất (Qwen2-Audio 38.73; text probe trên ASR 38.11)</div></div>
-  <div class="stat"><div class="v">27.39</div><div class="l">WER thấp nhất trên MELD (SenseVoice-Small fine-tune), dùng làm ASR cho model kết hợp</div></div>
-  <div class="stat"><div class="v">79.01</div><div class="l">UA trung bình 5 fold trên IEMOCAP chính thức (ASR + ngữ cảnh + WavLM, ±2.51), ngang cận trên dùng text đúng (79.02). Riêng session 5, ensemble 3 seed: 83.23</div></div>
+  <div class="stat"><div class="v">81.67</div><div class="l">UA trung bình 5 fold (±3.03) của model chính <code>asr_ctx_whisper</code>, 3 seed mỗi fold. Ensemble 3 seed: 83.34</div></div>
+  <div class="stat"><div class="v">+2.53</div><div class="l">UA khi thay encoder WavLM-large bằng encoder Whisper large-v3, thắng cả 5 fold</div></div>
+  <div class="stat"><div class="v">+6.5</div><div class="l">UA nhờ ngữ cảnh hội thoại (3 câu trước), tăng ở cả 5 fold. Thành phần đóng góp lớn nhất</div></div>
+  <div class="stat"><div class="v">9.68</div><div class="l">WER trung bình 5 fold của SenseVoice-Small fine-tune, khối ASR của model chính (Whisper large-v3-turbo: 13.19)</div></div>
 </div>
-<p>Trên IEMOCAP, kiểm định chéo 5 fold (leave-one-session-out) xác nhận hai kết luận chính: <b>ngữ cảnh hội thoại tăng UA ở cả 5 fold</b> (trung bình +6.5), và <b>model kết hợp đầy đủ hơn cascade concat mạnh nhất ở cả 5 fold</b> (trung bình +2.0). Phần đóng góp của WavLM khi đã có ngữ cảnh nhỏ hơn và không đều (+1.6, giảm ở 1 fold).</p>
-<p>Model kết hợp là một <b>cascade có ngữ cảnh</b>. SenseVoice-Small được fine-tune để chép lời. Transcript ASR của câu hiện tại cùng 3 câu trước trong hội thoại đi vào RoBERTa-large (fine-tune). Song song, một encoder audio (emotion2vec+ hoặc WavLM-large) trích đặc trưng. Hai nhánh được trộn bằng <b>gated fusion</b>, có thêm head phụ cho từng nhánh để gate không bị sập về một phía.</p>
+<p>Model chính là một <b>cascade có ngữ cảnh</b>. SenseVoice-Small được fine-tune để chép lời. Transcript ASR của câu hiện tại cùng 3 câu trước trong hội thoại đi vào RoBERTa-large (fine-tune). Song song, <b>encoder của Whisper large-v3</b> (đông cứng) trích đặc trưng audio của câu, model tự học trọng số giữa các layer. Hai nhánh được trộn bằng <b>gated fusion</b>, có thêm head phụ cho từng nhánh. Whisper ở đây chỉ dùng phần encoder làm đặc trưng audio, việc chép lời vẫn do SenseVoice-FT làm.</p>
+<p>Kiểm định chéo leave-one-session-out cho thấy: ngữ cảnh tăng UA ở cả 5 fold; encoder Whisper hơn WavLM ở cả 5 fold; model chính hơn cận trên chỉ dùng text đúng có ngữ cảnh (79.02) ở cả 5 fold, tức audio mang thông tin mà text không có. Prosody dạng chữ và attention pooling không cải thiện rõ khi đã có Whisper.</p>
 
 <h2 id="thietlap"><span class="num">2</span>Thiết lập</h2>
 <h3>Dữ liệu</h3>
 <div class="table-wrap"><table>
 <tr><th>Dataset</th><th>Mô tả</th><th>Chia tập</th><th>Ghi chú</th></tr>
-<tr><td><b>MELD</b></td><td>Hội thoại phim Friends, 7 cảm xúc, nhiều nhạc nền và tiếng cười, câu ngắn</td><td>train/dev/test chính thức: 9879 / 1093 / 2576 (sau lọc)</td><td>Bỏ clip &lt; 0.2 s và 2 clip test &gt; 60 s bị cắt sai</td></tr>
-<tr><td><b>IEMOCAP</b> (bản HF)</td><td>Bản cộng đồng trên HuggingFace</td><td>Session 1–4 train, session 5 test</td><td>Không có timestamp nên không làm được ngữ cảnh. Nhãn tính lại bằng soft vote, còn 5498 câu</td></tr>
-<tr><td><b>IEMOCAP</b> (bản chính thức USC)</td><td>Diễn viên đóng cặp, 4 lớp: neutral, joy (hap+exc), anger, sadness</td><td>Session 1–4 / session 5; thêm kiểm định chéo leave-one-session-out 5 fold</td><td>Đúng chuẩn 5531 câu. Có timestamp nên dựng được ngữ cảnh từ <i>mọi</i> lượt nói, kể cả câu không nhãn</td></tr>
+<tr><td><b>IEMOCAP</b> (bản chính thức USC, có license)</td><td>10 diễn viên đóng cặp, 5 session. 4 lớp: neutral, joy (happy + excited), anger, sadness</td><td>Session 1–4 train, session 5 test (1241 câu); dev = 10% ngẫu nhiên của train. Thêm kiểm định chéo leave-one-session-out 5 fold</td><td>Đúng chuẩn 5531 câu (neu 1708, joy 1636, ang 1103, sad 1084). Có timestamp nên dựng được ngữ cảnh từ <i>mọi</i> lượt nói, kể cả câu không thuộc 4 lớp</td></tr>
 </table></div>
 
 <h3>Metric</h3>
 <ul>
   <li><b>WER</b>: chuẩn hóa ref và hyp bằng Whisper English normalizer. Có báo thêm WER theo từng cảm xúc.</li>
-  <li><b>UA</b> (unweighted accuracy, tức trung bình recall các lớp): metric chính, vì MELD lệch lớp nặng (neutral chiếm gần một nửa). Có báo thêm WA, macro-F1, weighted-F1.</li>
-  <li>Chọn epoch theo <b>dev</b>, không theo test. Model kết hợp chạy 3 seed, báo cả ensemble lẫn mean±std.</li>
-  <li>Kiểm định chéo IEMOCAP: fold k lấy session k làm test, 4 session còn lại làm train, và mỗi fold fine-tune lại SenseVoice. Để các fold so được với nhau, mỗi fold lấy seed 0 (fold 1–4 chỉ chạy 1 seed), báo mean±std qua 5 fold.</li>
+  <li><b>UA</b> (unweighted accuracy, tức trung bình recall các lớp): metric chính. Có báo thêm WA, weighted-F1.</li>
+  <li>Chọn epoch theo <b>dev</b>, không theo test. Model kết hợp chạy 3 seed, báo cả ensemble (trung bình xác suất các seed) lẫn mean±std.</li>
+  <li>Kiểm định chéo: fold k lấy session k làm test, 4 session còn lại làm train, và mỗi fold fine-tune lại SenseVoice. Std ở bảng 5 fold là độ lệch giữa các fold.</li>
+  <li>Kiểm định thống kê: sign test trên 5 fold, McNemar exact trên dự đoán từng câu.</li>
 </ul>
 
 <h3>Hạ tầng</h3>
-<p>Chạy hết trên Colab (GPU L4) qua Colab CLI, điều khiển từ máy local. Notebook chạy thành job nền trên VM, log được kéo về máy. Từ IEMOCAP chính thức trở đi, dữ liệu và trạng thái nằm ở 2 repo HuggingFace <b>private</b> (license IEMOCAP cấm phát tán). Nhờ vậy VM bị thu hồi thì chuỗi vẫn chạy tiếp được (xem <a href="#quatrinh">mục 7</a>).</p>
+<p>Chạy hết trên Colab (GPU L4) qua Colab CLI, điều khiển từ máy local. Notebook chạy thành job nền trên VM, log được kéo về máy. Dữ liệu IEMOCAP và trạng thái chạy nằm ở 2 repo HuggingFace <b>private</b> (license IEMOCAP cấm phát tán), nhờ vậy VM bị thu hồi thì chuỗi vẫn chạy tiếp được (xem <a href="#quatrinh">mục 8</a>).</p>
 
-<h2 id="baseline"><span class="num">3</span>Baseline trên MELD</h2>
-<p>Có bốn nhóm cách làm: (a) ASR thuần, (b) SER chỉ từ audio, (c) cascade ASR rồi SER từ text hoặc text + audio, (d) <b>một model làm cả hai</b> (joint).</p>
+<h2 id="baseline"><span class="num">3</span>Baseline (session 5 test)</h2>
+<p>Có bốn nhóm cách làm: (a) ASR thuần, (b) SER chỉ từ audio, (c) cascade: ASR rồi SER từ text hoặc text + audio, (d) <b>một model làm cả hai</b> (joint).</p>
 
-<figure>
-<svg viewBox="0 0 780 400" role="img" aria-label="UA trên MELD test của các hệ thống">
-  <line x1="240" y1="8" x2="240" y2="372" stroke="#cfccc5"/>
-  <g>
-    <line x1="480" y1="8" x2="480" y2="372" stroke="#eeece7" stroke-dasharray="3 3"/>
-    <line x1="720" y1="8" x2="720" y2="372" stroke="#eeece7" stroke-dasharray="3 3"/>
-    <text x="240" y="390" class="sub" text-anchor="middle">0</text>
-    <text x="480" y="390" class="sub" text-anchor="middle">30</text>
-    <text x="720" y="390" class="sub" text-anchor="middle">60 UA</text>
-  </g>
-  <!-- scale: x = 240 + UA * 8 -->
-  <g>
-    <text x="230" y="25" class="bar-label" text-anchor="end">ENT (joint, RNN-T)</text><rect x="240" y="12" width="212.6" height="18" rx="3" fill="#cfccc5"/><text x="458.6" y="25" class="bar-val">26.57</text>
-    <text x="230" y="53" class="bar-label" text-anchor="end">SenseVoice zero-shot</text><rect x="240" y="40" width="229.0" height="18" rx="3" fill="#cfccc5"/><text x="475" y="53" class="bar-val">28.63</text>
-    <text x="230" y="81" class="bar-label" text-anchor="end">emotion2vec+ zero-shot</text><rect x="240" y="68" width="240.7" height="18" rx="3" fill="#cfccc5"/><text x="486.7" y="81" class="bar-val">30.09</text>
-    <text x="230" y="109" class="bar-label" text-anchor="end">emotion2vec+ probe</text><rect x="240" y="96" width="246.7" height="18" rx="3" fill="#cfccc5"/><text x="492.7" y="109" class="bar-val">30.84</text>
-    <text x="230" y="137" class="bar-label" text-anchor="end">SenseVoice fine-tune</text><rect x="240" y="124" width="250.7" height="18" rx="3" fill="#cfccc5"/><text x="496.7" y="137" class="bar-val">31.34</text>
-    <text x="230" y="165" class="bar-label" text-anchor="end">MTL wav2vec2 CTC + SER</text><rect x="240" y="152" width="258.9" height="18" rx="3" fill="#cfccc5"/><text x="504.9" y="165" class="bar-val">32.36</text>
-    <text x="230" y="193" class="bar-label" text-anchor="end">Text probe (ASR)</text><rect x="240" y="180" width="304.9" height="18" rx="3" fill="#cfccc5"/><text x="550.9" y="193" class="bar-val">38.11</text>
-    <text x="230" y="221" class="bar-label" text-anchor="end">Fusion concat (cascade)</text><rect x="240" y="208" width="305.4" height="18" rx="3" fill="#cfccc5"/><text x="551.4" y="221" class="bar-val">38.17</text>
-    <text x="230" y="249" class="bar-label" text-anchor="end">Qwen2-Audio-7B zero-shot</text><rect x="240" y="236" width="309.8" height="18" rx="3" fill="#cfccc5"/><text x="555.8" y="249" class="bar-val">38.73</text>
-    <text x="230" y="277" class="bar-label" text-anchor="end">Kết hợp: ASR text</text><rect x="240" y="264" width="328.3" height="18" rx="3" fill="#0f766e" opacity=".55"/><text x="574.3" y="277" class="bar-val">41.04</text>
-    <text x="230" y="305" class="bar-label" text-anchor="end" style="font-weight:600">Kết hợp: ASR + ctx + audio</text><rect x="240" y="292" width="345.7" height="18" rx="3" fill="#0f766e"/><text x="591.7" y="305" class="bar-val">43.21</text>
-    <text x="230" y="333" class="bar-label" text-anchor="end" fill="#6a6f76">Text probe (text đúng)</text><rect x="240" y="320" width="380.6" height="18" rx="3" fill="none" stroke="#b45309" stroke-dasharray="4 3"/><text x="626.6" y="333" class="bar-val">47.57</text>
-    <text x="230" y="361" class="bar-label" text-anchor="end" fill="#6a6f76">Kết hợp: text đúng + ctx</text><rect x="240" y="348" width="446.7" height="18" rx="3" fill="none" stroke="#b45309" stroke-dasharray="4 3"/><text x="692.7" y="361" class="bar-val">55.84</text>
-  </g>
-</svg>
-<figcaption>UA trên MELD test (7 lớp). Xám: baseline. Teal: model kết hợp. Viền cam nét đứt: cận trên khi dùng text đúng (không có lỗi ASR), không phải hệ thống thực tế.</figcaption>
-</figure>
+<div class="callout rose"><b>Rò rỉ dữ liệu (data leakage).</b> emotion2vec+ zero-shot đạt UA 86.88 trên IEMOCAP, cao bất thường, vì emotion2vec+ đã được train trên EmoBox, trong đó có IEMOCAP. Vì vậy mọi số dùng emotion2vec+ chỉ để tham khảo, không dùng để so sánh. Encoder audio thay thế phải là model chưa thấy nhãn cảm xúc của IEMOCAP: WavLM-large (học tự giám sát) và encoder Whisper large-v3 (train cho ASR). Chưa rõ dữ liệu train của Whisper có chứa audio IEMOCAP hay không.</div>
 
 <div class="table-wrap"><table>
-<tr><th>Hệ thống</th><th class="n">WER</th><th class="n">WA</th><th class="n">UA</th><th class="n">wF1</th><th>Ghi chú</th></tr>
+<tr><th>Hệ thống</th><th class="n">WER</th><th class="n">WA</th><th class="n">UA ens.</th><th class="n">UA mean±std</th><th>Ghi chú</th></tr>
 <tr class="group"><td colspan="6">(a) ASR thuần</td></tr>
-<tr><td>Whisper large-v3-turbo</td><td class="n">31.83</td><td class="n"></td><td class="n"></td><td class="n"></td><td>WER cao nhất ở surprise (47.2) và joy (37.9)</td></tr>
+<tr><td>Whisper large-v3-turbo</td><td class="n">16.37</td><td class="n"></td><td class="n"></td><td class="n"></td><td>ASR cho cascade</td></tr>
 <tr class="group"><td colspan="6">(b) SER từ audio</td></tr>
-<tr><td>emotion2vec+ large zero-shot</td><td class="n"></td><td class="n">45.92</td><td class="n">30.09</td><td class="n">45.83</td><td>Lệch về neutral</td></tr>
-<tr><td>emotion2vec+ probe (5 seed)</td><td class="n"></td><td class="n">37.84</td><td class="n">30.84</td><td class="n">41.53</td><td>Linear probe trên embedding câu</td></tr>
-<tr class="group"><td colspan="6">(c) Cascade: Whisper → SER</td></tr>
-<tr><td>Text probe, transcript ASR</td><td class="n">31.83</td><td class="n">38.46</td><td class="n">38.11</td><td class="n">40.87</td><td>Text mạnh hơn audio trên MELD</td></tr>
-<tr><td>Fusion concat (e2v + ASR text)</td><td class="n">31.83</td><td class="n">44.29</td><td class="n">38.17</td><td class="n">46.68</td><td></td></tr>
-<tr><td>Fusion gated (e2v + ASR text)</td><td class="n">31.83</td><td class="n">43.28</td><td class="n">36.69</td><td class="n">46.20</td><td>Gated không hơn concat</td></tr>
-<tr class="upper"><td>Text probe, text đúng (cận trên)</td><td class="n"></td><td class="n">55.21</td><td class="n">47.57</td><td class="n">57.72</td><td>Lỗi ASR làm mất ~9 UA</td></tr>
-<tr class="group"><td colspan="6">(d) Joint: một model làm cả ASR và SER</td></tr>
-<tr><td>SenseVoice-Small zero-shot</td><td class="n">29.19</td><td class="n">52.18</td><td class="n">28.63</td><td class="n">49.31</td><td>WER tốt hơn Whisper turbo</td></tr>
-<tr><td>SenseVoice-Small fine-tune (10 ep)</td><td class="n"><b>27.39</b></td><td class="n">54.47</td><td class="n">31.34</td><td class="n">51.81</td><td>ASR tốt nhất, dùng cho model kết hợp</td></tr>
-<tr><td>MTL wav2vec2-large CTC + SER (α=0.5)</td><td class="n">39.77</td><td class="n">35.55</td><td class="n">32.36</td><td class="n">38.56</td><td>Gradient CTC và CE gần trực giao (cos ≈ −0.01)</td></tr>
-<tr><td>MTL, chỉ SER (α=0)</td><td class="n"></td><td class="n">38.89</td><td class="n">34.50</td><td class="n">41.31</td><td>Ngang bản joint, nên CTC không giúp SER</td></tr>
-<tr><td>MTL, chỉ ASR (α=1)</td><td class="n">38.42</td><td class="n"></td><td class="n"></td><td class="n"></td><td>Chỉ hơn bản joint 1.35 WER</td></tr>
-<tr><td>ENT (code chính thức, wav2vec2-base + RNN-T)</td><td class="n">56.77*</td><td class="n">47.44</td><td class="n">26.57</td><td class="n"></td><td>*Chuẩn hóa riêng của ENT. Overfit từ epoch 5</td></tr>
-<tr><td>Qwen2-Audio-7B-Instruct zero-shot</td><td class="n">31.87</td><td class="n">47.05</td><td class="n">38.73</td><td class="n">48.46</td><td>Audio LLM. Phải bỏ câu dẫn "The transcription is...". Có thể đã thấy MELD lúc train</td></tr>
+<tr><td>WavLM-large probe</td><td class="n"></td><td class="n">69.86</td><td class="n">68.80</td><td class="n">68.18±1.81</td><td>Linear probe trên embedding câu</td></tr>
+<tr><td>emotion2vec+ zero-shot</td><td class="n"></td><td class="n">87.19</td><td class="n">86.88</td><td class="n"></td><td><span class="tag leak">rò rỉ</span></td></tr>
+<tr><td>emotion2vec+ probe</td><td class="n"></td><td class="n">90.41</td><td class="n">90.80</td><td class="n">90.99±0.45</td><td><span class="tag leak">rò rỉ</span></td></tr>
+<tr class="group"><td colspan="6">(c) Cascade: Whisper turbo → SER</td></tr>
+<tr><td>Text probe, transcript Whisper</td><td class="n">16.37</td><td class="n">67.20</td><td class="n">68.64</td><td class="n">66.72±0.63</td><td></td></tr>
+<tr class="upper"><td>Text probe, text đúng (cận trên)</td><td class="n"></td><td class="n">64.30</td><td class="n">66.45</td><td class="n">66.77±1.11</td><td>Ngang bản ASR: lỗi ASR gần như không hại</td></tr>
+<tr><td><b>Fusion concat (WavLM + text Whisper)</b></td><td class="n">16.37</td><td class="n">78.57</td><td class="n"><b>79.27</b></td><td class="n">77.81±1.54</td><td>Cascade mạnh nhất không rò rỉ</td></tr>
+<tr><td>Fusion gated (WavLM + text Whisper)</td><td class="n">16.37</td><td class="n">76.07</td><td class="n">76.59</td><td class="n">75.90±1.65</td><td></td></tr>
+<tr class="upper"><td>Fusion gated (WavLM + text đúng)</td><td class="n"></td><td class="n">77.03</td><td class="n">77.46</td><td class="n">76.85±1.28</td><td></td></tr>
+<tr><td>Fusion concat / gated (e2v + text Whisper)</td><td class="n">16.37</td><td class="n">90.81 / 90.98</td><td class="n">91.08 / 91.12</td><td class="n">90.50 / 90.71</td><td><span class="tag leak">rò rỉ</span></td></tr>
+<tr class="group"><td colspan="6">(d) Joint: SenseVoice-Small (một model ra cả transcript lẫn nhãn cảm xúc)</td></tr>
+<tr><td>SenseVoice-Small zero-shot</td><td class="n">11.15</td><td class="n">67.93</td><td class="n">66.01</td><td class="n"></td><td></td></tr>
+<tr><td>SenseVoice-Small fine-tune</td><td class="n"><b>9.77</b></td><td class="n">71.88</td><td class="n">73.69</td><td class="n"></td><td>ASR tốt nhất, dùng làm khối ASR của model kết hợp. WER joy cao nhất (11.4)</td></tr>
 </table></div>
-<p class="muted">Các model có nhiều seed được báo ở dạng ensemble. Theo mean±std: e2v probe 30.94±0.49, text probe ASR 38.01±1.82, text probe text đúng 46.47±0.84.</p>
+<p class="muted">Cascade dùng 3 seed cho classifier. SenseVoice chạy 1 lần.</p>
 
 <h2 id="combined"><span class="num">4</span>Model kết hợp (đề xuất)</h2>
 <figure>
@@ -189,18 +158,18 @@
 
   <rect x="370" y="20" width="170" height="96" rx="10" class="box"/>
   <text x="455" y="44" class="lbl" text-anchor="middle">Input text</text>
-  <text x="455" y="64" class="sub" text-anchor="middle">3 câu trước (transcript ASR,</text>
-  <text x="455" y="80" class="sub" text-anchor="middle">kèm người nói)</text>
+  <text x="455" y="64" class="sub" text-anchor="middle">3 câu trước</text>
+  <text x="455" y="80" class="sub" text-anchor="middle">(transcript ASR)</text>
   <text x="455" y="100" class="sub" text-anchor="middle">&lt;/s&gt; câu hiện tại (ASR)</text>
 
   <rect x="590" y="40" width="120" height="56" rx="10" class="box-t"/>
   <text x="650" y="64" class="lbl" text-anchor="middle">RoBERTa-large</text><text x="650" y="82" class="sub" text-anchor="middle">fine-tune</text>
 
   <rect x="170" y="200" width="150" height="56" rx="10" class="box-v"/>
-  <text x="245" y="224" class="lbl" text-anchor="middle">Audio encoder</text><text x="245" y="242" class="sub" text-anchor="middle">emotion2vec+ / WavLM-large</text>
+  <text x="245" y="224" class="lbl" text-anchor="middle">Whisper large-v3</text><text x="245" y="242" class="sub" text-anchor="middle">chỉ encoder, đông cứng</text>
 
   <rect x="370" y="200" width="170" height="56" rx="10" class="box"/>
-  <text x="455" y="224" class="lbl" text-anchor="middle">Pool + projection</text><text x="455" y="242" class="sub" text-anchor="middle">WavLM: trọng số layer học</text>
+  <text x="455" y="224" class="lbl" text-anchor="middle">Mean pool + projection</text><text x="455" y="242" class="sub" text-anchor="middle">trọng số layer học được</text>
 
   <rect x="610" y="130" width="100" height="56" rx="10" class="box-t"/>
   <text x="660" y="154" class="lbl" text-anchor="middle">Gated fusion</text><text x="660" y="172" class="sub" text-anchor="middle">g·text + (1−g)·audio</text>
@@ -216,100 +185,91 @@
   <path class="arrow" d="M650,96 L655,128" marker-end="url(#ah)"/>
   <path class="arrow" d="M540,228 C600,228 620,200 640,188" marker-end="url(#ah)"/>
   <path class="arrow" d="M710,158 L738,158" marker-end="url(#ah)"/>
-  <text x="245" y="130" class="sub" text-anchor="middle">transcript ASR (WER 27.4 trên MELD)</text>
+  <text x="245" y="130" class="sub" text-anchor="middle">transcript (WER ~9.7, cũng là đầu ra ASR)</text>
   <text x="660" y="212" class="sub" text-anchor="middle">+ head phụ cho từng nhánh</text>
 </svg>
-<figcaption>Model kết hợp. Loss = CE(fused) + CE(text) + CE(audio). Không có head phụ thì gate sập về audio (g audio = 0.88), RoBERTa gần như không học, và UA chỉ còn 31.71.</figcaption>
+<figcaption>Model chính <code>asr_ctx_whisper</code>. Loss = CE(fused) + CE(text) + CE(audio). Đặc trưng audio: trung bình theo thời gian của mọi layer encoder (chỉ trên frame thật, bỏ phần đệm tới 30 s), layer norm từng frame trước khi pool. Không có head phụ thì gate sập về nhánh audio (nhánh hội tụ nhanh hơn) và RoBERTa gần như không học.</figcaption>
 </figure>
 
-<h3>Ablation trên MELD test (3 seed)</h3>
-<div class="table-wrap"><table>
-<tr><th>Cấu hình</th><th>Text train → test</th><th>Ngữ cảnh</th><th>Audio</th><th class="n">WA</th><th class="n">UA ens.</th><th class="n">UA mean±std</th><th class="n">wF1</th><th class="n">Gate audio</th></tr>
-<tr><td>gt2asr</td><td>đúng → ASR</td><td></td><td></td><td class="n">49.84</td><td class="n">41.29</td><td class="n">40.11±1.33</td><td class="n">51.19</td><td class="n"></td></tr>
-<tr><td>asr</td><td>ASR → ASR</td><td></td><td></td><td class="n">50.04</td><td class="n">41.04</td><td class="n">40.09±0.59</td><td class="n">51.34</td><td class="n"></td></tr>
-<tr><td>asr_e2v</td><td>ASR → ASR</td><td></td><td>e2v</td><td class="n">48.87</td><td class="n">40.47</td><td class="n">40.50±0.70</td><td class="n">50.41</td><td class="n">0.43</td></tr>
-<tr><td>asr_ctx</td><td>ASR → ASR</td><td>✓</td><td></td><td class="n">49.15</td><td class="n">41.54</td><td class="n">40.87±0.93</td><td class="n">50.57</td><td class="n"></td></tr>
-<tr class="ours"><td><b>asr_ctx_e2v</b></td><td>ASR → ASR</td><td>✓</td><td>e2v</td><td class="n"><b>51.13</b></td><td class="n"><b>43.21</b></td><td class="n"><b>41.98±0.51</b></td><td class="n"><b>52.38</b></td><td class="n">0.41</td></tr>
-<tr class="upper"><td>gt_ctx (cận trên)</td><td>đúng → đúng</td><td>✓</td><td></td><td class="n">62.94</td><td class="n">55.84</td><td class="n">53.77±0.40</td><td class="n">64.28</td><td class="n"></td></tr>
-</table></div>
-<div class="callout">
-  <ul style="margin:0;padding-left:18px">
-    <li>So với text probe trên cùng transcript ASR (38.1), riêng việc fine-tune RoBERTa đã thêm khoảng +2.9 UA.</li>
-    <li>Thêm ngữ cảnh hoặc audio thì từng thứ chỉ thêm khoảng +0.5–0.8. <b>Có cả hai</b> mới tăng rõ (+2.2 so với <code>asr</code>), và std cũng nhỏ nhất.</li>
-    <li>Train trên text đúng hay text ASR cho kết quả như nhau khi test trên ASR.</li>
-    <li>Ngữ cảnh giúp text đúng rất nhiều (47.6 → 55.8), nhưng giúp text ASR ít. Lỗi ASR trong các câu ngữ cảnh làm mất phần lớn lợi ích này.</li>
-  </ul>
-</div>
-
-<h2 id="iemocap"><span class="num">5</span>IEMOCAP</h2>
-<div class="callout rose"><b>Vấn đề rò rỉ dữ liệu (data leakage).</b> emotion2vec+ zero-shot đạt UA 86 trên IEMOCAP. Con số này cao bất thường, vì bản emotion2vec+ đã được train trên EmoBox, trong đó có IEMOCAP. Vì vậy mọi số audio dùng e2v trên IEMOCAP chỉ để tham khảo. Mình thay e2v bằng <b>WavLM-large</b>: model self-supervised, không train trên nhãn cảm xúc của IEMOCAP. SenseVoice cũng có thể đã thấy IEMOCAP, nhưng mình dùng nó cho ASR là chính.</div>
-
-<h3>Bản HuggingFace (không có ngữ cảnh), session 5 test</h3>
-<div class="table-wrap"><table>
-<tr><th>Hệ thống</th><th class="n">WER</th><th class="n">WA</th><th class="n">UA</th><th>Ghi chú</th></tr>
-<tr><td>Whisper large-v3-turbo</td><td class="n">16.41</td><td class="n"></td><td class="n"></td><td></td></tr>
-<tr><td>SenseVoice zero-shot</td><td class="n">11.03</td><td class="n">67.18</td><td class="n">65.47</td><td></td></tr>
-<tr><td>SenseVoice fine-tune</td><td class="n">9.97</td><td class="n">71.74</td><td class="n">73.09</td><td></td></tr>
-<tr><td>emotion2vec+ zero-shot</td><td class="n"></td><td class="n">86.89</td><td class="n">86.17</td><td><span class="tag leak">rò rỉ</span></td></tr>
-<tr><td>Text probe ASR / text đúng</td><td class="n"></td><td class="n"></td><td class="n">67.24 / 65.72</td><td>Lỗi ASR gần như không hại</td></tr>
-<tr><td>Kết hợp: asr</td><td class="n"></td><td class="n"></td><td class="n">72.04</td><td>mean 71.64±0.99</td></tr>
-<tr><td>Kết hợp: gt2asr / gt</td><td class="n"></td><td class="n"></td><td class="n">71.97 / 72.78</td><td></td></tr>
-<tr><td>Kết hợp: asr_e2v</td><td class="n"></td><td class="n"></td><td class="n">88.94</td><td><span class="tag leak">rò rỉ</span> gate audio 0.82</td></tr>
-</table></div>
-
-<h3>Bản chính thức USC: ASR</h3>
-<div class="table-wrap"><table>
-<tr><th>Hệ thống</th><th class="n">WER</th><th class="n">WA</th><th class="n">UA</th><th>Ghi chú</th></tr>
-<tr><td>SenseVoice zero-shot</td><td class="n">11.15</td><td class="n">67.93</td><td class="n">66.01</td><td>1222 câu test</td></tr>
-<tr><td>SenseVoice fine-tune</td><td class="n">9.77</td><td class="n">71.88</td><td class="n">73.69</td><td>WER joy cao nhất (11.4)</td></tr>
-</table></div>
-
-<h3>Model kết hợp trên IEMOCAP chính thức (WavLM, 3 seed) <span class="tag ok">xong</span></h3>
+<h3>Ablation trên session 5 (3 seed)</h3>
 <div class="table-wrap"><table>
 <tr><th>Cấu hình</th><th>Text train → test</th><th>Ngữ cảnh</th><th>Audio</th><th class="n">WA</th><th class="n">UA ens.</th><th class="n">UA mean±std</th><th class="n">wF1</th><th class="n">Gate audio</th></tr>
 <tr><td>gt2asr</td><td>đúng → ASR</td><td></td><td></td><td class="n">70.19</td><td class="n">71.96</td><td class="n">70.32±0.55</td><td class="n">70.33</td><td class="n"></td></tr>
 <tr><td>asr</td><td>ASR → ASR</td><td></td><td></td><td class="n">70.35</td><td class="n">71.77</td><td class="n">70.38±1.69</td><td class="n">70.62</td><td class="n"></td></tr>
 <tr><td>asr_wavlm</td><td>ASR → ASR</td><td></td><td>WavLM</td><td class="n">75.02</td><td class="n">74.87</td><td class="n">73.05±0.87</td><td class="n">74.99</td><td class="n">0.62</td></tr>
 <tr><td>asr_ctx</td><td>ASR → ASR</td><td>✓</td><td></td><td class="n">80.82</td><td class="n">81.19</td><td class="n">80.20±1.14</td><td class="n">80.84</td><td class="n"></td></tr>
-<tr class="ours"><td><b>asr_ctx_wavlm</b></td><td>ASR → ASR</td><td>✓</td><td>WavLM</td><td class="n"><b>83.16</b></td><td class="n"><b>83.23</b></td><td class="n"><b>82.31±0.86</b></td><td class="n"><b>83.24</b></td><td class="n">0.40</td></tr>
+<tr><td>asr_ctx_wavlm</td><td>ASR → ASR</td><td>✓</td><td>WavLM</td><td class="n">83.16</td><td class="n">83.23</td><td class="n">82.31±0.86</td><td class="n">83.24</td><td class="n">0.40</td></tr>
+<tr class="ours"><td><b>asr_ctx_whisper</b></td><td>ASR → ASR</td><td>✓</td><td>Whisper</td><td class="n"><b>84.93</b></td><td class="n"><b>85.04</b></td><td class="n"><b>83.46±1.31</b></td><td class="n"><b>85.06</b></td><td class="n">0.46</td></tr>
 <tr class="upper"><td>gt (cận trên)</td><td>đúng → đúng</td><td></td><td></td><td class="n">70.67</td><td class="n">71.73</td><td class="n">71.06±0.93</td><td class="n">70.80</td><td class="n"></td></tr>
 <tr class="upper"><td>gt_ctx (cận trên)</td><td>đúng → đúng</td><td>✓</td><td></td><td class="n">81.31</td><td class="n">81.66</td><td class="n">80.89±0.17</td><td class="n">81.43</td><td class="n"></td></tr>
+<tr class="group"><td colspan="9">Bản dùng emotion2vec+ (chỉ tham khảo)</td></tr>
+<tr><td>asr_e2v</td><td>ASR → ASR</td><td></td><td>e2v</td><td class="n">89.85</td><td class="n">90.10</td><td class="n">89.71±1.09</td><td class="n">89.87</td><td class="n">0.78–0.99</td></tr>
+<tr><td>asr_ctx_e2v</td><td>ASR → ASR</td><td>✓</td><td>e2v</td><td class="n">90.09</td><td class="n">89.98</td><td class="n">89.57±0.65</td><td class="n">90.14</td><td class="n">0.45–0.63</td></tr>
 </table></div>
 <div class="callout">
   <ul style="margin:0;padding-left:18px">
-    <li><b>Ngữ cảnh hội thoại là yếu tố lớn nhất:</b> thêm khoảng +9.4 UA (asr 71.77 → asr_ctx 81.19). Trên MELD, ngữ cảnh chỉ thêm được +0.5.</li>
-    <li><b>Lỗi ASR gần như không hại ở WER ~10:</b> asr ≈ gt (71.8 so với 71.7), asr_ctx ≈ gt_ctx (81.2 so với 81.7). Trên MELD (WER ~27) thì ngược lại: ASR mất rất nhiều so với text đúng.</li>
-    <li><b>WavLM thêm khoảng +2–3 UA</b> dù có hay không có ngữ cảnh. Model đầy đủ (83.23) <b>vượt cận trên dùng text đúng</b> (81.66), vì audio mang thông tin mà text không có. Kiểm định chéo 5 fold cho thấy kết luận này chỉ đúng một phần: trung bình hai hệ ngang nhau (xem bảng 5 fold bên dưới).</li>
-    <li>Gate tự cân theo nhánh: không có ngữ cảnh thì nghiêng về audio (0.62), có ngữ cảnh thì nghiêng về text (audio 0.40).</li>
+    <li><b>Ngữ cảnh hội thoại là thành phần lớn nhất:</b> asr 71.77 → asr_ctx 81.19 (+9.4 trên session 5).</li>
+    <li><b>Lỗi ASR gần như không hại ở WER ~10:</b> asr ≈ gt (71.8 so với 71.7), asr_ctx ≈ gt_ctx (81.2 so với 81.7). Train trên text đúng hay text ASR cũng cho kết quả như nhau (gt2asr ≈ asr).</li>
+    <li><b>Audio thêm thông tin mà text không có:</b> asr_ctx_whisper (85.04) vượt cận trên chỉ dùng text đúng có ngữ cảnh (81.66).</li>
+    <li><b>Whisper hơn WavLM</b> (85.04 so với 83.23, McNemar p = 0.014: 48 câu chỉ Whisper đúng, 26 câu chỉ WavLM đúng), hơn ở cả 3 seed. Lựa chọn này có cơ sở từ EmoBox: cùng protocol, Whisper đạt UA 73.54, WavLM 69.47.</li>
+    <li>Gate tự cân theo nhánh: không có ngữ cảnh thì nghiêng về audio (0.62), có ngữ cảnh thì nghiêng về text (audio 0.40–0.46).</li>
+    <li>Với emotion2vec+, mọi hệ thống đều khoảng 90 UA, kể cả linear probe, và gate dồn về audio: e2v đã "nhớ" IEMOCAP, nên các số này không phản ánh năng lực thật.</li>
   </ul>
 </div>
-<p class="muted">Test session 5 gồm 1241 câu thuộc 4 lớp.</p>
 
-<h3>Cascade baseline và bản emotion2vec+ trên IEMOCAP chính thức (3 seed)</h3>
-<div class="table-wrap"><table>
-<tr><th>Hệ thống</th><th class="n">WER</th><th class="n">WA</th><th class="n">UA ens.</th><th class="n">UA mean±std</th><th>Ghi chú</th></tr>
-<tr><td>Whisper large-v3-turbo</td><td class="n">16.37</td><td class="n"></td><td class="n"></td><td class="n"></td><td>ASR cho cascade</td></tr>
-<tr><td>Text probe, transcript Whisper</td><td class="n">16.37</td><td class="n">67.20</td><td class="n">68.64</td><td class="n">66.72±0.63</td><td></td></tr>
-<tr class="upper"><td>Text probe, text đúng</td><td class="n"></td><td class="n">64.30</td><td class="n">66.45</td><td class="n">66.77±1.11</td><td>Ngang bản ASR</td></tr>
-<tr><td>WavLM probe</td><td class="n"></td><td class="n">69.86</td><td class="n">68.80</td><td class="n">68.18±1.81</td><td>Audio không rò rỉ</td></tr>
-<tr><td><b>Fusion concat (WavLM + Whisper text)</b></td><td class="n">16.37</td><td class="n">78.57</td><td class="n"><b>79.27</b></td><td class="n">77.81±1.54</td><td>Cascade mạnh nhất không rò rỉ</td></tr>
-<tr><td>Fusion gated (WavLM + Whisper text)</td><td class="n">16.37</td><td class="n">76.07</td><td class="n">76.59</td><td class="n">75.90±1.65</td><td></td></tr>
-<tr class="upper"><td>Fusion gated (WavLM + text đúng)</td><td class="n"></td><td class="n">77.03</td><td class="n">77.46</td><td class="n">76.85±1.28</td><td></td></tr>
-<tr><td>emotion2vec+ zero-shot</td><td class="n"></td><td class="n">87.19</td><td class="n">86.88</td><td class="n"></td><td><span class="tag leak">rò rỉ</span></td></tr>
-<tr><td>emotion2vec+ probe</td><td class="n"></td><td class="n">90.41</td><td class="n">90.80</td><td class="n">90.99±0.45</td><td><span class="tag leak">rò rỉ</span></td></tr>
-<tr><td>Fusion concat / gated (e2v + Whisper text)</td><td class="n">16.37</td><td class="n">90.81 / 90.98</td><td class="n">91.08 / 91.12</td><td class="n">90.50 / 90.71</td><td><span class="tag leak">rò rỉ</span></td></tr>
-<tr><td>Kết hợp: asr_e2v</td><td class="n">9.78</td><td class="n">89.85</td><td class="n">90.10</td><td class="n">89.71±1.09</td><td><span class="tag leak">rò rỉ</span> gate audio 0.78–0.99</td></tr>
-<tr><td>Kết hợp: asr_ctx_e2v</td><td class="n">9.78</td><td class="n">90.09</td><td class="n">89.98</td><td class="n">89.57±0.65</td><td><span class="tag leak">rò rỉ</span> gate audio 0.45–0.63</td></tr>
-</table></div>
-<div class="callout amber">Khi dùng emotion2vec+, mọi hệ thống đều đạt khoảng 90 UA, kể cả một linear probe đơn giản. Ngữ cảnh và text không còn thêm được gì, và gate dồn về audio. Con số này cho thấy e2v đã "nhớ" IEMOCAP từ lúc train, không phản ánh năng lực thật. Vì vậy kết quả chính để báo cáo là bản WavLM (83.23).</div>
-<div class="callout"><b>So sánh công bằng với cascade WavLM.</b> Model kết hợp đầy đủ (83.23) cao hơn cascade mạnh nhất không rò rỉ (fusion concat WavLM + text, 79.27) khoảng <b>+4.0 UA</b>. Tuy vậy, nếu không có ngữ cảnh thì model kết hợp (<code>asr_wavlm</code>, 74.87) lại <b>thua</b> cascade concat (79.27). Fine-tune RoBERTa và gated fusion chưa khai thác audio tốt bằng một classifier concat nhỏ train 60 epoch trên đặc trưng đông cứng. Phần hơn của model kết hợp đến chủ yếu từ ngữ cảnh hội thoại. Đây là điểm cần nói rõ trong báo cáo, và cũng là hướng cải tiến: thử concat thay cho gate, hoặc tăng epoch cho nhánh audio. Cả hai điểm này đều lặp lại trong kiểm định chéo 5 fold.</div>
+<h2 id="cv"><span class="num">5</span>Kiểm định chéo leave-one-session-out (5 fold)</h2>
+<p>Kết quả trên riêng session 5 có thể do may rủi của một tập test. Vì vậy toàn bộ chuỗi được chạy lại cho từng fold: fine-tune SenseVoice, sinh transcript ASR, train model kết hợp và cascade.</p>
 
-<h3>Kiểm định chéo leave-one-session-out (5 fold) <span class="tag ok">xong</span></h3>
-<p>Kết quả chỉ trên session 5 có thể do may rủi của một tập test. Vì vậy mình chạy lại toàn bộ chuỗi cho từng fold: fine-tune SenseVoice, sinh transcript ASR, train model kết hợp (6 cấu hình) và cascade WavLM. Fold 5 dùng lại run session 5 ở trên, lấy seed 0, nên số fold 5 khác số ensemble 3 seed.</p>
+<h3>Mọi hệ thống, seed 0</h3>
+<p>Mỗi fold lấy seed 0 để mọi hệ thống có cùng số lần chạy. Fold 5 lấy seed 0 của run session 5, nên số fold 5 khác số ensemble ở mục 4.</p>
+<figure>
+<svg viewBox="0 0 820 340" role="img" aria-label="UA trung bình 5 fold, seed 0, kèm độ lệch giữa các fold">
+  <!-- scale: x = 260 + (UA - 60) * 18 -->
+  <line x1="260" y1="8" x2="260" y2="306" stroke="#cfccc5"/>
+  <line x1="440" y1="8" x2="440" y2="306" stroke="#eeece7" stroke-dasharray="3 3"/>
+  <line x1="620" y1="8" x2="620" y2="306" stroke="#eeece7" stroke-dasharray="3 3"/>
+  <line x1="800" y1="8" x2="800" y2="306" stroke="#eeece7" stroke-dasharray="3 3"/>
+  <text x="260" y="324" class="sub" text-anchor="middle">60</text>
+  <text x="440" y="324" class="sub" text-anchor="middle">70</text>
+  <text x="620" y="324" class="sub" text-anchor="middle">80</text>
+  <text x="800" y="324" class="sub" text-anchor="middle">90 UA</text>
+  <g>
+    <text x="250" y="25" class="bar-label" text-anchor="end">Text probe (Whisper turbo)</text>
+    <line x1="317.1" y1="21" x2="419.7" y2="21" stroke="#cfccc5" stroke-width="2"/><circle cx="368.4" cy="21" r="5" fill="#8a8780"/><text x="432" y="25" class="bar-val">66.02</text>
+
+    <text x="250" y="57" class="bar-label" text-anchor="end">Kết hợp: asr</text>
+    <line x1="405.3" y1="53" x2="507.5" y2="53" stroke="#cfccc5" stroke-width="2"/><circle cx="456.4" cy="53" r="5" fill="#8a8780"/><text x="520" y="57" class="bar-val">70.91</text>
+
+    <text x="250" y="89" class="bar-label" text-anchor="end">SenseVoice fine-tune (joint)</text>
+    <line x1="467.7" y1="85" x2="507.7" y2="85" stroke="#cfccc5" stroke-width="2"/><circle cx="487.7" cy="85" r="5" fill="#8a8780"/><text x="520" y="89" class="bar-val">72.65</text>
+
+    <text x="250" y="121" class="bar-label" text-anchor="end">Kết hợp: asr_wavlm</text>
+    <line x1="477.6" y1="117" x2="568.3" y2="117" stroke="#cfccc5" stroke-width="2"/><circle cx="523.0" cy="117" r="5" fill="#8a8780"/><text x="580" y="121" class="bar-val">74.61</text>
+
+    <text x="250" y="153" class="bar-label" text-anchor="end">Cascade concat (WavLM + text)</text>
+    <line x1="510.6" y1="149" x2="620.7" y2="149" stroke="#cfccc5" stroke-width="2"/><circle cx="565.6" cy="149" r="5" fill="#8a8780"/><text x="632" y="153" class="bar-val">76.98</text>
+
+    <text x="250" y="185" class="bar-label" text-anchor="end">Kết hợp: asr_ctx</text>
+    <line x1="514.3" y1="181" x2="633.5" y2="181" stroke="#cfccc5" stroke-width="2"/><circle cx="573.9" cy="181" r="5" fill="#8a8780"/><text x="645" y="185" class="bar-val">77.44</text>
+
+    <text x="250" y="217" class="bar-label" text-anchor="end">Kết hợp: asr_ctx_wavlm</text>
+    <line x1="557.0" y1="213" x2="647.4" y2="213" stroke="#0f766e" stroke-opacity=".45" stroke-width="2"/><circle cx="602.2" cy="213" r="5" fill="#0f766e" fill-opacity=".55"/><text x="659" y="217" class="bar-val">79.01</text>
+
+    <text x="250" y="249" class="bar-label" text-anchor="end" style="font-weight:600">Kết hợp: asr_ctx_whisper</text>
+    <line x1="578.4" y1="245" x2="699.7" y2="245" stroke="#0f766e" stroke-width="2"/><circle cx="639.1" cy="245" r="6" fill="#0f766e"/><text x="711" y="249" class="bar-val">81.06</text>
+
+    <text x="250" y="281" class="bar-label" text-anchor="end" fill="#6a6f76">Text đúng + ctx (cận trên)</text>
+    <line x1="532.7" y1="277" x2="672.0" y2="277" stroke="#b45309" stroke-width="2" stroke-dasharray="4 3"/><circle cx="602.4" cy="277" r="5" fill="none" stroke="#b45309" stroke-width="2"/><text x="684" y="281" class="bar-val">79.02</text>
+  </g>
+</svg>
+<figcaption>UA trung bình 5 fold (chấm) và ±1 std giữa các fold (vạch), seed 0. Teal: model kết hợp có ngữ cảnh và audio. Cam nét đứt: cận trên chỉ dùng text đúng, không phải hệ thống thực tế. Trục bắt đầu từ 60.</figcaption>
+</figure>
+
 <div class="table-wrap"><table>
 <tr><th>Hệ thống</th><th class="n">F1</th><th class="n">F2</th><th class="n">F3</th><th class="n">F4</th><th class="n">F5</th><th class="n">UA mean±std</th><th class="n">wF1 mean</th><th class="n">WER mean</th></tr>
 <tr class="group"><td colspan="9">Model kết hợp (ASR = SenseVoice fine-tune của fold đó)</td></tr>
-<tr class="ours"><td><b>asr_ctx_wavlm</b></td><td class="n">76.4</td><td class="n">81.8</td><td class="n">78.3</td><td class="n">77.0</td><td class="n">81.5</td><td class="n"><b>79.01±2.51</b></td><td class="n">78.35</td><td class="n">9.68</td></tr>
+<tr class="ours"><td><b>asr_ctx_whisper</b></td><td class="n">77.0</td><td class="n">85.4</td><td class="n">78.7</td><td class="n">81.1</td><td class="n">83.1</td><td class="n"><b>81.06±3.37</b></td><td class="n">79.77</td><td class="n">9.68</td></tr>
+<tr><td>asr_ctx_wavlm</td><td class="n">76.4</td><td class="n">81.8</td><td class="n">78.3</td><td class="n">77.0</td><td class="n">81.5</td><td class="n">79.01±2.51</td><td class="n">78.35</td><td class="n">9.68</td></tr>
 <tr><td>asr_ctx</td><td class="n">75.3</td><td class="n">82.5</td><td class="n">74.9</td><td class="n">75.3</td><td class="n">79.2</td><td class="n">77.44±3.31</td><td class="n">76.32</td><td class="n">9.68</td></tr>
 <tr><td>asr_wavlm</td><td class="n">72.0</td><td class="n">78.8</td><td class="n">74.5</td><td class="n">73.6</td><td class="n">74.0</td><td class="n">74.61±2.52</td><td class="n">73.55</td><td class="n">9.68</td></tr>
 <tr><td>asr</td><td class="n">68.8</td><td class="n">75.5</td><td class="n">69.0</td><td class="n">69.4</td><td class="n">71.8</td><td class="n">70.91±2.84</td><td class="n">69.82</td><td class="n">9.68</td></tr>
@@ -326,64 +286,100 @@
 <tr><td>SenseVoice fine-tune</td><td class="n">73.3</td><td class="n">73.3</td><td class="n">71.2</td><td class="n">71.8</td><td class="n">73.7</td><td class="n">72.65±1.11</td><td class="n">70.96</td><td class="n">9.67</td></tr>
 <tr><td>SenseVoice zero-shot</td><td class="n">66.2</td><td class="n">67.9</td><td class="n">64.6</td><td class="n">69.1</td><td class="n">66.0</td><td class="n">66.77±1.76</td><td class="n">67.18</td><td class="n">11.20</td></tr>
 </table></div>
-<p class="muted">UA (%) theo fold, mỗi fold 1 seed (seed 0). WER Whisper theo fold: 13.7, 11.5, 12.9, 11.5, 16.4. Bảng tự sinh: <code>notebooks/results/summary.md</code>.</p>
+<p class="muted">UA (%) theo fold. WER Whisper turbo theo fold: 13.7, 11.5, 12.9, 11.5, 16.4. Bảng tự sinh: <code>notebooks/results/summary.md</code>.</p>
+
+<h3>Whisper so với WavLM, 3 seed mỗi fold</h3>
+<div class="table-wrap"><table>
+<tr><th>Fold</th><th class="n">Whisper mean±std</th><th class="n">Ensemble</th><th class="n">WavLM mean±std</th><th class="n">Ensemble</th><th class="n">Chênh mean</th></tr>
+<tr><td>1</td><td class="n">78.02±1.44</td><td class="n">79.02</td><td class="n">76.50±0.29</td><td class="n">77.37</td><td class="n">+1.52</td></tr>
+<tr><td>2</td><td class="n">85.70±0.31</td><td class="n">87.36</td><td class="n">83.47±1.78</td><td class="n">83.96</td><td class="n">+2.23</td></tr>
+<tr><td>3</td><td class="n">79.66±0.98</td><td class="n">80.94</td><td class="n">75.95±2.06</td><td class="n">79.93</td><td class="n">+3.71</td></tr>
+<tr><td>4</td><td class="n">81.53±2.11</td><td class="n">84.32</td><td class="n">77.52±0.77</td><td class="n">78.56</td><td class="n">+4.01</td></tr>
+<tr><td>5</td><td class="n">83.46±1.31</td><td class="n">85.04</td><td class="n">82.31±0.86</td><td class="n">83.23</td><td class="n">+1.15</td></tr>
+<tr class="ours"><td><b>CV</b></td><td class="n"><b>81.67±3.03</b></td><td class="n"><b>83.34</b></td><td class="n">79.15±3.49</td><td class="n">80.61</td><td class="n"><b>+2.53</b></td></tr>
+</table></div>
+<p class="muted">Std trong từng fold là giữa 3 seed; std ở dòng CV là giữa 5 fold (trên mean của từng fold). Ensemble CV là trung bình ensemble 5 fold.</p>
+<div class="callout">Whisper thắng cả 5 fold: sign test p = 0.0625, mức thấp nhất có thể với 5 fold. McNemar trên dự đoán ensemble của cả 5531 câu: 309 câu chỉ Whisper đúng, 166 câu chỉ WavLM đúng, p = 5.2e-11. McNemar coi các câu là độc lập nên p này lạc quan, và chưa hiệu chỉnh cho nhiều phép so sánh.</div>
+
 <div class="callout">
   <ul style="margin:0;padding-left:18px">
     <li><b>Ngữ cảnh tăng UA ở cả 5 fold</b> (asr → asr_ctx: +5.9 đến +7.4, trung bình +6.5). Mức tăng nhỏ hơn con số +9.4 đo trên riêng session 5.</li>
-    <li><b>Model kết hợp đầy đủ hơn cascade concat ở cả 5 fold</b> (trung bình +2.0), hơn cascade gated ở 4/5 fold (fold 1 thua 0.6).</li>
-    <li><b>WavLM khi chưa có ngữ cảnh tăng rõ</b> (asr → asr_wavlm: +3.7). <b>Khi đã có ngữ cảnh thì tăng ít và không đều</b>: +1.6 trung bình, fold 2 giảm 0.7.</li>
+    <li><b>Encoder Whisper khi đã có ngữ cảnh tăng ở cả 5 fold</b> (asr_ctx → asr_ctx_whisper: +1.7 đến +5.8, trung bình +3.6). WavLM chỉ tăng +1.6 và giảm ở fold 2.</li>
+    <li><b>Model chính hơn cận trên text đúng + ngữ cảnh ở cả 5 fold</b> (81.06 so với 79.02, +0.4 đến +4.6). Với WavLM thì hai hệ chỉ ngang nhau (79.01 so với 79.02).</li>
+    <li><b>Model chính hơn cascade concat WavLM ở cả 5 fold</b> (trung bình +4.1). Tuy vậy cascade dùng WavLM và ASR Whisper turbo, nên phép so sánh này lẫn cả ba yếu tố: encoder, ASR và ngữ cảnh.</li>
     <li><b>Lỗi ASR hại ít ở WER ~10</b>: asr kém gt 0.6, asr_ctx kém gt_ctx 1.6. Lỗi ASR hại ngữ cảnh nhiều hơn hại câu hiện tại.</li>
-    <li>Model đầy đủ <b>ngang</b> cận trên text đúng + ngữ cảnh (79.01 so với 79.02), chứ không vượt như trên session 5. Std của model đầy đủ nhỏ hơn (2.51 so với 3.87).</li>
-    <li>Khi không có ngữ cảnh, model kết hợp (asr_wavlm, 74.61) <b>vẫn thua</b> cascade concat (76.98).</li>
-    <li>Fold 2 (session 2 làm test) cao ở hầu hết hệ thống. Chênh lệch giữa các fold (std 2.5–3.9) lớn hơn nhiều khác biệt giữa các hệ gần nhau, nên khác biệt dưới khoảng 2 UA trên một fold đơn lẻ không đủ làm kết luận.</li>
+    <li>Khi không có ngữ cảnh, model kết hợp với WavLM (asr_wavlm, 74.61) <b>vẫn thua</b> cascade concat (76.98).</li>
+    <li>Fold 2 (session 2 làm test) cao ở hầu hết hệ thống. Chênh lệch giữa các fold (std 2.5–3.9) lớn hơn nhiều khác biệt giữa các hệ gần nhau, nên chỉ so theo cặp trên cùng fold.</li>
   </ul>
 </div>
 
-<h2 id="nhanxet"><span class="num">6</span>Nhận xét chính</h2>
+<h2 id="thuthem"><span class="num">6</span>Thử thêm: prosody và pooling</h2>
+<p>Mỗi ý tưởng được sàng lọc trên session 5 với 3 seed, theo tiêu chí đặt <b>trước</b> khi có kết quả: mean phải hơn baseline quá 1 std của baseline thì mới chạy đủ 5 fold.</p>
+
+<h3>Prosody dạng chữ</h3>
+<p>Thêm một tiền tố vào đầu câu hiện tại, ví dụ "pitch high, volume low, speed normal.". Cao độ và âm lượng đo từ audio, tốc độ là số từ ASR trên giây. Mỗi đại lượng được z-score theo từng người nói, không dùng nhãn, rồi chia 3 mức tại ±0.5 (ngưỡng đặt trước, không tinh chỉnh).</p>
+<div class="table-wrap"><table>
+<tr><th>So sánh (5 fold)</th><th class="n">Chênh UA</th><th class="n">Thắng</th><th class="n">Sign p</th><th class="n">McNemar p</th><th>Ghi chú</th></tr>
+<tr><td>asr_ctx_pros so với asr_ctx</td><td class="n">+1.81</td><td class="n">5/5</td><td class="n">0.0625</td><td class="n">0.0028</td><td>Seed 0. Giúp rõ khi chưa có audio</td></tr>
+<tr><td>asr_ctx_pros_wavlm so với asr_ctx_wavlm</td><td class="n">+1.33</td><td class="n">3/5</td><td class="n">1.0</td><td class="n">0.967</td><td>Seed 0. Số câu đúng gần như không đổi (286/288)</td></tr>
+<tr><td>asr_ctx_pros_whisper so với asr_ctx_whisper</td><td class="n">+0.52</td><td class="n">3/5</td><td class="n">1.0</td><td class="n">0.068</td><td>3 seed. Ensemble còn ngược dấu (83.22 so với 83.34)</td></tr>
+</table></div>
+<p>Prosody chỉ giúp khi model chưa có nhánh audio. Encoder audio đã chứa thông tin này, nên thêm vào không cải thiện rõ. <code>asr_ctx_whisper</code> được giữ làm model chính vì đơn giản hơn.</p>
+
+<h3>Pooling trên frame Whisper (session 5, 3 seed)</h3>
+<div class="table-wrap"><table>
+<tr><th>Pooling</th><th class="n">Seed 0, 1, 2</th><th class="n">UA mean±std</th><th class="n">Ensemble</th><th class="n">Gate audio</th></tr>
+<tr class="ours"><td>Mean theo thời gian, mọi layer (model chính)</td><td class="n"></td><td class="n">83.46±1.31</td><td class="n">85.04</td><td class="n">0.46</td></tr>
+<tr><td><code>fmean</code>: mean có mask, layer 8/16/24/32 ở 12.5 Hz</td><td class="n">83.27, 83.85, 84.96</td><td class="n">84.03±0.86</td><td class="n">84.79</td><td class="n">0.40</td></tr>
+<tr><td><code>attn</code>: attention pooling, cùng frame</td><td class="n">83.72, 83.45, 84.14</td><td class="n">83.77±0.34</td><td class="n">85.15</td><td class="n">0.50</td></tr>
+</table></div>
+<p>Không đạt tiêu chí (cần <code>attn</code> trên 84.89), nên không chạy cho fold 1–4. Attention pooling không cải thiện UA; ensemble hơn <code>fmean</code> 0.36, nằm trong nhiễu. Kết luận chỉ dựa trên một fold.</p>
+
+<h2 id="nhanxet"><span class="num">7</span>Nhận xét chính</h2>
 <ol>
-  <li><b>Ảnh hưởng của lỗi ASR phụ thuộc vào WER.</b> Ở WER ~10 (IEMOCAP), text ASR gần như bằng text đúng (5 fold: kém 0.6 UA khi không có ngữ cảnh, 1.6 UA khi có). Ở WER ~30 (MELD), lỗi ASR làm mất ~9 UA với probe, và làm mất phần lớn lợi ích của ngữ cảnh.</li>
-  <li><b>Joint chưa thắng cascade.</b> Các model một-thân-làm-hai (MTL CTC + SER, ENT, SenseVoice) đều có UA ~27–34 trên MELD, thấp hơn cascade dựa trên text. Trong MTL, gradient của CTC và SER gần trực giao, và bỏ CTC thì UA không giảm.</li>
-  <li><b>Ngữ cảnh hội thoại là thành phần mạnh nhất</b>, nhất là trên IEMOCAP chính thức: +6.5 UA trung bình 5 fold, tăng ở cả 5 fold (riêng session 5 là +9.4). Trên MELD, ngữ cảnh chỉ phát huy khi đi cùng audio.</li>
-  <li><b>Model kết hợp hơn cascade nhờ ngữ cảnh, không nhờ cách trộn audio.</b> Trên IEMOCAP 5 fold, model đầy đủ (79.01) hơn cascade concat WavLM (76.98) ở cả 5 fold. Nhưng bỏ ngữ cảnh thì model kết hợp thua cascade concat, và WavLM chỉ thêm 1.6 UA khi đã có ngữ cảnh.</li>
-  <li><b>Một tập test là chưa đủ.</b> Std giữa các fold là 2.5–3.9 UA. Hai kết luận từ session 5 không đứng vững qua 5 fold: "model đầy đủ vượt cận trên text đúng" (5 fold: ngang nhau) và "WavLM thêm 2–3 UA khi có ngữ cảnh" (5 fold: +1.6, có fold giảm).</li>
-  <li><b>Gated fusion cần head phụ.</b> Nếu không có, gate sập về nhánh hội tụ nhanh hơn (audio) và nhánh text không học được.</li>
-  <li><b>Phải kiểm tra rò rỉ dữ liệu</b> với các foundation model cho SER: emotion2vec+ đã thấy IEMOCAP, Qwen2-Audio có thể đã thấy MELD.</li>
+  <li><b>Ngữ cảnh hội thoại là thành phần mạnh nhất</b>: +6.5 UA trung bình 5 fold, tăng ở cả 5 fold (riêng session 5 là +9.4).</li>
+  <li><b>Chọn encoder audio quan trọng hơn cách pool.</b> Đổi WavLM sang encoder Whisper large-v3 thêm +2.53 UA (3 seed, thắng 5/5 fold). Đổi mean pooling sang attention pooling không thêm gì.</li>
+  <li><b>Audio mang thông tin text không có.</b> Model chính hơn cận trên chỉ dùng text đúng có ngữ cảnh ở cả 5 fold. Prosody dạng chữ giúp hệ chỉ có text, nhưng thừa khi đã có encoder audio.</li>
+  <li><b>Lỗi ASR hại ít ở WER ~10.</b> Text ASR gần như bằng text đúng (5 fold: kém 0.6 UA khi không có ngữ cảnh, 1.6 UA khi có). Vì vậy model tách ASR và SER vẫn cho cả WER tốt nhất (9.68, SenseVoice-FT) lẫn UA tốt nhất.</li>
+  <li><b>Joint chưa thắng cascade.</b> SenseVoice fine-tune làm cả hai việc (72.65 UA) nhưng thua xa model kết hợp, dù cùng một khối ASR.</li>
+  <li><b>Một tập test là chưa đủ.</b> Std giữa các fold là 2.5–3.9 UA. Kết luận "WavLM thêm 2–3 UA khi có ngữ cảnh" đúng trên session 5 nhưng không đứng vững qua 5 fold (+1.6, có fold giảm).</li>
+  <li><b>Gated fusion cần head phụ.</b> Không có thì gate sập về nhánh hội tụ nhanh hơn (audio) và nhánh text không học được.</li>
+  <li><b>Phải kiểm tra rò rỉ dữ liệu</b> với các foundation model cho SER: emotion2vec+ đã thấy IEMOCAP và cho ~90 UA với mọi cách dùng.</li>
 </ol>
 
-<h2 id="quatrinh"><span class="num">7</span>Quá trình và sự cố</h2>
+<h2 id="quatrinh"><span class="num">8</span>Quá trình và sự cố</h2>
 <ol class="timeline">
-  <li><span class="t">01/11 sáng</span><br>Dựng hạ tầng Colab CLI (GPU L4), chuẩn bị MELD, chạy cascade (notebook 12). Chuyển sang chạy job nền vì websocket hay rớt.</li>
-  <li class="bad"><span class="t">01/11 10:40</span><br>File requirements của SenseVoice làm hỏng numpy/torch. Đã pin lại môi trường, và từ đó không cài requirements của repo ngoài khi chưa kiểm tra.</li>
-  <li class="bad"><span class="t">01/11 11:16</span><br>Colab thu hồi VM giữa lúc fine-tune SenseVoice, mất cache. Bài học: kéo kết quả về sau mỗi job.</li>
-  <li><span class="t">01/11 12:18–17:16</span><br>Xong SenseVoice fine-tune, MTL (sửa 3 lỗi: LayerDrop, grad cosine, head SER sập), Qwen2-Audio, ENT.</li>
-  <li class="bad"><span class="t">01/11 21:23</span><br>VM bị thu hồi lần 2 vì gập nắp Mac. Từ đó luôn giữ máy thức (<code>caffeinate</code>).</li>
-  <li><span class="t">01/11 22:06</span><br>Model kết hợp chạy lần đầu thì gate sập về audio. Thêm head phụ và LayerNorm rồi chạy lại.</li>
-  <li><span class="t">02/11 01:55</span><br>Xong model kết hợp trên MELD (6 cấu hình × 3 seed): UA 43.21.</li>
-  <li><span class="t">02/11 09:00–11:26</span><br>IEMOCAP bản HF: phát hiện rò rỉ của emotion2vec+, thêm WavLM-large.</li>
-  <li class="bad"><span class="t">02/11 14:12–14:44</span><br>Có bản IEMOCAP chính thức. Upload 1.4 GB qua Colab CLI làm VM chết hai lần. Chuyển sang đưa dữ liệu qua repo HF private (VM tải trong ~73 s).</li>
-  <li><span class="t">02/11 15:00</span><br>Chuỗi chạy bền: tự khôi phục từ HF, cứ 10 phút đẩy trạng thái lên HF, bước đã xong thì bỏ qua, seed đã có thì bỏ qua.</li>
-  <li class="bad"><span class="t">02/11 16:37 và 18:49</span><br>VM chết lúc 16:37, nhưng script treo tới 18:36 mới nhận ra. Đã sửa để dừng ngay khi session mất. Lúc 18:49 mạng Mac chập chờn bị nhận nhầm là VM chết. Đã sửa: chỉ dừng khi đúng thông báo "Session not found", có backoff, và nếu job còn sống trên VM thì gắn lại vào job đó.</li>
-  <li><span class="t">03/11 00:08</span><br>Bắt đầu kiểm định chéo 5 fold bằng một script chạy nối tiếp các fold, tự bỏ qua bước đã xong.</li>
-  <li class="bad"><span class="t">03/11 00:21, 11:38, 12:58</span><br>VM bị thu hồi 3 lần vì Mac ngủ: để qua đêm, gập nắp khi chạy pin (Clamshell Sleep), và gập nắp lúc đang setup. <code>caffeinate</code> không chặn được sleep khi gập nắp, nên phải cắm sạc và để mở nắp. Mỗi lần chạy lại script thì nó tiếp tục từ bước dở.</li>
-  <li class="bad"><span class="t">03/11 22:42</span><br>Tải gói kết quả 423 MB bị đứt. Nguyên nhân: GNU tar bỏ qua <code>--exclude</code> đặt sau đường dẫn, nên gói kèm cả file đặc trưng audio. Đã sửa thứ tự tham số, kết quả fold 3 lấy lại từ HF.</li>
-  <li><span class="t">04/11 01:14</span><br>Xong fold 4, đủ 5 fold. Đã dừng VM.</li>
+  <li><span class="t">01/11</span><br>Dựng hạ tầng Colab CLI (GPU L4), chạy job nền vì websocket hay rớt. VM bị thu hồi hai lần (một lần vì gập nắp Mac). Bài học: kéo kết quả về sau mỗi job, giữ máy thức. File requirements của SenseVoice làm hỏng numpy/torch, nên từ đó không cài requirements của repo ngoài khi chưa kiểm tra.</li>
+  <li class="bad"><span class="t">02/11 14:12–14:44</span><br>Có IEMOCAP (bản có license). Upload 1.4 GB qua Colab CLI làm VM chết hai lần. Chuyển sang đưa dữ liệu qua repo HF private (VM tải trong ~73 s). Phát hiện emotion2vec+ rò rỉ IEMOCAP, thêm WavLM-large.</li>
+  <li><span class="t">02/11 15:00</span><br>Chuỗi chạy bền: tự khôi phục từ HF, cứ 10 phút đẩy trạng thái lên HF, bước hoặc seed đã có thì bỏ qua.</li>
+  <li class="bad"><span class="t">02/11 16:37 và 18:49</span><br>VM chết lúc 16:37 nhưng script treo tới 18:36 mới nhận ra. Đã sửa để dừng ngay khi session mất. Lúc 18:49 mạng Mac chập chờn bị nhận nhầm là VM chết. Đã sửa: chỉ dừng khi đúng thông báo "Session not found", có backoff, và nếu job còn sống trên VM thì gắn lại vào job đó.</li>
+  <li><span class="t">02/11 22:13</span><br>Xong session 5: SenseVoice, cascade, model kết hợp với WavLM (83.23).</li>
+  <li class="bad"><span class="t">03/11 00:08 – 04/11 01:14</span><br>Kiểm định chéo 5 fold. VM bị thu hồi 3 lần vì Mac ngủ (để qua đêm, gập nắp khi chạy pin). <code>caffeinate</code> không chặn được sleep khi gập nắp, nên phải cắm sạc và mở nắp. Tải gói kết quả bị đứt vì GNU tar bỏ qua <code>--exclude</code> đặt sau đường dẫn; đã sửa thứ tự tham số.</li>
+  <li><span class="t">04/11</span><br>Kiểm tra WER thấp của SenseVoice-FT: không phải bug. Riêng Whisper normalizer đã giảm ~2 điểm WER (session 5: 11.63 với normalizer cơ bản, 9.77 với Whisper normalizer).</li>
+  <li><span class="t">05/11 09:05–10:18</span><br>Session 5: thử encoder Whisper và prosody. Whisper 85.04, qua tiêu chí và có ý nghĩa thống kê.</li>
+  <li class="bad"><span class="t">05/11 10:19–13:17</span><br>Chạy fold 1–4. Chuỗi local bị kill cùng session điều khiển (job trên VM vẫn chạy xong), từ đó tách chuỗi khỏi session bằng <code>nohup</code> + <code>setsid</code>. VM bị thu hồi lúc 12:40. Một cấu hình phải train lại cùng seed 0 và lệch 1.44 UA so với lần đầu.</li>
+  <li><span class="t">05/11 18:53–22:30</span><br>Thêm seed 1, 2 cho Whisper và WavLM ở fold 1–4 (81.67 so với 79.15), thử pooling trên session 5, chạy Whisper + prosody đủ 5 fold. Xong, đã tắt VM.</li>
 </ol>
 
-<h2 id="tiep"><span class="num">8</span>Hạn chế và hướng phát triển</h2>
+<h2 id="tiep"><span class="num">9</span>Hạn chế và hướng phát triển</h2>
 <h3>Hạn chế</h3>
 <ul>
-  <li>Kiểm định chéo chỉ chạy 1 seed cho fold 1–4 (fold 5 có 3 seed). Std ở bảng 5 fold là độ lệch giữa các fold, chưa gồm độ lệch giữa các seed.</li>
-  <li>MELD chỉ có một split chính thức, nên không kiểm định chéo được. Các khác biệt nhỏ trên MELD (dưới 1 UA) chỉ nên xem là xu hướng.</li>
-  <li>Rò rỉ dữ liệu: emotion2vec+ đã thấy IEMOCAP, nên số IEMOCAP chính dùng WavLM. SenseVoice và Qwen2-Audio cũng có thể đã thấy một phần dữ liệu lúc pretrain, chưa kiểm tra được.</li>
-  <li>Cascade dùng Whisper (WER ~13), còn model kết hợp dùng SenseVoice fine-tune (WER ~10). Một phần chênh lệch giữa hai hệ có thể đến từ ASR, không chỉ từ cách trộn.</li>
+  <li><b>Nhiễu giữa các lần chạy:</b> cùng seed 0 mà chạy lại lệch 1.44 UA. Các hệ ngoài Whisper và WavLM chỉ có 1 seed ở fold 1–4, nên chênh lệch dưới ~1.5 UA giữa chúng chưa đủ để kết luận.</li>
+  <li>Với 5 fold, sign test không thể xuống dưới p = 0.0625. Các p chưa hiệu chỉnh cho nhiều phép so sánh, và McNemar coi các câu là độc lập.</li>
+  <li><b>Rò rỉ dữ liệu:</b> emotion2vec+ đã thấy IEMOCAP nên không dùng. Chưa rõ Whisper và SenseVoice có thấy audio IEMOCAP lúc pretrain hay không.</li>
+  <li>Cascade dùng Whisper turbo (WER ~13) và WavLM, còn model chính dùng SenseVoice-FT (WER ~10) và encoder Whisper. Chưa có cascade dùng encoder Whisper, cũng chưa có model kết hợp dùng Whisper mà không có ngữ cảnh, nên chưa tách được phần đóng góp của từng yếu tố.</li>
+  <li>Prosody z-score theo người nói dùng thống kê từ chính các câu test của người đó. Dùng thật thì cần thống kê chạy dần.</li>
+  <li>Chỉ đánh giá trên IEMOCAP (diễn viên đọc kịch bản và ứng tác, tiếng Anh, 4 lớp). Các baseline joint khác (MTL CTC + SER, ENT, Qwen2-Audio) chưa chạy trên IEMOCAP nên không có trong báo cáo này.</li>
+  <li>Test chỉ gồm câu có nhãn 4 lớp, không phải toàn bộ ~10k câu.</li>
 </ul>
 <h3>Hướng phát triển (chưa thử)</h3>
 <ul>
-  <li><b>Nhánh audio của model kết hợp</b>: thử concat thay cho gate, hoặc tăng epoch, vì khi không có ngữ cảnh model kết hợp thua cascade concat WavLM. Đây là hướng rẻ nhất: chỉ cần train lại model kết hợp.</li>
-  <li><b>Giảm ảnh hưởng của lỗi ASR lên ngữ cảnh</b> bằng độ tin cậy hoặc N-best của ASR. Trên IEMOCAP, khoảng cách tới text đúng chỉ còn 1.6 UA nên đáng làm trên MELD (WER ~27) hơn.</li>
-  <li><b>Audio ở mức frame</b> (cross-attention giữa text và frame audio) thay vì một vector mỗi câu. Tốn bộ nhớ và lưu trữ hơn nhiều.</li>
+  <li><b>Tách đóng góp của encoder Whisper</b>: chạy <code>asr_whisper</code> (không ngữ cảnh) và cascade concat dùng encoder Whisper.</li>
+  <li><b>Tận dụng phần cảm xúc của SenseVoice</b>: hiện model chỉ lấy transcript, bỏ token cảm xúc và vector ẩn. Có thể thêm xác suất 4 lớp của SenseVoice làm nhánh thứ ba vào gate.</li>
+  <li><b>Giảm ảnh hưởng của lỗi ASR lên ngữ cảnh</b> bằng độ tin cậy hoặc N-best của ASR.</li>
+  <li><b>Cross-attention</b> giữa token text và frame audio thay vì một vector mỗi câu. Tốn bộ nhớ và lưu trữ hơn nhiều.</li>
 </ul>
-<p class="muted">Mỗi ý tưởng nên sàng lọc trên session 5 với 1 seed trước. Chỉ khi tăng rõ (khoảng 2 UA trở lên, cỡ std giữa các fold) thì mới chạy lại đủ 5 fold.</p>
+<p class="muted">Mỗi ý tưởng nên sàng lọc trên session 5 với 3 seed trước. Chỉ khi qua tiêu chí đặt trước thì mới chạy lại đủ 5 fold.</p>
 
 </main>
 </body>

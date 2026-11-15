@@ -1,0 +1,18 @@
+{
+  "name": "whisper_turbo_zeroshot_f4",
+  "dataset": "iemocap",
+  "split": "test",
+  "notes": "openai/whisper-large-v3-turbo, no training",
+  "asr": {
+    "wer": 0.11432170695220849,
+    "n_utts": 1026,
+    "n_ref_words": 12701,
+    "n_empty_ref_skipped": 5,
+    "wer_by_emotion": {
+      "anger": 0.057387057387057384,
+      "joy": 0.1188247529901196,
+      "neutral": 0.2526636225266362,
+      "sadness": 0.0450281425891182
+    }
+  }
+}

@@ -105,7 +105,7 @@ Gần đây thêm nhóm 4: **Audio-LLM** sinh ra transcript + nhãn cảm xúc +
 |---|---|---|
 | IEMOCAP | EN | ~12h, diễn xuất + ứng tác, có transcript. Chuẩn de-facto cho joint ASR-SER. Thường dùng 4 lớp (neutral, happy+excited, sad, angry). |
 | MELD | EN | Hội thoại từ phim Friends, 7 lớp, có transcript, đa phương thức. |
-| MSP-Podcast | EN | Giọng tự nhiên từ podcast, lớn, có cả nhãn categorical và dimensional. |
+| MSP-Podcast | EN | Giọng tự nhiên từ podcast, lớn, có cả nhãn categorical và dimensional. Dataset của các challenge gần đây: Odyssey 2024 (v1.11, 8 lớp, Macro-F1), Interspeech 2025 Naturalistic Conditions (v1.12, train 68,119 turn). Bản mới v2.0 được dùng trong paper 2026 (VoxEmo arXiv 2603.08936, benchmark multi-label ở Interspeech 2026). Tra 2026-11-15: chưa thấy challenge SER 2026 chính thức. |
 | CMU-MOSI / MOSEI | EN | Sentiment/emotion, video YouTube. |
 | RAVDESS, CREMA-D, ESD | EN (ESD có ZH) | Diễn xuất, câu cố định, hợp để test robustness của ASR theo cảm xúc. |
 | VLSP 2025 ASR-SER | VI | Dữ liệu cho shared task tiếng Việt (kiểm tra điều kiện truy cập). |

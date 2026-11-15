@@ -2,29 +2,29 @@
   "name": "combined_asr_ctx_f4",
   "dataset": "iemocap",
   "split": "test",
-  "notes": "SenseVoice-FT ASR + roberta-large fine-tuned (5 ep, lr 1e-05); train text asr, eval text asr, ctx 3, audio none; 1-seed ensemble",
+  "notes": "SenseVoice-FT ASR; roberta-large fine-tuned (5 ep, lr 1e-05) on asr text; ctx 3; audio none; seed 42",
   "asr": {
-    "wer": 0.06037735849056604,
+    "wer": 0.0607826155420833,
     "n_utts": 1026,
-    "n_ref_words": 12720,
+    "n_ref_words": 12701,
     "n_empty_ref_skipped": 5,
     "wer_by_emotion": {
-      "anger": 0.02969814995131451,
-      "joy": 0.07816151648922358,
-      "neutral": 0.10083713850837138,
-      "sadness": 0.03750586029067042
+      "anger": 0.030036630036630037,
+      "joy": 0.08034321372854915,
+      "neutral": 0.1019786910197869,
+      "sadness": 0.03377110694183865
     }
   },
   "ser": {
-    "wa": 0.7449078564500485,
-    "ua": 0.7529734298617369,
-    "macro_f1": 0.744397507695534,
-    "weighted_f1": 0.7480285893851372,
+    "wa": 0.7526673132880698,
+    "ua": 0.7660204658023039,
+    "macro_f1": 0.7558619590764821,
+    "weighted_f1": 0.7547587272216353,
     "recall_by_emotion": {
-      "neutral": 0.6162790697674418,
-      "joy": 0.8316831683168316,
-      "anger": 0.7247706422018348,
-      "sadness": 0.8391608391608392
+      "neutral": 0.6007751937984496,
+      "joy": 0.8250825082508251,
+      "anger": 0.7431192660550459,
+      "sadness": 0.8951048951048951
     },
     "n": 1031,
     "n_invalid_pred": 0,
@@ -36,49 +36,40 @@
     ],
     "confusion": [
       [
-        159,
-        56,
-        25,
-        18
+        155,
+        53,
+        30,
+        20
       ],
       [
-        40,
-        252,
+        43,
+        250,
         3,
-        8
+        7
       ],
       [
-        66,
-        3,
-        237,
-        21
+        68,
+        2,
+        243,
+        14
       ],
       [
-        21,
+        13,
         1,
         1,
-        120
+        128
       ]
     ]
   },
-  "seeds": [
-    {
-      "seed": 0,
-      "best_epoch": 4,
-      "dev_ua": 0.8253231071300361,
-      "test_ua": 0.7529734298617369,
-      "test_wf1": 0.7480285893851372,
-      "gate": null
-    }
-  ],
+  "seed": 42,
+  "best_epoch": 4,
+  "dev_ua": 0.8202427158115858,
+  "gate": null,
   "config": {
     "train": "asr",
     "eval": "asr",
     "ctx": 3,
-    "audio": false
-  },
-  "ua_mean": 0.7529734298617369,
-  "ua_std": NaN,
-  "wf1_mean": 0.7480285893851372,
-  "wf1_std": NaN
+    "audio": false,
+    "text": true
+  }
 }

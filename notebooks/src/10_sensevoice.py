@@ -17,6 +17,7 @@ DATASET = "meld"      # "meld" hoặc "iemocap"
 RUN_FINETUNE = True
 MAX_EPOCH = 10
 LR = 2e-4             # mặc định của finetune.sh chính thức; nếu dev bị tệ đi sau epoch 1, thử 5e-5
+SEED = 42
 TEST_SESSION = 5      # IEMOCAP: session để test (cross-validation 5 fold chạy lần lượt 1..5)
 FOLD = "" if DATASET == "meld" or TEST_SESSION == 5 else f"_f{TEST_SESSION}"
 
@@ -136,7 +137,7 @@ cmd = f"""torchrun --nnodes 1 --nproc_per_node 1 --master_port 29511 {train_tool
 ++train_conf.max_epoch={MAX_EPOCH} ++train_conf.log_interval=50 ++train_conf.resume=false \
 ++train_conf.validate_interval=500 ++train_conf.save_checkpoint_interval=500 \
 ++train_conf.keep_nbest_models=5 ++train_conf.avg_nbest_model=3 ++train_conf.use_deepspeed=false \
-++optim_conf.lr={LR} ++output_dir="{OUT}" """
+++optim_conf.lr={LR} ++seed={SEED} ++output_dir="{OUT}" """
 if RUN_FINETUNE:
     !{cmd} 2>&1 | tee {WORK}/train.log | grep -E "loss|acc|Validate|Error|error" | tail -n 400
 
@@ -151,7 +152,7 @@ ft = AutoModel(model=MODEL_DIR, init_param=str(pick), trust_remote_code=True,
                remote_code=f"{SV_DIR}/model.py", device="cuda:0", disable_update=True)
 test_ft = run_sensevoice(ft, splits["test"])
 m_ft = evaluate(f"sensevoice_small_finetune{FOLD}", DATASET, test_ft,
-                notes=f"SenseVoice-Small fine-tuned {MAX_EPOCH} ep, lr {LR}, ckpt {pick.name}")
+                notes=f"SenseVoice-Small fine-tuned {MAX_EPOCH} ep, lr {LR}, seed {SEED}, ckpt {pick.name}")
 
 # %%
 dst = CKPT_DIR / f"sensevoice_{DATASET}{FOLD}"

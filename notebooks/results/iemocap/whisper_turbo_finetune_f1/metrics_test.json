@@ -1,0 +1,34 @@
+{
+  "name": "whisper_turbo_finetune_f1",
+  "dataset": "iemocap",
+  "split": "test",
+  "notes": "openai/whisper-large-v3-turbo full fine-tune 3 ep, lr 1e-05, batch 16, seed 42, epoch picked on dev WER",
+  "asr": {
+    "wer": 0.10898008939455506,
+    "n_utts": 1072,
+    "n_ref_words": 12305,
+    "n_empty_ref_skipped": 13,
+    "wer_by_emotion": {
+      "anger": 0.0449055435119232,
+      "joy": 0.19722557297949336,
+      "neutral": 0.09329017068864037,
+      "sadness": 0.09525825571549534
+    }
+  },
+  "seed": 42,
+  "best_epoch": 2,
+  "hist": [
+    {
+      "epoch": 0,
+      "dev_wer": 0.07506570302233903
+    },
+    {
+      "epoch": 1,
+      "dev_wer": 0.07506570302233903
+    },
+    {
+      "epoch": 2,
+      "dev_wer": 0.07276609724047306
+    }
+  ]
+}

@@ -27,9 +27,9 @@ DATASET = "iemocap"
 ASR = "sensevoice"     # nguồn transcript: "sensevoice" (notebook 20) hoặc "whisper" (Whisper turbo FT, notebook 15)
 TEXT_MODEL = "roberta-large"
 E2V = "emotion2vec/emotion2vec_plus_large"
-AUDIO = "whisper"      # "e2v", "wavlm" hoặc "whisper"
+AUDIO = "whisper"      # "e2v", "wavlm", "whisper" (large-v3) hoặc "whisper_turbo" (encoder của large-v3-turbo)
 WAVLM = "microsoft/wavlm-large"
-WHISPER = "openai/whisper-large-v3"
+WHISPER = {"whisper": "openai/whisper-large-v3", "whisper_turbo": "openai/whisper-large-v3-turbo"}.get(AUDIO)
 CTX = 3
 MAX_LEN = 192
 EPOCHS = 5
@@ -94,8 +94,9 @@ print({k: len(v) for k, v in idx.items()})
 from funasr import AutoModel
 
 ecache = cache / {"e2v": "e2v_plus_large_utt.npz", "wavlm": "wavlm_large_layers.npz",
-                  "whisper": "whisper_large_v3_layers.npz"}[AUDIO]
-if AUDIO == "whisper" and not ecache.exists():
+                  "whisper": "whisper_large_v3_layers.npz",
+                  "whisper_turbo": "whisper_large_v3_turbo_layers.npz"}[AUDIO]
+if AUDIO in ("whisper", "whisper_turbo") and not ecache.exists():
     from transformers import AutoFeatureExtractor, WhisperModel
     from eaasr.common import load_wav
     fe = AutoFeatureExtractor.from_pretrained(WHISPER)

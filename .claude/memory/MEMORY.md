@@ -19,4 +19,6 @@
 - [Kế hoạch ablation](project-ablation-plan.md) — 4 bước WER → WER FT → encoder → ablation; 2026-11-15 chốt ASR là Whisper turbo FT (WER thấp hơn), chạy lại encoder + ablation trên transcript Whisper
 - [Không bàn seed](feedback-no-seed-talk.md) — chốt 1 seed 42, chạy lại mọi thứ cho đồng nhất, report không nhắc seed, không đề xuất thêm seed
 - [Hình và bảng trong report](feedback-report-figures.md) — kiến trúc vẽ draw.io theo style ảnh mẫu (tổng quan + luồng có số), kết quả để bảng, sườn theo bài nlp-ck
+- [Abstract không số](feedback-abstract-no-numbers.md) — abstract: vấn đề → gap → hướng giải quyết → phát hiện bằng lời, số để phần Results
+- [Không trích paper kinh điển](feedback-no-classic-citations.md) — bỏ paper nền tảng cũ dùng để giải thích khái niệm; vẫn trích model/dataset đã dùng
 - [Chia việc giữa session](feedback-session-split.md) — session training/research không chạy TTS, render, sửa README clip khi có peer session làm clip

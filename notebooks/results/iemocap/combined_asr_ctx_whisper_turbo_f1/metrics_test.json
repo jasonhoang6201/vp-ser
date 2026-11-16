@@ -1,0 +1,78 @@
+{
+  "name": "combined_asr_ctx_whisper_turbo_f1",
+  "dataset": "iemocap",
+  "split": "test",
+  "notes": "SenseVoice-FT ASR; roberta-large fine-tuned (5 ep, lr 1e-05) on asr text; ctx 3; audio whisper_turbo; seed 42",
+  "asr": {
+    "wer": 0.12165786265745632,
+    "n_utts": 1072,
+    "n_ref_words": 12305,
+    "n_empty_ref_skipped": 13,
+    "wer_by_emotion": {
+      "anger": 0.07061009600495509,
+      "joy": 0.17279855247285886,
+      "neutral": 0.12183637433784579,
+      "sadness": 0.11939034716342083
+    }
+  },
+  "ser": {
+    "wa": 0.7419354838709677,
+    "ua": 0.7745490686807238,
+    "macro_f1": 0.7495766202680071,
+    "weighted_f1": 0.7344874260419134,
+    "recall_by_emotion": {
+      "neutral": 0.5364583333333334,
+      "joy": 0.8561151079136691,
+      "anger": 0.8602620087336245,
+      "sadness": 0.845360824742268
+    },
+    "n": 1085,
+    "n_invalid_pred": 0,
+    "labels": [
+      "neutral",
+      "joy",
+      "anger",
+      "sadness"
+    ],
+    "confusion": [
+      [
+        206,
+        63,
+        38,
+        77
+      ],
+      [
+        34,
+        238,
+        2,
+        4
+      ],
+      [
+        25,
+        3,
+        197,
+        4
+      ],
+      [
+        7,
+        18,
+        5,
+        164
+      ]
+    ]
+  },
+  "seed": 42,
+  "best_epoch": 4,
+  "dev_ua": 0.892065428581386,
+  "gate": [
+    0.6655983328819275,
+    0.3344016373157501
+  ],
+  "config": {
+    "train": "asr",
+    "eval": "asr",
+    "ctx": 3,
+    "audio": true,
+    "text": true
+  }
+}

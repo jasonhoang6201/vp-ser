@@ -20,7 +20,7 @@ def overview():
     src = ds.io_input(g, 20, 262, "Audio")
     j = ds.dot(g, 215, 290)
     asr = ds.box(g, 280, 120, 210, 64, "Whisper large-v3-turbo", "pre", "flame")
-    wsp = ds.box(g, 280, 400, 210, 64, "Whisper large-v3", "pre", "lock")
+    wsp = ds.box(g, 280, 400, 210, 64, "Whisper turbo encoder", "pre", "lock")
     hist = ds.cyl(g, 620, 250, 200, 90, "Dialogue history")
     rob = ds.box(g, 620, 120, 200, 64, "RoBERTa-large", "pre", "flame")
     fus = ds.box(g, 910, 250, 220, 76, "Gated Fusion", "core", "flame", 16)
@@ -57,7 +57,7 @@ def flow():
     rob = ds.box(g, 60, 380, 220, 50, "RoBERTa-large", "pre", "flame")
     ds.note(g, 295, 394, "[CLS] → h<sub>text</sub> ∈ ℝ<sup>1024</sup>")
 
-    wsp = ds.box(g, 700, 150, 220, 50, "Whisper large-v3", "pre", "lock")
+    wsp = ds.box(g, 700, 150, 220, 50, "Whisper turbo encoder", "pre", "lock")
     ds.note(g, 935, 164, "33 layers × T frames × 1280")
     pool = ds.box(g, 700, 255, 220, 50, "Mean over frames", "new")
     ds.note(g, 935, 269, "33 × 1280")

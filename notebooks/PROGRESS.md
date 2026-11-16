@@ -416,6 +416,29 @@ Cái giá lỗi ASR (cùng điều kiện chỉ text + ctx): text đúng 78.57 s
 Recall theo lớp (neutral/joy/anger/sadness): đầy đủ 69.3/85.4/87.6/82.5; bỏ audio 64.1/82.7/80.9/82.5 (audio giúp
 anger, neutral); bỏ ngữ cảnh 70.7/76.6/86.0/82.1 (ngữ cảnh giúp joy).
 
+### Encoder Whisper large-v3-turbo (2026-11-16, ALL DONE 13:56)
+
+Người dùng: nếu encoder turbo bằng hoặc hơn thì dùng một Whisper turbo cho cả ASR và nhánh audio. `src/21` thêm
+`AUDIO="whisper_turbo"` (cache `whisper_large_v3_turbo_layers.npz`); chuỗi `tools/run_iemocap_turbo_enc.sh`, log
+`runs/iem_turbo_chain.out`. Kết quả `combined_wasr_ctx_whisper_turbo*`, `combined_wasr_whisper_turbo*`,
+`combined_whisper_turbo_only*`. **Turbo hơn large-v3 (81.80 so với 81.17) nên report và slide đã chuyển sang turbo.**
+
+| SER, transcript Whisper-FT, encoder turbo | UA | WA | macro F1 | wF1 | Δ UA | Thắng full | gate audio |
+|---|---|---|---|---|---|---|---|
+| Đầy đủ | **81.80 ± 2.28** | 81.06 | 81.30 | 80.96 | | | 0.53 (0.43-0.62) |
+| Encoder WavLM | 80.24 | 78.88 | 79.23 | 78.74 | −1.56 | 1/5 | 0.31 |
+| Bỏ audio | 77.54 | 76.53 | 76.57 | 76.33 | −4.26 | 0/5 | |
+| Bỏ ngữ cảnh | 76.83 ± 1.59 | 75.24 | 75.81 | 74.96 | −4.97 | 0/5 | 0.55 |
+| Bỏ text (chỉ encoder turbo) | 72.60 ± 2.44 | 71.10 | 71.20 | 70.50 | −9.20 | 0/5 | |
+
+UA từng fold (S5 S1 S2 S3 S4): đầy đủ 84.03 79.26 84.28 78.99 82.45; bỏ ngữ cảnh 77.37 74.43 77.20 75.93 79.20; bỏ
+text 75.63 70.05 75.49 71.06 70.76. Thứ tự đóng góp đổi thành text > ngữ cảnh > audio. Recall (neutral/joy/anger/sadness):
+đầy đủ 72.1/85.6/87.5/81.9; bỏ ngữ cảnh 63.9/78.5/82.5/82.4; bỏ text 62.1/67.1/80.7/80.4. Hàng "đầy đủ, transcript
+SV-FT" cũ (81.44) dùng encoder large-v3, đã chạy lại với encoder turbo (`tools/run_iemocap_sv_turbo_enc.sh`, log
+`runs/iem_svturbo_chain.out`, ALL DONE 15:24, kết quả `combined_asr_ctx_whisper_turbo*`): **81.29 ± 2.38**, WA 79.99,
+macro F1 80.01, wF1 79.69, gate audio 0.46; từng fold (S5 S1 S2 S3 S4) 83.11 77.45 83.86 79.69 82.31. Transcript
+Whisper-FT hơn 0.51 UA, thắng 4/5 fold (thua S3). Report và slide đã dùng số này.
+
 ## Đợt MELD seed 42 (bắt đầu 2026-11-15 12:03, VM thứ hai)
 
 Người dùng cho chạy kiến trúc cuối trên MELD (split chính thức, 7 lớp), cùng 4 bước như IEMOCAP. `chain_lib.sh` nhận

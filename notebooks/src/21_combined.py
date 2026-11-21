@@ -16,6 +16,7 @@
 # | `asr_e2v` | transcript ASR | không | có | bỏ ngữ cảnh |
 # | `e2v_only` | không | không | có | bỏ text |
 # | `gt_ctx` | text đúng | 3 câu trước | không | cận trên: lỗi ASR làm mất bao nhiêu |
+# | `gt_ctx_e2v` | text đúng | 3 câu trước | có | cận trên của hệ đầy đủ |
 #
 # Thay encoder audio (Whisper so với WavLM) bằng cách chạy lại `asr_ctx_e2v` với `AUDIO="wavlm"`.
 # Trong tên kết quả, `e2v` được thay bằng tên encoder thật (ví dụ `asr_ctx_whisper`).
@@ -228,6 +229,7 @@ CONFIGS = {
     "asr_e2v":     dict(train="asr", eval="asr", ctx=0, audio=True, text=True),
     "e2v_only":    dict(train="asr", eval="asr", ctx=0, audio=True, text=False),
     "gt_ctx":      dict(train="gt", eval="gt", ctx=CTX, audio=False, text=True),
+    "gt_ctx_e2v":  dict(train="gt", eval="gt", ctx=CTX, audio=True, text=True),
 }
 
 class TextAudio(nn.Module):

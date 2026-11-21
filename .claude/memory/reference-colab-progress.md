@@ -5,7 +5,8 @@ metadata:
   type: reference
 ---
 
-Thực nghiệm chạy qua Colab CLI (`venv/bin/colab`, session `eaasr`). Trạng thái, cách chạy, kết quả và sự cố
+Thực nghiệm chạy qua Colab CLI cài global (`colab` trong `~/.local/bin`, bản 0.8.0; bản trong `venv` đã gỡ 2026-11-21
+theo yêu cầu người dùng), session `eaasr`. Trạng thái, cách chạy, kết quả và sự cố
 ghi ở `notebooks/PROGRESS.md`; đọc file đó trước khi tiếp tục sau khi context bị compact.
 
 **Why:** 2026-11-01 người dùng yêu cầu: "nếu thấy thông tin dài thì tạo 1 note markdown để ghi thông tin quan trọng

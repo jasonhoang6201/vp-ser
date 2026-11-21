@@ -1,11 +1,11 @@
 #!/bin/zsh
 # Voice one clip on the Colab CPU session `tts`: runs the code cells of tts_vieneu.ipynb with CLIP set, pulls the wavs back.
 # Usage (from video-pipeline): zsh tools/run_tts.sh 01-van-de [--voices]
-# The session must exist: ../venv/bin/colab new -s tts  (CPU runtime, no --gpu)
+# The session must exist: colab new -s tts  (CPU runtime, no --gpu)
 set -e
 cd "${0:A:h}/.."
 CLIP=$1
-C=${0:A:h}/../../venv/bin/colab
+C=colab
 # `colab exec --timeout` does not cover a dropped connection, so every call also gets a hard alarm.
 tmo() { perl -e 'alarm shift; exec @ARGV' "$@"; }
 

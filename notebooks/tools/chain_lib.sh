@@ -3,7 +3,7 @@
 # State comes back from the private HF repos on a fresh VM, finished steps are skipped (a step counts as finished
 # once its last output has been pulled to notebooks/), and a rerun attaches to a step's job if it is still alive.
 cd "${0:A:h}/../.."
-C=venv/bin/colab
+C=colab
 NB=notebooks
 R=/content/vp-ck
 DS=${DS:-iemocap}

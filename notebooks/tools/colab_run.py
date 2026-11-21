@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from build_notebooks import parse  # noqa: E402
 
 NB = Path(__file__).resolve().parents[1]
-COLAB = str(NB.parent / "venv/bin/colab")
+COLAB = "colab"
 REMOTE_ROOT = "/content/vp-ck"
 ENV = [f"EAASR_NB={REMOTE_ROOT}/notebooks", f"EAASR_DRIVE={REMOTE_ROOT}"]
 

@@ -5,7 +5,8 @@ Mỗi job đang chạy phải có ETA (giờ Việt Nam, UTC+7). Giờ trên VM 
 
 ## Hạ tầng
 
-- Chạy bằng Colab CLI trong `venv` (`venv/bin/colab`, google-colab-cli 0.7.5), auth oauth2 (token có sẵn ở `~/.config/colab-cli/`).
+- Chạy bằng Colab CLI cài global (`colab` trong `~/.local/bin`, google-colab-cli 0.8.0, cài bằng uv). Từ 2026-11-21 bản
+  0.7.5 trong `venv` đã gỡ vì mất đăng nhập; các script gọi `colab` theo PATH. Các lệnh `venv/bin/colab` bên dưới nay là `colab`.
 - Session: `eaasr`, GPU **L4** (23 GB VRAM, 52 GB RAM, 12 CPU, đĩa ~70 GB trống), **1.94 CU/giờ**.
   Số dư lúc bắt đầu (2026-11-01): 126.07 CU. Kiểm tra: `venv/bin/colab usage`.
 - VM là máy ảo của Colab (cloud Google), bị xóa khi `colab stop` hoặc khi Colab thu hồi. **Tải `results/` về trước khi stop.**
@@ -438,6 +439,13 @@ SV-FT" cũ (81.44) dùng encoder large-v3, đã chạy lại với encoder turbo
 `runs/iem_svturbo_chain.out`, ALL DONE 15:24, kết quả `combined_asr_ctx_whisper_turbo*`): **81.29 ± 2.38**, WA 79.99,
 macro F1 80.01, wF1 79.69, gate audio 0.46; từng fold (S5 S1 S2 S3 S4) 83.11 77.45 83.86 79.69 82.31. Transcript
 Whisper-FT hơn 0.51 UA, thắng 4/5 fold (thua S3). Report và slide đã dùng số này.
+
+**Xong (2026-11-21 23:00):** hệ đầy đủ trên transcript ground truth, encoder turbo (cấu hình `gt_ctx_e2v` trong
+`src/21`, script `tools/run_iemocap_gt_turbo_enc.sh`, log `runs/iem_gtturbo_chain.out`, kết quả
+`combined_gt_ctx_whisper_turbo*`). UA trung bình 5 fold **81.89**; từng fold (S5 S1 S2 S3 S4) 84.95 78.59 85.43 78.27
+82.20. So với transcript Whisper-FT (81.80) chỉ hơn 0.09, so với SV-FT (81.29) hơn 0.60; bản không audio thì GT hơn
+Whisper 1.03, nên audio bù gần hết lỗi ASR. Fold S4 chạy lại 22:42 vì máy tắt làm mất VM. Số đã điền vào slide 16
+(`GT_FULL_UA` trong `paper-review/slides/build_deck.py`).
 
 ## Đợt MELD seed 42 (bắt đầu 2026-11-15 12:03, VM thứ hai)
 

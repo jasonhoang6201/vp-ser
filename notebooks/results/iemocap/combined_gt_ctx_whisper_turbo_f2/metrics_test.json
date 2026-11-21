@@ -1,0 +1,66 @@
+{
+  "name": "combined_gt_ctx_whisper_turbo_f2",
+  "dataset": "iemocap",
+  "split": "test",
+  "notes": "Whisper-turbo-FT ASR; roberta-large fine-tuned (5 ep, lr 1e-05) on gt text; ctx 3; audio whisper_turbo; seed 42; GROUND-TRUTH text (upper bound)",
+  "ser": {
+    "wa": 0.8455522971652004,
+    "ua": 0.8543457410568358,
+    "macro_f1": 0.8487329147116578,
+    "weighted_f1": 0.8446448513891567,
+    "recall_by_emotion": {
+      "neutral": 0.7651933701657458,
+      "joy": 0.908256880733945,
+      "anger": 0.8759124087591241,
+      "sadness": 0.868020304568528
+    },
+    "n": 1023,
+    "n_invalid_pred": 0,
+    "labels": [
+      "neutral",
+      "joy",
+      "anger",
+      "sadness"
+    ],
+    "confusion": [
+      [
+        277,
+        38,
+        21,
+        26
+      ],
+      [
+        26,
+        297,
+        3,
+        1
+      ],
+      [
+        15,
+        0,
+        120,
+        2
+      ],
+      [
+        22,
+        3,
+        1,
+        171
+      ]
+    ]
+  },
+  "seed": 42,
+  "best_epoch": 3,
+  "dev_ua": 0.8338009642863367,
+  "gate": [
+    0.527234673500061,
+    0.47276532649993896
+  ],
+  "config": {
+    "train": "gt",
+    "eval": "gt",
+    "ctx": 3,
+    "audio": true,
+    "text": true
+  }
+}

@@ -231,17 +231,17 @@ text(s, 0.92, 2.2, 7.97, 0.4, 'WER before and after finetuning (%)', size=15, bo
 y0, rh = tall_table(s, 0.92, HEAD_Y, [3.75, 1.25, 1.0, 1.05, 0.92],
                     ['Model', 'Parameters', 'Original', 'Finetuned', 'Change'],
                     [['SenseVoice-Small', '234M', '**11.20**', '9.73', '−1.47'],
-                     ['Whisper large-v3-turbo', '809M', '13.19', '**8.32**', '−4.87']], BODY_END, head_h=HEAD_H)
+                     ['Whisper large-v3-turbo', '809M', '13.19', '**9.56**', '−3.63']], BODY_END, head_h=HEAD_H)
 row_tag(s, 3.75, y0 + rh, rh)
-pill(s, 0.92, PILL_Y, 7.97, 0.5, 'finetuning helps Whisper more: −4.87 vs −1.47', TEAL, 13)
+pill(s, 0.92, PILL_Y, 7.97, 0.5, 'finetuning helps Whisper more: −3.63 vs −1.47', TEAL, 13)
 card(s, 9.37, TOP, 3.25, 4.75)
 text(s, 9.55, 2.2, 2.9, 0.4, 'WER by emotion (%)', size=15, bold=True, color=GREY)
 grid(s, 9.55, HEAD_Y, [0.95, 1.15, 0.85], [
     ['Emotion', 'SenseVoice', 'Whisper'],
     ['Neutral', '10.5', '**8.4**'],
-    ['Happy', '12.5', '**12.2**'],
+    ['Happy', '**12.5**', '16.0'],
     ['Angry', '6.8', '**4.7**'],
-    ['Sad', '8.4', '**7.1**']],
+    ['Sad', '8.4', '**7.8**']],
     row_h=HEAD_H, size=16, head_size=12, aligns=['l', 'c', 'c'])
 pill(s, 9.55, PILL_Y, 2.9, 0.5, 'happy is hardest for both', MAUVE, 13)
 notes(s)
@@ -250,8 +250,8 @@ notes(s)
 s = deck.slide(P3, 'Choosing the audio encoder')
 y0, rh = tall_table(s, 0.667, 2.55, [4.3, 1.2, 1.2, 1.6, 1.65, 2.0],
                     ['Frozen audio encoder (%)', 'UA', 'WA', 'Weighted F1', 'Change in UA', 'Audio gate weight'],
-                    [['WavLM-large', '80.24', '78.88', '78.74', '−1.56', '0.31'],
-                     ['Whisper large-v3-turbo', '**81.80**', '**81.06**', '**80.96**', '', '**0.53**']],
+                    [['WavLM-large', '79.93', '78.89', '78.55', '−1.25', '0.28'],
+                     ['Whisper large-v3-turbo', '**81.17**', '**79.98**', '**79.88**', '', '**0.51**']],
                     5.9, size=22, head_size=14)
 row_tag(s, 3.9, y0 + rh, rh)
 notes(s)
@@ -260,12 +260,12 @@ notes(s)
 s = deck.slide(P3, 'Ablation study')
 grid(s, 1.0, 2.05, [4.6, 1.6, 1.6, 1.9, 1.6], [
     ['System (%)', 'UA', 'WA', 'Weighted F1', 'Change in UA'],
-    ['Our system', '**81.80**', '**81.06**', '**80.96**', ''],
-    ['Without audio', '77.54', '76.53', '76.33', '−4.26'],
-    ['Without context', '76.83', '75.24', '74.96', '−4.97'],
-    ['Without text', '72.60', '71.10', '70.50', '[[mauve|**−9.20**]]']],
+    ['Our system', '**81.17**', '**79.98**', '**79.88**', ''],
+    ['Without audio', '77.91', '76.70', '76.67', '−3.27'],
+    ['Without context', '75.89', '74.64', '74.34', '−5.29'],
+    ['Without text', '72.60', '71.10', '70.50', '[[mauve|**−8.58**]]']],
     row_h=0.72, size=22, head_size=15, aligns=['l', 'c', 'c', 'c', 'c'])
-for k, (t, col) in enumerate([('text  −9.20', MAUVE), ('context  −4.97', TEAL), ('audio  −4.26', TEAL2)]):
+for k, (t, col) in enumerate([('text  −8.58', MAUVE), ('context  −5.29', TEAL), ('audio  −3.27', TEAL2)]):
     pill(s, 1.0 + k * 3.85, 6.15, 3.5, 0.55, t, col, 17)
 notes(s)
 
@@ -273,10 +273,10 @@ notes(s)
 s = deck.slide(P3, 'UA per test session')
 grid(s, 0.667, 2.1, [3.2, 1.75, 1.75, 1.75, 1.75, 1.75], [
     ['UA (%)', 'Session 1', 'Session 2', 'Session 3', 'Session 4', 'Session 5'],
-    ['Our system', '**79.26**', '84.28', '**78.99**', '**82.45**', '**84.03**'],
-    ['WavLM encoder', '75.96', '**85.15**', '76.87', '80.32', '82.88'],
-    ['Without audio', '73.38', '82.14', '74.43', '76.77', '81.01'],
-    ['Without context', '74.43', '77.20', '75.93', '79.20', '77.37'],
+    ['Our system', '**78.89**', '**84.79**', '**78.55**', '**82.33**', '81.31'],
+    ['WavLM encoder', '76.85', '83.76', '78.00', '78.96', '**82.06**'],
+    ['Without audio', '75.02', '82.88', '75.99', '75.64', '80.00'],
+    ['Without context', '75.81', '73.47', '70.81', '79.63', '79.71'],
     ['Without text', '70.05', '75.49', '71.06', '70.76', '75.63']],
     row_h=0.75, size=20, head_size=15, aligns=['l', 'c', 'c', 'c', 'c', 'c'])
 notes(s)
@@ -286,7 +286,7 @@ s = deck.slide(P4, 'How ASR errors affect emotion')
 grid(s, 1.17, 2.3, [4.8, 1.9, 1.9, 2.4], [
     ['Transcript used by our system', 'WER (%)', 'UA (%)', 'Change in UA'],
     ['Ground truth', '0', f'**{GT_FULL_UA}**', ''],
-    ['Whisper, finetuned', '8.32', '81.80', '−0.09'],
+    ['Whisper, finetuned', '9.56', '81.17', '−0.72'],
     ['SenseVoice, finetuned', '9.73', '81.29', '−0.60']],
     row_h=0.95, size=24, head_size=15, aligns=['l', 'c', 'c', 'c'])
 notes(s)
@@ -295,19 +295,19 @@ notes(s)
 s = deck.slide(P4, 'Recall of each class')
 grid(s, 0.667, 2.0, [2.6, 1.35, 1.3, 1.3, 1.25], [
     ['Recall (%)', 'Neutral', 'Happy', 'Angry', 'Sad'],
-    ['Our system', '**72.1**', '**85.6**', '**87.5**', '81.9'],
-    ['Without audio', '64.1', '82.7', '80.9', '**82.5**'],
-    ['Without context', '63.9', '78.5', '82.5', '82.4'],
+    ['Our system', '**69.3**', '**84.0**', '**87.5**', '**83.9**'],
+    ['Without audio', '66.6', '81.6', '80.1', '83.4'],
+    ['Without context', '65.8', '74.2', '81.3', '82.2'],
     ['Without text', '62.1', '67.1', '80.7', '80.4']],
     row_h=0.95, size=20, head_size=15, aligns=['l', 'c', 'c', 'c', 'c'])
 card(s, 9.0, 2.0, 3.62, 4.75)
 text(s, 9.25, 2.2, 3.2, 0.4, 'Gate weight on audio', size=15, bold=True, color=GREY)
-for k, (nm, v) in enumerate([('Our system', '0.53'), ('Without context', '0.55'), ('WavLM encoder', '0.31')]):
+for k, (nm, v) in enumerate([('Our system', '0.51'), ('Without context', '0.71'), ('WavLM encoder', '0.28')]):
     y = 2.85 + k * 0.7
     text(s, 9.25, y, 2.2, 0.5, nm, size=16, color=DK, anchor='m')
     text(s, 11.3, y, 1.1, 0.5, f'**{v}**', size=18, color=TEAL, anchor='m', align='r')
-pill(s, 9.25, 5.2, 3.12, 0.5, 'audio helps neutral: +8.0', TEAL, 14)
-pill(s, 9.25, 5.9, 3.12, 0.5, 'context helps happy: +7.1', TEAL2, 14)
+pill(s, 9.25, 5.2, 3.12, 0.5, 'audio helps angry: +7.4', TEAL, 14)
+pill(s, 9.25, 5.9, 3.12, 0.5, 'context helps happy: +9.8', TEAL2, 14)
 notes(s)
 
 # 19. Related
@@ -322,7 +322,7 @@ grid(s, 0.667, 1.95, [3.3, 3.3, 1.35, 0.95, 1.1, 0.95, 1.0], [
     ['EmoBox Whisper, Interspeech 2024', 'audio only', N, Y, N, N, '73.54'],
     ['PL-Distill, ICASSP 2026', 'audio only, learned from an LLM', N, Y, N, N, '83.91'],
     ['Crab, arXiv 2026', 'ground-truth text + audio', N, Y, N, N, '75.85'],
-    ['**Our system**', '**ASR first, then SER**', Y, Y, Y, '**8.32**', '**81.80**']],
+    ['**Our system**', '**ASR first, then SER**', Y, Y, Y, '**9.56**', '**81.17**']],
     row_h=0.46, size=14, head_size=13, aligns=['l', 'l', 'c', 'c', 'c', 'c', 'c'])
 bar(s, 0.667, 6.4, 11.95, 0.42, 'Data splits and metrics differ between papers, so the numbers are not directly comparable',
     MAUVE, 13)

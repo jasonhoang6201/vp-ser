@@ -27,9 +27,10 @@ turns and a frozen speech encoder through a gated fusion. Each component is chos
 the recognizer to the audio encoder, and every part of the emotion model is then removed in turn. On IEMOCAP with
 leave-one-session-out evaluation, finetuning changes which recognizer is best, the Whisper encoder is a better audio
 branch than WavLM, and text, context and audio each improve emotion recognition, with text the most important.
-One Whisper model serves as both the recognizer and the audio encoder. When the audio branch is present, replacing
-automatic transcripts with ground truth barely changes emotion recognition, which suggests that at the error
-rates of a finetuned recognizer, the audio branch matters more than further ASR improvements.
+One Whisper model serves as both the recognizer and the audio encoder. Replacing automatic transcripts with ground
+truth changes emotion recognition only slightly, with or without the audio branch, and far less than removing audio
+or context, which suggests that at the error rates of a finetuned recognizer, adding audio and context matters more
+than further ASR improvements.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -95,7 +96,7 @@ EmoBox, Whisper large-v3 \cite{ma2024emobox} & audio only & -- & \checkmark & --
 PL-Distill \cite{yang2026pldistill} & audio only, learned from an LLM & -- & \checkmark & -- & -- & 83.91 \\
 Crab \cite{ueda2026crab} & ground-truth text + audio & -- & \checkmark & -- & -- & 75.85 \\
 \midrule
-Our system & ASR first, then SER & \checkmark & \checkmark & \checkmark & \textbf{8.32} & 81.80 \\
+Our system & ASR first, then SER & \checkmark & \checkmark & \checkmark & \textbf{9.56} & 81.17 \\
 \bottomrule
 \end{tabular}
 \end{table*}
@@ -213,10 +214,14 @@ We build the system in four steps. Each step keeps the better option and passes 
 
 \textbf{Steps 1--2: ASR.} Table~\ref{tab:asr} compares SenseVoice-Small \cite{an2024funaudiollm} and Whisper
 large-v3-turbo. Before finetuning, SenseVoice has the lower WER (11.20\% vs 13.19\%) although it is almost four
-times smaller, but Whisper gains more from finetuning ($-4.87$ vs $-1.47$) and ends lower (8.32\% vs 9.73\%). The
-ASR module is therefore Whisper large-v3-turbo, finetuned. We use SenseVoice-Small because SenseVoice-Large is
-described in the paper but its weights are not released. Table~\ref{tab:werEmo} splits the finetuned WER by emotion:
-happy turns are the hardest for both models and angry turns the easiest.
+times smaller, but Whisper gains more from finetuning ($-3.63$ vs $-1.47$) and ends slightly lower (9.56\% vs
+9.73\%). The ASR module is therefore Whisper large-v3-turbo, finetuned. We use SenseVoice-Small because
+SenseVoice-Large is described in the paper but its weights are not released. Table~\ref{tab:werEmo} splits the
+finetuned WER by emotion: happy turns are the hardest for both models and angry turns the easiest. Whisper is lower
+on every class except happy. Its happy WER is raised by a failure on non-speech turns: on four test turns that
+contain only laughter or breathing (two of them happy, in sessions 1 and 3), the finetuned model repeats one token
+until the length limit. These four turns account for the higher WER of Whisper on sessions 1 and 3 (12.73\% and
+14.37\%, against 4.72--8.27\% on the other sessions).
 
 \begin{table}[t]
 \centering
@@ -227,7 +232,7 @@ happy turns are the hardest for both models and angry turns the easiest.
 ASR model & Parameters & Original & Finetuned & Change \\
 \midrule
 SenseVoice-Small & 234M & \textbf{11.20} & 9.73 & $-1.47$ \\
-Whisper large-v3-turbo & 809M & 13.19 & \textbf{8.32} & $-4.87$ \\
+Whisper large-v3-turbo & 809M & 13.19 & \textbf{9.56} & $-3.63$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -241,16 +246,16 @@ Whisper large-v3-turbo & 809M & 13.19 & \textbf{8.32} & $-4.87$ \\
 Emotion & SenseVoice-Small & Whisper large-v3-turbo \\
 \midrule
 Neutral & 10.5 & \textbf{8.4} \\
-Happy & 12.5 & \textbf{12.2} \\
+Happy & \textbf{12.5} & 16.0 \\
 Angry & 6.8 & \textbf{4.7} \\
-Sad & 8.4 & \textbf{7.1} \\
+Sad & 8.4 & \textbf{7.8} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \textbf{Step 3: audio encoder.} With Whisper transcripts and context fixed, Table~\ref{tab:enc} compares two frozen
 encoders in the audio branch. The Whisper large-v3-turbo encoder is higher on all three metrics, and the gate trusts
-it more: the average weight on the audio branch is 0.53, against 0.31 with WavLM. This agrees with the EmoBox
+it more: the average weight on the audio branch is 0.51, against 0.28 with WavLM. This agrees with the EmoBox
 benchmark \cite{ma2024emobox}. Using it also means that one Whisper checkpoint serves both the ASR module and the
 audio branch.
 
@@ -262,8 +267,8 @@ audio branch.
 \toprule
 Audio encoder & UA & WA & Weighted F1 & Change in UA & Gate \\
 \midrule
-WavLM-large \cite{chen2022wavlm} & 80.24 & 78.88 & 78.74 & $-1.56$ & 0.31 \\
-Whisper large-v3-turbo & \textbf{81.80} & \textbf{81.06} & \textbf{80.96} & -- & \textbf{0.53} \\
+WavLM-large \cite{chen2022wavlm} & 79.93 & 78.89 & 78.55 & $-1.25$ & 0.28 \\
+Whisper large-v3-turbo & \textbf{81.17} & \textbf{79.98} & \textbf{79.88} & -- & \textbf{0.51} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -278,26 +283,28 @@ Whisper large-v3-turbo & \textbf{81.80} & \textbf{81.06} & \textbf{80.96} & -- &
 \toprule
 System & UA & WA & Weighted F1 & Change in UA \\
 \midrule
-Our system & \textbf{81.80} & \textbf{81.06} & \textbf{80.96} & -- \\
-Without audio & 77.54 & 76.53 & 76.33 & $-4.26$ \\
-Without context & 76.83 & 75.24 & 74.96 & $-4.97$ \\
-Without text & 72.60 & 71.10 & 70.50 & $-9.20$ \\
+Our system & \textbf{81.17} & \textbf{79.98} & \textbf{79.88} & -- \\
+Without audio & 77.91 & 76.70 & 76.67 & $-3.27$ \\
+Without context & 75.89 & 74.64 & 74.34 & $-5.29$ \\
+Without text & 72.60 & 71.10 & 70.50 & $-8.58$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \section{Analysis}
 
-\textbf{Which module matters most?} Removing text costs the most (9.20 UA), then context (4.97), then audio (4.26).
-Every module contributes: text the most, context and audio close to each other.
+\textbf{Which module matters most?} Removing text costs the most (8.58 UA), then context (5.29), then audio (3.27).
+Every module contributes: text the most, then context, then audio.
 
 \textbf{How do ASR errors affect emotion recognition?} We keep our system fixed and change only the transcript
 (Table~\ref{tab:gt}). With ground-truth text (0\% WER) the system reaches 81.89 UA; with finetuned Whisper transcripts
-(8.32\% WER) it reaches 81.80, only 0.09 lower; with finetuned SenseVoice transcripts (9.73\% WER) it reaches 81.29,
-0.60 lower. Without the audio branch the gap is larger: ground-truth text gives 78.57 UA against 77.54 with Whisper
-transcripts, a loss of 1.03 UA. When audio is present, ASR errors at 8--10\% WER therefore barely lower UA, while the
-audio branch adds 4.26 UA and context 4.97 UA. We therefore choose the ASR on WER, its own task. This agrees with
-Li et al.\ \cite{li2024asrtranscripts}.
+(9.56\% WER) it reaches 81.17, 0.72 lower; with finetuned SenseVoice transcripts (9.73\% WER) it reaches 81.29,
+0.60 lower. Without the audio branch the loss is similar: ground-truth text gives 78.57 UA against 77.91 with Whisper
+transcripts, 0.66 lower. ASR errors at about 10\% WER therefore cost less than one UA point, with or without audio,
+while the audio branch adds 3.27 UA and context 5.29 UA. The two finetuned transcripts differ by 0.12 UA, in the
+opposite direction of their WER gap of 0.17; both differences are small next to the spread across folds, so UA does
+not separate the two ASR models and we choose the ASR on WER, its own task. This agrees with Li et al.\
+\cite{li2024asrtranscripts}.
 
 \begin{table}[t]
 \centering
@@ -308,16 +315,16 @@ Li et al.\ \cite{li2024asrtranscripts}.
 Transcript & WER & UA & Change in UA \\
 \midrule
 Ground truth & 0 & \textbf{81.89} & -- \\
-Whisper, finetuned & 8.32 & 81.80 & $-0.09$ \\
+Whisper, finetuned & 9.56 & 81.17 & $-0.72$ \\
 SenseVoice, finetuned & 9.73 & 81.29 & $-0.60$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{What does each branch contribute?} In our system the gate puts on average 0.53 of the weight on audio
-(0.43 to 0.62 across folds). Without context the text branch is weaker and the audio weight rises to 0.55; with the
-WavLM encoder it falls to 0.31. Table~\ref{tab:recall} shows recall per class. Audio mainly helps neutral (+8.0) and
-angry (+6.6); context mainly helps neutral (+8.2) and happy (+7.1). Sad recall changes little in every ablation.
+\textbf{What does each branch contribute?} In our system the gate puts on average 0.51 of the weight on audio
+(0.44 to 0.63 across folds). Without context the text branch is weaker and the audio weight rises to 0.71; with the
+WavLM encoder it falls to 0.28. Table~\ref{tab:recall} shows recall per class. Audio mainly helps angry (+7.4);
+context mainly helps happy (+9.8) and angry (+6.2). Sad recall changes least in every ablation.
 
 \begin{table}[t]
 \centering
@@ -327,9 +334,9 @@ angry (+6.6); context mainly helps neutral (+8.2) and happy (+7.1). Sad recall c
 \toprule
 System & Neutral & Happy & Angry & Sad \\
 \midrule
-Our system & \textbf{72.1} & \textbf{85.6} & \textbf{87.5} & 81.9 \\
-Without audio & 64.1 & 82.7 & 80.9 & \textbf{82.5} \\
-Without context & 63.9 & 78.5 & 82.5 & 82.4 \\
+Our system & \textbf{69.3} & \textbf{84.0} & \textbf{87.5} & \textbf{83.9} \\
+Without audio & 66.6 & 81.6 & 80.1 & 83.4 \\
+Without context & 65.8 & 74.2 & 81.3 & 82.2 \\
 Without text & 62.1 & 67.1 & 80.7 & 80.4 \\
 \bottomrule
 \end{tabular}
@@ -337,7 +344,7 @@ Without text & 62.1 & 67.1 & 80.7 & 80.4 \\
 
 \textbf{Is the gain consistent across folds?} Table~\ref{tab:folds} gives UA per test session. Our system beats
 ``without audio'', ``without context'' and ``without text'' in all five folds. The Whisper encoder beats WavLM in four of five
-folds (all but session 2).
+folds (all but session 5).
 
 \begin{table}[t]
 \centering
@@ -347,10 +354,10 @@ folds (all but session 2).
 \toprule
 System & S1 & S2 & S3 & S4 & S5 \\
 \midrule
-Our system & \textbf{79.26} & 84.28 & \textbf{78.99} & \textbf{82.45} & \textbf{84.03} \\
-WavLM encoder & 75.96 & \textbf{85.15} & 76.87 & 80.32 & 82.88 \\
-Without audio & 73.38 & 82.14 & 74.43 & 76.77 & 81.01 \\
-Without context & 74.43 & 77.20 & 75.93 & 79.20 & 77.37 \\
+Our system & \textbf{78.89} & \textbf{84.79} & \textbf{78.55} & \textbf{82.33} & 81.31 \\
+WavLM encoder & 76.85 & 83.76 & 78.00 & 78.96 & \textbf{82.06} \\
+Without audio & 75.02 & 82.88 & 75.99 & 75.64 & 80.00 \\
+Without context & 75.81 & 73.47 & 70.81 & 79.63 & 79.71 \\
 Without text & 70.05 & 75.49 & 71.06 & 70.76 & 75.63 \\
 \bottomrule
 \end{tabular}
@@ -359,11 +366,12 @@ Without text & 70.05 & 75.49 & 71.06 & 70.76 & 75.63 \\
 \section{Conclusion}
 
 We built an emotion-aware speech recognition system from two separate models and chose each part by a controlled
-comparison. Finetuning reversed the ranking of the two ASR models, and Whisper large-v3-turbo reached 8.32\% WER. In
+comparison. Finetuning reversed the ranking of the two ASR models, and Whisper large-v3-turbo reached 9.56\% WER. In
 the emotion model, the encoder of the same Whisper checkpoint was a better audio branch than WavLM, so one Whisper
 model serves both ASR and the audio branch. Text, context and audio each helped, with text the most, reaching
-81.80\% UA. With the audio branch, ASR errors at this rate cost only 0.09 UA against ground-truth transcripts (1.03 UA
-without audio), far less than the gain from the audio branch or from context. The system is evaluated on acted
+81.17\% UA. ASR errors at this rate cost 0.72 UA against ground-truth transcripts (0.66 UA without audio), far less
+than the gain from the audio branch or from context. The finetuned Whisper still repeats tokens on turns with only
+laughter or breathing; detecting such turns before decoding is a simple next step. The system is evaluated on acted
 speech; spontaneous speech, for example MSP-Podcast, is left for future work.
 
 \bibliographystyle{IEEEtran}

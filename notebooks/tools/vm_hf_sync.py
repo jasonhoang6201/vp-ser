@@ -20,6 +20,9 @@ RUNS_REPO = os.environ.get("EAASR_RUNS_REPO", "jasonhoang6201/iemocap-runs")
 DIRS = [f"cache/{DS}", f"results/{DS}"]
 CKPT = f"checkpoints/sensevoice_{DS}"
 TAR = f"{ROOT}/data/{DS}_16k.tar"
+# Touched at the end of restore. Only files written after it belong to this VM: two VMs restore the same repo, and
+# re-uploading a restored copy would revert a file the other VM has updated since.
+MARK = f"/content/{DS}_restored"
 
 api = HfApi()
 
@@ -42,7 +45,20 @@ def restore():
     if DS == "iemocap":
         assert os.path.getsize(TAR) > 1_000_000_000
     print("DATA", os.path.exists(TAR))
+    open(MARK, "w").close()
     print("RESTORED")
+
+
+def written_here(d):
+    since = os.path.getmtime(MARK) if os.path.exists(MARK) else 0
+    base = f"{ROOT}/{d}"
+    out = []
+    for dirpath, _, files in os.walk(base):
+        for f in files:
+            p = os.path.join(dirpath, f)
+            if not f.endswith(".npy") and os.path.getmtime(p) > since:
+                out.append(os.path.relpath(p, base))
+    return out
 
 
 def push(ckpt, wait):
@@ -55,10 +71,11 @@ def push(ckpt, wait):
         return
     private_repo(RUNS_REPO)
     for d in DIRS + ([CKPT] if ckpt else []):
-        if os.path.isdir(f"{ROOT}/{d}"):
-            # Embedding matrices in .npy are rebuilt in minutes and would dominate the upload.
+        # Embedding matrices in .npy are rebuilt in minutes and would dominate the upload.
+        files = written_here(d) if os.path.isdir(f"{ROOT}/{d}") else []
+        if files:
             api.upload_folder(folder_path=f"{ROOT}/{d}", path_in_repo=d, repo_id=RUNS_REPO, repo_type="dataset",
-                              ignore_patterns=["*.npy"], commit_message=f"sync {d}")
+                              allow_patterns=files, commit_message=f"sync {d}")
     print("pushed", "with ckpt" if ckpt else "")
 
 

@@ -41,8 +41,8 @@ Draft:
   (Li et al. 2024).
 - What we do: a decoupled system chosen step by step, then an ablation of every SER module. Contributions:
   1. a controlled comparison of two ASR models, zero-shot and fine-tuned, on the same folds;
-  2. a text + audio + context SER system on ASR transcripts at 81.80 UA, with one Whisper for ASR and audio;
-  3. an ablation that measures each module, and the cost of ASR errors (1.03 UA at 8.3% WER).
+  2. a text + audio + context SER system on ASR transcripts at 81.17 UA, with one Whisper for ASR and audio;
+  3. an ablation that measures each module, and the cost of ASR errors (0.72 UA at 9.6% WER).
 
 ## II. Background
 
@@ -52,7 +52,7 @@ Draft:
 - **Speech encoders and context.** EmoBox (Whisper encoder > WavLM); GenSEC Task 3 (previous turns help).
 - **Table I: earlier systems on IEMOCAP** (landscape table). Columns: system, uses ASR transcript?, uses audio?,
   context?, WER, UA, protocol. Rows: Li et al. 2024, MF-AED-AEC, VIB-Emo, EmoBox Whisper probe, PL-Distill, Crab,
-  ours (8.32, 81.80). Caption: protocols differ, not directly comparable. Source: KB rows with numbers.
+  ours (9.56, 81.17). Caption: protocols differ, not directly comparable. Source: KB rows with numbers.
 - **Implications for our study** (paragraph): (1) joint training suffers from gradient conflict and drifts toward ASR (Gao et al. 2023), so we decouple and can pick
   each part on its own metric; (2) Whisper-style encoders beat WavLM in EmoBox, so we test both; (3) context helps
   text SER, so we add previous turns; (4) hardware: one L4 GPU, so the audio encoder stays frozen.
@@ -97,57 +97,59 @@ Draft:
 | ASR | Zero-shot | Fine-tuned | Δ |
 |---|---|---|---|
 | SenseVoice-Small | **11.20** | 9.73 | −1.47 |
-| Whisper large-v3-turbo | 13.19 | **8.32** | −4.87 |
+| Whisper large-v3-turbo | 13.19 | **9.56** | −3.63 |
 
 Text: SenseVoice wins zero-shot, Whisper wins after fine-tuning, so the ASR module is Whisper turbo FT.
-Per-emotion WER (FT Whisper): neutral 8.4, happy 12.2, angry 4.7, sad 7.1 (happy/excited speech hardest).
+Per-emotion WER (FT Whisper): neutral 8.4, happy 16.0, angry 4.7, sad 7.8 (happy/excited speech hardest). Happy and
+sessions 1, 3 are raised by 4 laughter/breathing-only test turns on which FT Whisper repeats one token.
 
 **Table IV: step 3, audio encoder** (Whisper-FT transcripts + context + audio)
 
 | Audio encoder | UA | WA | wF1 | Δ UA |
 |---|---|---|---|---|
-| WavLM-large | 80.24 | 78.88 | 78.74 | −1.56 |
-| Whisper large-v3-turbo | **81.80** | **81.06** | **80.96** | |
+| WavLM-large | 79.93 | 78.89 | 78.55 | −1.25 |
+| Whisper large-v3-turbo | **81.17** | **79.98** | **79.88** | |
 
 **Table V: step 4, ablation**
 
 | System | UA | WA | wF1 | Δ UA |
 |---|---|---|---|---|
-| Full | **81.80** | **81.06** | **80.96** | |
-| w/o audio | 77.54 | 76.53 | 76.33 | −4.26 |
-| w/o context | 76.83 | 75.24 | 74.96 | −4.97 |
-| w/o text | 72.60 | 71.10 | 70.50 | −9.20 |
-| Ground-truth text, w/o audio (upper bound for ASR) | 78.57 | 77.24 | 77.20 | +1.03 vs w/o audio |
+| Full | **81.17** | **79.98** | **79.88** | |
+| w/o audio | 77.91 | 76.70 | 76.67 | −3.27 |
+| w/o context | 75.89 | 74.64 | 74.34 | −5.29 |
+| w/o text | 72.60 | 71.10 | 70.50 | −8.58 |
+| Ground-truth text, w/o audio (upper bound for ASR) | 78.57 | 77.24 | 77.20 | +0.66 vs w/o audio |
 
 ## VI. Analysis (paragraph titles are the questions)
 
-- **Which module matters most?** Text (−9.20) > context (−4.97) > audio (−4.26). Every module helps on average.
-- **How much does ASR quality matter for emotion recognition?** (1) Ceiling: in the text-only setting, ground truth
-  gives 78.57 vs 77.54 with Whisper-FT transcripts, so removing all ASR errors (8.3% WER → 0) gains only 1.03 UA,
-  less than audio (+4.26) or context (+4.97). (2) Between ASR models, same turbo encoder: full system with
-  SenseVoice-FT transcripts (9.7% WER) 81.29 vs 81.80, within fold variance (std ~2.3). The ASR is chosen on WER, its own task. Agrees with Li et al. 2024.
-- **What does the gate learn?** Mean audio weight 0.53 in the full system (0.43-0.62 per fold), 0.31 with WavLM,
-  0.55 without context (weaker text, more audio). **Table VI**: recall per emotion.
+- **Which module matters most?** Text (−8.58) > context (−5.29) > audio (−3.27). Every module helps on average.
+- **How much does ASR quality matter for emotion recognition?** (1) Ceiling: ground truth vs Whisper-FT transcripts
+  costs 0.72 UA with audio (81.89 vs 81.17) and 0.66 without (78.57 vs 77.91), so removing all ASR errors (9.6% WER
+  → 0) gains less than one UA point, less than audio (+3.27) or context (+5.29). (2) Between ASR models, same turbo
+  encoder: full system with SenseVoice-FT transcripts (9.7% WER) 81.29 vs 81.17, within fold variance. The ASR is
+  chosen on WER, its own task. Agrees with Li et al. 2024.
+- **What does the gate learn?** Mean audio weight 0.51 in the full system (0.44-0.63 per fold), 0.28 with WavLM,
+  0.71 without context (weaker text, more audio). **Table VI**: recall per emotion.
 
   | System | Neutral | Happy | Angry | Sad |
   |---|---|---|---|---|
-  | Full | **72.1** | **85.6** | **87.5** | 81.9 |
-  | w/o audio | 64.1 | 82.7 | 80.9 | **82.5** |
-  | w/o context | 63.9 | 78.5 | 82.5 | 82.4 |
+  | Full | **69.3** | **84.0** | **87.5** | **83.9** |
+  | w/o audio | 66.6 | 81.6 | 80.1 | 83.4 |
+  | w/o context | 65.8 | 74.2 | 81.3 | 82.2 |
   | w/o text | 62.1 | 67.1 | 80.7 | 80.4 |
 
-  Audio mostly helps neutral (+8.0) and angry (+6.6); context mostly helps neutral (+8.2) and happy (+7.1).
+  Audio mostly helps angry (+7.4); context mostly helps happy (+9.8) and angry (+6.2).
 - **Is the gain consistent across folds?** **Table VII**: UA per fold.
 
   | System | S1 | S2 | S3 | S4 | S5 |
   |---|---|---|---|---|---|
-  | Full | 79.26 | 84.28 | 78.99 | 82.45 | 84.03 |
-  | WavLM encoder | 75.96 | 85.15 | 76.87 | 80.32 | 82.88 |
-  | w/o audio | 73.38 | 82.14 | 74.43 | 76.77 | 81.01 |
-  | w/o context | 74.43 | 77.20 | 75.93 | 79.20 | 77.37 |
+  | Full | 78.89 | 84.79 | 78.55 | 82.33 | 81.31 |
+  | WavLM encoder | 76.85 | 83.76 | 78.00 | 78.96 | 82.06 |
+  | w/o audio | 75.02 | 82.88 | 75.99 | 75.64 | 80.00 |
+  | w/o context | 75.81 | 73.47 | 70.81 | 79.63 | 79.71 |
   | w/o text | 70.05 | 75.49 | 71.06 | 70.76 | 75.63 |
 
-  Audio, context and text each help in 5/5 folds; the Whisper encoder beats WavLM in 4/5 (not S2).
+  Audio, context and text each help in 5/5 folds; the Whisper encoder beats WavLM in 4/5 (not S5).
 
 ## VII. Conclusion (3-4 sentences)
 

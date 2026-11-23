@@ -21,4 +21,5 @@
 - [Hình và bảng trong report](feedback-report-figures.md) — kiến trúc vẽ draw.io theo style ảnh mẫu (tổng quan + luồng có số), kết quả để bảng, sườn theo bài nlp-ck
 - [Abstract không số](feedback-abstract-no-numbers.md) — abstract: vấn đề → gap → hướng giải quyết → phát hiện bằng lời, số để phần Results
 - [Không trích paper kinh điển](feedback-no-classic-citations.md) — bỏ paper nền tảng cũ dùng để giải thích khái niệm; vẫn trích model/dataset đã dùng
+- [Weight trên HF](reference-hf-weights.md) — 5 fold hệ đề xuất ở master-122025/eaasr-iemocap (private); report dùng số của chính lần chạy có weight
 - [Chia việc giữa session](feedback-session-split.md) — session training/research không chạy TTS, render, sửa README clip khi có peer session làm clip

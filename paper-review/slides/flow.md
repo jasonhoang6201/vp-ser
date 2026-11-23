@@ -180,11 +180,11 @@ Chữ trên slide viết đơn giản: không viết tắt (finetune, without), 
 ### Slide 13. Choosing the ASR model
 **Trên slide**
 - Bảng WER trước và sau finetune của SenseVoice-Small (234M) và Whisper large-v3-turbo (809M)
-- Tag "chosen" ở dòng Whisper; pill: finetuning helps Whisper more (−4.87 vs −1.47)
+- Tag "chosen" ở dòng Whisper; pill: finetuning helps Whisper more (−3.63 vs −1.47)
 - Card phải: bảng WER theo cảm xúc sau finetune, pill "happy is hardest for both"
 
 **Lời nói**
-"Đầu tiên em so hai ASR khi chưa finetune: SenseVoice tốt hơn, 11.20 so với 13.19, dù nhỏ hơn gần bốn lần. Sau khi finetune cả hai trên từng fold, Whisper giảm mạnh hơn, còn 8.32, thấp hơn SenseVoice 9.73. Vì vậy em chọn Whisper large-v3-turbo đã finetune. SenseVoice-Large có trong paper nhưng không được công bố weights, nên em dùng bản Small. Bảng phải: câu nói vui, phấn khích khó nhận dạng nhất với cả hai model, câu tức giận dễ nhất."
+"Đầu tiên em so hai ASR khi chưa finetune: SenseVoice tốt hơn, 11.20 so với 13.19, dù nhỏ hơn gần bốn lần. Sau khi finetune cả hai trên từng fold, Whisper giảm mạnh hơn, còn 9.56, thấp hơn SenseVoice 9.73 một chút. Vì vậy em chọn Whisper large-v3-turbo đã finetune. SenseVoice-Large có trong paper nhưng không được công bố weights, nên em dùng bản Small. Bảng phải: câu nói vui, phấn khích khó nhận dạng nhất với cả hai model, câu tức giận dễ nhất. Whisper thấp hơn ở mọi lớp trừ happy: có bốn câu test chỉ có tiếng cười hoặc tiếng thở, hai câu là happy, và Whisper lặp một từ đến hết độ dài cho phép. Bốn câu này cũng là lý do WER ở session 1 và 3 cao hơn các session khác."
 
 **Nguồn**: report, Table III; PROGRESS.md; WER theo cảm xúc tính từ `results/iemocap/*_finetune*/metrics_test.json`; SenseVoice chỉ công bố bản Small (https://github.com/FunAudioLLM/SenseVoice, https://huggingface.co/FunAudioLLM/SenseVoiceSmall; arXiv 2407.04051); số tham số: file fp32 936 MB của SenseVoice-Small, Whisper turbo 809M.
 
@@ -192,10 +192,10 @@ Chữ trên slide viết đơn giản: không viết tắt (finetune, without), 
 
 ### Slide 14. Choosing the audio encoder
 **Trên slide**
-- Bảng WavLM-large và Whisper large-v3-turbo encoder trong hệ đầy đủ: UA, WA, weighted F1, change in UA, audio gate weight (0.31, 0.53); tag "chosen" ở Whisper
+- Bảng WavLM-large và Whisper large-v3-turbo encoder trong hệ đầy đủ: UA, WA, weighted F1, change in UA, audio gate weight (0.28, 0.51); tag "chosen" ở Whisper
 
 **Lời nói**
-"Giữ nguyên transcript Whisper và ngữ cảnh, em chỉ đổi encoder audio. Encoder Whisper turbo cao hơn WavLM ở cả ba metric, UA 81.80 so với 80.24. Gate cũng cho thấy điều này: với WavLM, model chỉ đặt 0.31 trọng số vào nhánh audio; với Whisper, con số là 0.53, tức là model tin nhánh audio nhiều hơn. Kết quả này cùng chiều với benchmark EmoBox. Vì encoder lấy từ đúng checkpoint turbo dùng cho ASR, cả hệ chỉ cần một model Whisper: bản finetune làm ASR, encoder bản gốc đóng băng làm nhánh audio."
+"Giữ nguyên transcript Whisper và ngữ cảnh, em chỉ đổi encoder audio. Encoder Whisper turbo cao hơn WavLM ở cả ba metric, UA 81.17 so với 79.93. Gate cũng cho thấy điều này: với WavLM, model chỉ đặt 0.28 trọng số vào nhánh audio; với Whisper, con số là 0.51, tức là model tin nhánh audio nhiều hơn. Kết quả này cùng chiều với benchmark EmoBox. Vì encoder lấy từ đúng checkpoint turbo dùng cho ASR, cả hệ chỉ cần một model Whisper: bản finetune làm ASR, encoder bản gốc đóng băng làm nhánh audio."
 
 **Nguồn**: report, Table IV; Ma et al. 2024 (EmoBox).
 
@@ -206,7 +206,7 @@ Chữ trên slide viết đơn giản: không viết tắt (finetune, without), 
 - Bảng: Our system, Without audio, Without context, Without text; UA, WA, weighted F1, change in UA
 
 **Lời nói**
-"Em bỏ từng phần ra khỏi hệ đầy đủ. Bỏ text mất nhiều nhất, 9.20 UA. Bỏ ngữ cảnh mất 4.97. Bỏ audio mất 4.26. Phần nào cũng có đóng góp: text nhiều nhất, ngữ cảnh và audio gần nhau."
+"Em bỏ từng phần ra khỏi hệ đầy đủ. Bỏ text mất nhiều nhất, 8.58 UA. Bỏ ngữ cảnh mất 5.29. Bỏ audio mất 3.27. Phần nào cũng có đóng góp: text nhiều nhất, rồi ngữ cảnh, rồi audio."
 
 **Nguồn**: report, Table V.
 
@@ -217,7 +217,7 @@ Chữ trên slide viết đơn giản: không viết tắt (finetune, without), 
 - Bảng UA theo session cho Our system, WavLM encoder, Without audio, Without context, Without text
 
 **Lời nói**
-"Kết quả có ổn định qua các fold không? Hệ đầy đủ thắng bản bỏ audio, bản bỏ ngữ cảnh và bản bỏ text ở cả 5 session. Encoder Whisper thắng WavLM ở 4 trên 5 session, trừ session 2."
+"Kết quả có ổn định qua các fold không? Hệ đầy đủ thắng bản bỏ audio, bản bỏ ngữ cảnh và bản bỏ text ở cả 5 session. Encoder Whisper thắng WavLM ở 4 trên 5 session, trừ session 5."
 
 **Nguồn**: report, Table VII.
 
@@ -225,10 +225,10 @@ Chữ trên slide viết đơn giản: không viết tắt (finetune, without), 
 
 ### Slide 17. How ASR errors affect emotion
 **Trên slide**
-- Bảng hệ đầy đủ với ba nguồn transcript: ground truth (WER 0, UA 81.89), Whisper finetune (8.32, UA 81.80, −0.09), SenseVoice finetune (9.73, UA 81.29, −0.60)
+- Bảng hệ đầy đủ với ba nguồn transcript: ground truth (WER 0, UA 81.89), Whisper finetune (9.56, UA 81.17, −0.72), SenseVoice finetune (9.73, UA 81.29, −0.60)
 
 **Lời nói**
-"Lỗi ASR tốn bao nhiêu? Em giữ nguyên hệ đầy đủ và chỉ đổi transcript. Với transcript đúng, WER bằng 0, hệ đạt 81.89. Với Whisper finetune, WER 8.32, hệ đạt 81.80, chỉ thấp hơn 0.09. Với SenseVoice finetune, WER 9.73, hệ đạt 81.29, thấp hơn 0.60. Nếu bỏ audio, chỉ dùng text và ngữ cảnh, thì text đúng được 78.57 so với 77.54 của transcript Whisper, mất 1.03 UA. Như vậy khi có audio, lỗi ASR ở mức WER 8 đến 10% gần như không làm giảm UA."
+"Lỗi ASR tốn bao nhiêu? Em giữ nguyên hệ đầy đủ và chỉ đổi transcript. Với transcript đúng, WER bằng 0, hệ đạt 81.89. Với Whisper finetune, WER 9.56, hệ đạt 81.17, thấp hơn 0.72. Với SenseVoice finetune, WER 9.73, hệ đạt 81.29, thấp hơn 0.60. Nếu bỏ audio, chỉ dùng text và ngữ cảnh, thì text đúng được 78.57 so với 77.91 của transcript Whisper, mất 0.66 UA. Như vậy có hay không có audio, lỗi ASR ở mức WER khoảng 10% chỉ làm mất dưới một điểm UA, ít hơn nhiều so với phần audio đóng góp, 3.27, hay ngữ cảnh, 5.29. Hai transcript finetune chênh nhau 0.12 UA, nhỏ hơn nhiều so với độ dao động giữa các fold, nên UA không phân biệt được hai ASR; em chọn ASR theo WER, đúng tác vụ của nó."
 
 **Nguồn**: report, Analysis; Table V; PROGRESS.md (đợt encoder turbo, `combined_gt_ctx_whisper_turbo*`); Li et al. 2024.
 
@@ -237,10 +237,10 @@ Chữ trên slide viết đơn giản: không viết tắt (finetune, without), 
 ### Slide 18. Recall of each class
 **Trên slide**
 - Bảng recall theo lớp: Our system, Without audio, Without context, Without text
-- Gate weight on audio: our system 0.53, without context 0.55, WavLM encoder 0.31
+- Gate weight on audio: our system 0.51, without context 0.71, WavLM encoder 0.28
 
 **Lời nói**
-"Nhìn theo từng lớp: audio giúp nhiều nhất cho neutral, tăng 8.0 recall, và angry, tăng 6.6. Ngữ cảnh giúp neutral, tăng 8.2, và happy, tăng 7.1. Lớp sad gần như không đổi khi bỏ phần nào. Gate trong hệ đầy đủ đặt trung bình 0.53 trọng số vào audio. Khi bỏ ngữ cảnh, nhánh text yếu đi nên gate nghiêng thêm sang audio, 0.55. Với WavLM, gate chỉ đặt 0.31 vào audio."
+"Nhìn theo từng lớp: audio giúp nhiều nhất cho angry, tăng 7.4 recall. Ngữ cảnh giúp happy nhiều nhất, tăng 9.8, rồi angry, tăng 6.2. Lớp sad thay đổi ít nhất khi bỏ phần nào. Gate trong hệ đầy đủ đặt trung bình 0.51 trọng số vào audio. Khi bỏ ngữ cảnh, nhánh text yếu đi nên gate nghiêng hẳn sang audio, 0.71. Với WavLM, gate chỉ đặt 0.28 vào audio."
 
 **Nguồn**: report, Table VI và Analysis.
 
@@ -251,6 +251,6 @@ Chữ trên slide viết đơn giản: không viết tắt (finetune, without), 
 - Bảng các hệ đã công bố: loại hệ, có dùng transcript, audio, ngữ cảnh, WER, UA
 
 **Lời nói**
-"Đây là các hệ đã công bố trên IEMOCAP bốn lớp. Cách chia dữ liệu, tập dev và metric khác nhau nên không so trực tiếp được. Trong nhóm có làm cả ASR, hệ của em có WER thấp nhất, 8.32, và UA 81.80. PL-Distill cao hơn về UA nhưng chỉ nhận diện cảm xúc từ audio, không ra transcript. Tóm lại: sau khi finetune, Whisper turbo đạt 8.32% WER; hệ đạt 81.80% UA và chỉ cần một model Whisper cho cả ASR và nhánh audio. Text đóng góp nhiều nhất, rồi ngữ cảnh, rồi audio; khi có audio, lỗi ASR ở mức này gần như không làm giảm UA. Hướng tiếp theo là thử trên giọng nói tự nhiên như MSP-Podcast."
+"Đây là các hệ đã công bố trên IEMOCAP bốn lớp. Cách chia dữ liệu, tập dev và metric khác nhau nên không so trực tiếp được. Trong nhóm có làm cả ASR, hệ của em có WER thấp nhất, 9.56, và UA 81.17. PL-Distill cao hơn về UA nhưng chỉ nhận diện cảm xúc từ audio, không ra transcript. Tóm lại: sau khi finetune, Whisper turbo đạt 9.56% WER; hệ đạt 81.17% UA và chỉ cần một model Whisper cho cả ASR và nhánh audio. Text đóng góp nhiều nhất, rồi ngữ cảnh, rồi audio; lỗi ASR ở mức này chỉ làm mất dưới một điểm UA. Hướng tiếp theo là thử trên giọng nói tự nhiên như MSP-Podcast."
 
 **Nguồn**: report, Table I và Conclusion; Gao et al. 2023; Shen et al. 2024; Chen et al. 2025; He et al. 2024; Ma et al. 2024; Yang et al. 2026; Ueda et al. 2026.

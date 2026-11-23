@@ -4,31 +4,31 @@
   "split": "test",
   "notes": "openai/whisper-large-v3-turbo full fine-tune 3 ep, lr 1e-05, batch 16, seed 42, epoch picked on dev WER",
   "asr": {
-    "wer": 0.10169360451627871,
+    "wer": 0.14368571649524398,
     "n_utts": 1147,
     "n_ref_words": 12931,
     "n_empty_ref_skipped": 4,
     "wer_by_emotion": {
-      "anger": 0.05886075949367089,
-      "joy": 0.1611558766323979,
-      "neutral": 0.10409165302782324,
-      "sadness": 0.0741097208854668
+      "anger": 0.06487341772151899,
+      "joy": 0.2767435398721867,
+      "neutral": 0.10343698854337152,
+      "sadness": 0.10940006416426051
     }
   },
   "seed": 42,
-  "best_epoch": 1,
+  "best_epoch": 2,
   "hist": [
     {
       "epoch": 0,
-      "dev_wer": 0.0779528893407897
+      "dev_wer": 0.07913912896119302
     },
     {
       "epoch": 1,
-      "dev_wer": 0.07151330283002881
+      "dev_wer": 0.07558041009998305
     },
     {
       "epoch": 2,
-      "dev_wer": 0.07286900525334689
+      "dev_wer": 0.07269954245043213
     }
   ]
 }

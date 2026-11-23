@@ -38,11 +38,13 @@ pull() {
   # Download only after a confirmed tar: the previous step's archive is still on the VM and would pass for this one.
   local out
   for t in 1 2 3 4 5; do
-    out=$(vm "import subprocess\nsubprocess.run('cd $R && tar -czf /content/${DS}_out.tgz --exclude=*.npy --exclude=wavlm_*.npz --exclude=whisper_*.npz --exclude=e2v_*.npz results/$DS cache/$DS 2>/dev/null', shell=True)\nprint('tar ok')\n" 300)
+    # Only files written on this VM after restore: restored copies are stale once another VM has updated them.
+    out=$(vm "import subprocess\nsubprocess.run('cd $R && find results/$DS cache/$DS -type f -newer /content/${DS}_restored ! -name \"*.npy\" ! -name \"wavlm_*.npz\" ! -name \"whisper_*.npz\" ! -name \"e2v_*.npz\" > /content/${DS}_out.list; tar -czf /content/${DS}_out.tgz -T /content/${DS}_out.list', shell=True)\nprint('tar ok')\n" 300)
     echo "$out"
     if [[ $out == *"tar ok"* ]]; then
-      $C download -s $SESSION /content/${DS}_out.tgz $NB/${DS}_out.tgz < /dev/null 2>&1 | tail -1
-      tar -xzf $NB/${DS}_out.tgz -C $NB && rm $NB/${DS}_out.tgz && echo "pulled after $1 $(date +%H:%M)" && return 0
+      # Named per session: chains running side by side would otherwise extract each other's half-downloaded archive.
+      $C download -s $SESSION /content/${DS}_out.tgz $NB/${DS}_${SESSION}_out.tgz < /dev/null 2>&1 | tail -1
+      tar -xzf $NB/${DS}_${SESSION}_out.tgz -C $NB && rm $NB/${DS}_${SESSION}_out.tgz && echo "pulled after $1 $(date +%H:%M)" && return 0
     fi
     sleep 30
   done

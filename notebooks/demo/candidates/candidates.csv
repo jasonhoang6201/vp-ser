@@ -1,0 +1,47 @@
+file,gold,source,listener_agreement
+cand_1042_IWW_ANG_XX.wav,anger,CREMA-D 1042_IWW_ANG_XX,1.00 (11)
+cand_1039_DFA_ANG_XX.wav,anger,CREMA-D 1039_DFA_ANG_XX,0.90 (10)
+cand_1041_IWW_ANG_XX.wav,anger,CREMA-D 1041_IWW_ANG_XX,0.90 (10)
+cand_1026_TSI_ANG_XX.wav,anger,CREMA-D 1026_TSI_ANG_XX,1.00 (10)
+cand_1056_WSI_ANG_XX.wav,anger,CREMA-D 1056_WSI_ANG_XX,0.90 (10)
+cand_1002_IOM_ANG_XX.wav,anger,CREMA-D 1002_IOM_ANG_XX,0.80 (10)
+cand_1059_TIE_ANG_XX.wav,anger,CREMA-D 1059_TIE_ANG_XX,1.00 (9)
+cand_1027_TIE_ANG_XX.wav,anger,CREMA-D 1027_TIE_ANG_XX,1.00 (10)
+cand_1077_IWL_ANG_XX.wav,anger,CREMA-D 1077_IWL_ANG_XX,0.80 (10)
+cand_1080_DFA_ANG_XX.wav,anger,CREMA-D 1080_DFA_ANG_XX,0.80 (10)
+cand_1062_IEO_NEU_XX.wav,neutral,CREMA-D 1062_IEO_NEU_XX,1.00 (9)
+cand_1055_IEO_NEU_XX.wav,neutral,CREMA-D 1055_IEO_NEU_XX,0.80 (10)
+cand_1038_WSI_NEU_XX.wav,neutral,CREMA-D 1038_WSI_NEU_XX,0.89 (9)
+cand_1047_IWL_NEU_XX.wav,neutral,CREMA-D 1047_IWL_NEU_XX,0.90 (10)
+cand_1056_IWL_NEU_XX.wav,neutral,CREMA-D 1056_IWL_NEU_XX,0.90 (10)
+cand_1008_MTI_NEU_XX.wav,neutral,CREMA-D 1008_MTI_NEU_XX,0.80 (10)
+cand_1076_TIE_NEU_XX.wav,neutral,CREMA-D 1076_TIE_NEU_XX,0.90 (10)
+cand_1009_TAI_NEU_XX.wav,neutral,CREMA-D 1009_TAI_NEU_XX,0.90 (10)
+cand_1066_TSI_NEU_XX.wav,neutral,CREMA-D 1066_TSI_NEU_XX,0.90 (10)
+cand_1018_ITH_NEU_XX.wav,neutral,CREMA-D 1018_ITH_NEU_XX,0.80 (10)
+cand_1086_WSI_HAP_XX.wav,joy,CREMA-D 1086_WSI_HAP_XX,1.00 (10)
+cand_1008_ITS_HAP_XX.wav,joy,CREMA-D 1008_ITS_HAP_XX,0.90 (10)
+cand_1089_MTI_HAP_XX.wav,joy,CREMA-D 1089_MTI_HAP_XX,0.90 (10)
+cand_1042_TAI_HAP_XX.wav,joy,CREMA-D 1042_TAI_HAP_XX,0.80 (10)
+cand_1076_IEO_HAP_HI.wav,joy,CREMA-D 1076_IEO_HAP_HI,0.90 (10)
+cand_1079_IOM_HAP_XX.wav,joy,CREMA-D 1079_IOM_HAP_XX,0.80 (10)
+cand_1005_IOM_HAP_XX.wav,joy,CREMA-D 1005_IOM_HAP_XX,0.80 (10)
+cand_1064_MTI_HAP_XX.wav,joy,CREMA-D 1064_MTI_HAP_XX,0.90 (10)
+cand_1074_TAI_HAP_XX.wav,joy,CREMA-D 1074_TAI_HAP_XX,1.00 (10)
+cand_1009_IWL_HAP_XX.wav,joy,CREMA-D 1009_IWL_HAP_XX,0.80 (10)
+cand_1059_IEO_SAD_HI.wav,sadness,CREMA-D 1059_IEO_SAD_HI,0.80 (10)
+cand_1028_IWL_SAD_XX.wav,sadness,CREMA-D 1028_IWL_SAD_XX,0.91 (11)
+cand_1004_IWL_SAD_XX.wav,sadness,CREMA-D 1004_IWL_SAD_XX,1.00 (10)
+cand_1064_ITS_SAD_XX.wav,sadness,CREMA-D 1064_ITS_SAD_XX,0.82 (11)
+cand_1013_ITH_SAD_XX.wav,sadness,CREMA-D 1013_ITH_SAD_XX,0.82 (11)
+cand_1089_MTI_SAD_XX.wav,sadness,CREMA-D 1089_MTI_SAD_XX,0.89 (9)
+cand_1006_TAI_SAD_XX.wav,sadness,CREMA-D 1006_TAI_SAD_XX,0.80 (10)
+cand_1058_IEO_SAD_HI.wav,sadness,CREMA-D 1058_IEO_SAD_HI,1.00 (9)
+cand_1078_MTI_SAD_XX.wav,sadness,CREMA-D 1078_MTI_SAD_XX,0.82 (11)
+01_joy_amazing_book.wav,joy,Expresso ex01_happy_00049,
+02_anger_meeting.wav,anger,CREMA-D 1089_IOM_ANG_XX,
+03_joy_meeting.wav,joy,CREMA-D 1089_IOM_HAP_XX,
+04_sadness_meeting.wav,sadness,CREMA-D 1089_IOM_SAD_XX,
+05_neutral_meeting.wav,neutral,CREMA-D 1089_IOM_NEU_XX,
+06_sadvoice_amazing_book.wav,sadness,Expresso ex01_sad_00049,
+07_neutral_amazing_book.wav,neutral,Expresso ex01_default_00049,

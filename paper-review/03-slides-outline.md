@@ -13,15 +13,15 @@ approved. Results as tables, not charts.
 | 4b | How one utterance flows | Sizes at each step, gate weights, class probabilities | Fig. 2 (`figures/fig_flow`) |
 | 5 | Data and protocol | IEMOCAP 4 classes, 5531 utterances, 5-fold leave-one-session-out; WER, UA | class-count table |
 | 6 | Step 1: ASR zero-shot | SenseVoice 11.20 vs Whisper turbo 13.19 WER | Table III, zero-shot column |
-| 7 | Step 2: ASR fine-tuned | Whisper turbo 8.32 vs SenseVoice 9.73: Whisper becomes the ASR module | Table III, both columns |
-| 8 | Step 3: audio encoder | Whisper large-v3-turbo encoder 81.80 vs WavLM 80.24 UA; one Whisper for both roles | Table IV |
-| 9 | Step 4: ablation | Full 81.80; w/o text −9.20, w/o context −4.97, w/o audio −4.26 | Table V |
-| 10 | How much do ASR errors cost? | Ground truth 78.57 vs transcripts 77.54 (text only): 1.03 UA at 8.3% WER, vs audio +4.26, context +4.97 | 2 tables |
-| 11 | What each module helps | Gate on audio 0.53; audio helps neutral (+8.0), context helps happy (+7.1) | Table VI |
+| 7 | Step 2: ASR fine-tuned | Whisper turbo 9.56 vs SenseVoice 9.73: Whisper becomes the ASR module | Table III, both columns |
+| 8 | Step 3: audio encoder | Whisper large-v3-turbo encoder 81.17 vs WavLM 79.93 UA; one Whisper for both roles | Table IV |
+| 9 | Step 4: ablation | Full 81.17; w/o text −8.58, w/o context −5.29, w/o audio −3.27 | Table V |
+| 10 | How much do ASR errors cost? | Ground truth vs Whisper-FT transcripts: 0.72 UA with audio, 0.66 without, at 9.6% WER, vs audio +3.27, context +5.29 | 2 tables |
+| 11 | What each module helps | Gate on audio 0.51; audio helps angry (+7.4), context helps happy (+9.8) | Table VI |
 | 12 | Comparison with published work | Table I with protocol caveat | Table I |
-| 13 | Conclusion | 3 takeaways: Whisper FT 8.32 WER; 81.80 UA with one Whisper; text > context > audio, ASR errors cost ~1 UA. One line of future work: spontaneous speech (MSP-Podcast) | 3 boxes + 1 line |
+| 13 | Conclusion | 3 takeaways: Whisper FT 9.56 WER; 81.17 UA with one Whisper; text > context > audio, ASR errors cost < 1 UA. One line of future work: spontaneous speech (MSP-Podcast) | 3 boxes + 1 line |
 
-Slide 10 also shows the full system on SenseVoice-FT transcripts with the same encoder (81.29 vs 81.80).
+Slide 10 also shows the full system on SenseVoice-FT transcripts with the same encoder (81.29 vs 81.17).
 The deck adds a Background part (6 slides: SER, history, cues, datasets and metrics, four directions, challenges)
 before slide 2; see `slides/flow.md` for the final 21-slide order.
 

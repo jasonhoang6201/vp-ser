@@ -106,15 +106,15 @@ Chữ trên slide viết đơn giản: không viết tắt (finetune, without), 
 
 ### Slide 7. Four approaches to emotion-aware ASR
 **Trên slide**
-- Robust ASR on emotional speech
-- One model for ASR and SER
-- ASR first, then SER (this work)
-- Audio LLMs
+- 01 Robust ASR on emotional speech: chip Li et al. Interspeech 2023
+- 02 Joint ASR + SER model: chip Cai et al. Interspeech 2021
+- 03 ASR then SER (this work): chip He et al. (MF-AED-AEC) ICASSP 2024, chip Li, Bell, Lai ICASSP 2022
+- 04 Audio LLMs: chip Tang et al. (SALMONN) ICLR 2024
 
 **Lời nói**
-"Riêng emotion-aware ASR có bốn hướng. Một là làm ASR chịu được giọng có cảm xúc, ví dụ Li và cộng sự ở Interspeech 2023. Hai là một model làm cả ASR và SER, như SenseVoice. Ba là chạy ASR trước rồi đoán cảm xúc, hướng của em. Bốn là dùng audio LLM sinh cả transcript lẫn nhãn cảm xúc."
+"Riêng emotion-aware ASR có bốn hướng. Một là làm ASR chịu được giọng có cảm xúc, ví dụ Li và cộng sự ở Interspeech 2023. Hai là một model làm cả ASR và SER, ví dụ Cai và cộng sự ở Interspeech 2021 gắn thêm head CTC cho ASR cạnh bộ phân loại cảm xúc. Ba là chạy ASR trước rồi đoán cảm xúc, hướng của em, ví dụ MF-AED-AEC ở ICASSP 2024 và Li, Bell, Lai ở ICASSP 2022 dùng output của ASR để nhận diện cảm xúc. Bốn là dùng audio LLM như SALMONN, sinh cả transcript lẫn nhãn cảm xúc."
 
-**Nguồn**: `.claude/research/papers.md` mục 1 và 2; Li et al. Interspeech 2023 (arXiv 2305.16065); Cai, Yuan, Zheng, Huang, Church, Interspeech 2021 (https://unpaywall.org/10.21437%2FInterspeech.2021-1852); SenseVoice (arXiv 2407.04051); Li et al. SLT 2024; He et al. ICASSP 2024; R3 (arXiv 2409.15551); VIB-Emo (arXiv 2505.23236).
+**Nguồn**: `.claude/research/papers.md` mục 1 và 2; Li et al. Interspeech 2023 (arXiv 2305.16065); Cai, Yuan, Zheng, Huang, Church, Interspeech 2021 (https://unpaywall.org/10.21437%2FInterspeech.2021-1852); He et al. ICASSP 2024 (MF-AED-AEC); Li, Bell, Lai, ICASSP 2022 (arXiv 2110.15684); SALMONN, ICLR 2024 (https://proceedings.iclr.cc/paper_files/paper/2024/hash/476ab8f369e489c04187ba84f68cfa68-Abstract-Conference.html).
 
 ---
 
@@ -133,13 +133,13 @@ Chữ trên slide viết đơn giản: không viết tắt (finetune, without), 
 
 ### Slide 9. Existing approaches and their limits
 **Trên slide**
-- One model for both tasks: Gao et al. Interspeech 2023, Shen et al. (ENT) ICASSP 2024. Limitation: the two tasks compete inside one network, and it ends up favoring ASR.
-- ASR first, then emotion from the text: Li et al. SLT 2024, He et al. (MF-AED-AEC) ICASSP 2024. Limitation: mistakes in the transcript lead to wrong emotions.
+- One model for both tasks: Cai et al. Interspeech 2021, Shen et al. (ENT) ICASSP 2024. Limitation: the two tasks compete inside one network, and it ends up favoring ASR.
+- ASR first, then emotion from the text: Li, Bell, Lai ICASSP 2022, He et al. (MF-AED-AEC) ICASSP 2024. Limitation: mistakes in the transcript lead to wrong emotions.
 
 **Lời nói**
-"Có hai hướng làm. Hướng thứ nhất dùng một model cho cả hai tác vụ. Gao và cộng sự chỉ ra rằng khi train chung, gradient của hai tác vụ thường ngược chiều, và mạng dùng chung nghiêng về ASR. Hướng thứ hai chạy ASR trước rồi đoán cảm xúc từ transcript. Hướng này bị lỗi ASR truyền sang, và Li và cộng sự cho thấy mức ảnh hưởng tùy vào WER. Em đi theo hướng thứ hai, tách hai model, và đo xem lỗi ASR thực sự tốn bao nhiêu."
+"Có hai hướng làm. Hướng thứ nhất dùng một model cho cả hai tác vụ, như Cai và cộng sự hay ENT của Shen và cộng sự. Khi train chung, gradient của hai tác vụ thường ngược chiều, Gao và cộng sự ở Interspeech 2023 đã chỉ ra điều này, và mạng dùng chung nghiêng về ASR. Hướng thứ hai chạy ASR trước rồi đoán cảm xúc từ transcript, như Li, Bell, Lai hay MF-AED-AEC. Hướng này bị lỗi ASR truyền sang, và Li và cộng sự ở SLT 2024 cho thấy mức ảnh hưởng tùy vào WER. Em đi theo hướng thứ hai, tách hai model, và đo xem lỗi ASR thực sự tốn bao nhiêu."
 
-**Nguồn**: Gao et al. 2023 (Introduction); Li et al. 2024 (Abstract); He et al. 2024; Shen et al. 2024.
+**Nguồn**: Cai et al. Interspeech 2021; Shen et al. ICASSP 2024 (ENT); Gao et al. Interspeech 2023 (Introduction, gradient conflict); Li, Bell, Lai, ICASSP 2022 (arXiv 2110.15684); Li et al. SLT 2024 (Abstract); He et al. ICASSP 2024 (MF-AED-AEC).
 
 ---
 

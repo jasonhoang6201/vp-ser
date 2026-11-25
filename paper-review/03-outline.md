@@ -107,7 +107,7 @@ sessions 1, 3 are raised by 4 laughter/breathing-only test turns on which FT Whi
 
 | Audio encoder | UA | WA | wF1 | Δ UA |
 |---|---|---|---|---|
-| WavLM-large | 79.93 | 78.89 | 78.55 | −1.25 |
+| WavLM-large | 79.93 | 78.89 | 78.55 | −1.24 |
 | Whisper large-v3-turbo | **81.17** | **79.98** | **79.88** | |
 
 **Table V: step 4, ablation**
@@ -115,17 +115,17 @@ sessions 1, 3 are raised by 4 laughter/breathing-only test turns on which FT Whi
 | System | UA | WA | wF1 | Δ UA |
 |---|---|---|---|---|
 | Full | **81.17** | **79.98** | **79.88** | |
-| w/o audio | 77.91 | 76.70 | 76.67 | −3.27 |
-| w/o context | 75.89 | 74.64 | 74.34 | −5.29 |
-| w/o text | 72.60 | 71.10 | 70.50 | −8.58 |
+| w/o audio | 77.91 | 76.70 | 76.67 | −3.26 |
+| w/o context | 75.89 | 74.64 | 74.34 | −5.28 |
+| w/o text | 72.60 | 71.10 | 70.50 | −8.57 |
 | Ground-truth text, w/o audio (upper bound for ASR) | 78.57 | 77.24 | 77.20 | +0.66 vs w/o audio |
 
 ## VI. Analysis (paragraph titles are the questions)
 
-- **Which module matters most?** Text (−8.58) > context (−5.29) > audio (−3.27). Every module helps on average.
+- **Which module matters most?** Text (−8.57) > context (−5.28) > audio (−3.26). Every module helps on average.
 - **How much does ASR quality matter for emotion recognition?** (1) Ceiling: ground truth vs Whisper-FT transcripts
   costs 0.72 UA with audio (81.89 vs 81.17) and 0.66 without (78.57 vs 77.91), so removing all ASR errors (9.6% WER
-  → 0) gains less than one UA point, less than audio (+3.27) or context (+5.29). (2) Between ASR models, same turbo
+  → 0) gains less than one UA point, less than audio (+3.26) or context (+5.28). (2) Between ASR models, same turbo
   encoder: full system with SenseVoice-FT transcripts (9.7% WER) 81.29 vs 81.17, within fold variance. The ASR is
   chosen on WER, its own task. Agrees with Li et al. 2024.
 - **What does the gate learn?** Mean audio weight 0.51 in the full system (0.44-0.63 per fold), 0.28 with WavLM,

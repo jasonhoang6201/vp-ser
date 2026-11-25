@@ -1,21 +1,21 @@
 # gpu: L4
 # %% [markdown]
-# # 20. Transcript SenseVoice fine-tune cho mọi split (chuẩn bị cho model kết hợp)
+# # 20. Transcript SenseVoice-FT cho mọi câu
 #
-# Model kết hợp dùng transcript của ASR tốt nhất (SenseVoice-Small fine-tune, WER test 27.4) làm đầu vào cho nhánh text.
+# Report so hai khối ASR trên cùng hệ đầy đủ (Whisper-FT 81.17 so với SenseVoice-FT 81.29 UA). Notebook này sinh
+# transcript SenseVoice-FT cho notebook 21 với `ASR="sensevoice"`, cùng dạng file với phần C của notebook 15.
 # Để nhánh text học được cách chịu lỗi ASR, cần transcript ASR cho cả **train** và **dev**, không chỉ test.
 #
 # Lưu ý: SenseVoice đã fine-tune trên chính tập train, nên transcript train sẽ sạch hơn dev/test (WER thấp hơn).
 # Notebook in WER từng split để thấy độ chênh này.
 #
-# Đầu ra: `cache/<dataset>/asr_sensevoice_ft.csv` (id, split, hyp_text, sv_emotion). SenseVoice chỉ sinh token
-# cảm xúc, không có xác suất, nên chỉ lưu token.
+# Đầu ra: `cache/iemocap/asr_sensevoice_ft{FOLD}.csv` (id, split, hyp_text, sv_emotion).
 
 # %%
-DATASET = "meld"
+DATASET = "iemocap"
 BATCH = 64
-TEST_SESSION = 5      # IEMOCAP: phải khớp với checkpoint của notebook 10 cùng fold
-FOLD = "" if DATASET == "meld" or TEST_SESSION == 5 else f"_f{TEST_SESSION}"
+TEST_SESSION = 5      # phải khớp với checkpoint của notebook 10 cùng fold
+FOLD = "" if TEST_SESSION == 5 else f"_f{TEST_SESSION}"
 
 # %%
 import os, sys
@@ -67,7 +67,7 @@ for split, df in splits.items():
 # IEMOCAP labels only ~55% of utterances with the 4 classes; the rest are still turns of the dialogue, so they
 # get transcripts too and can serve as context. No metrics on them: the ASR model never saw their labels anyway.
 seen = set(r["id"] for r in rows)
-rest = man[~man.id.isin(seen) & (man.duration <= 60)]
+rest = man[~man.id.isin(seen)]
 if len(rest):
     res = model.generate(input=rest["path"].tolist(), cache={}, language="en", use_itn=True,
                          batch_size=BATCH, ban_emo_unk=True)

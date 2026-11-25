@@ -1,36 +1,37 @@
 # gpu: L4
 # %% [markdown]
-# # 21. Hệ đề xuất: SenseVoice-FT ASR → RoBERTa fine-tune + ngữ cảnh hội thoại + encoder audio, gated fusion
+# # 21. Hệ đề xuất: Whisper-FT ASR → RoBERTa fine-tune + ngữ cảnh hội thoại + encoder audio, gated fusion
 #
-# - Khối ASR: **SenseVoice-Small fine-tune** (notebook 10, transcript cho mọi câu ở notebook 20).
+# - Khối ASR: **Whisper large-v3-turbo fine-tune** (notebook 15, phần C sinh transcript cho mọi câu).
 # - Nhánh text: RoBERTa-large fine-tune trên transcript ASR (không dùng text đúng), ghép 3 câu trước trong dialogue.
-# - Nhánh audio: encoder đông cứng (Whisper large v3 cho IEMOCAP), layer weight học được.
+# - Nhánh audio: encoder đông cứng của Whisper large-v3-turbo gốc, layer weight học được.
 # - Gộp hai nhánh bằng **gated fusion** (model tự học trọng số text/audio cho từng câu).
 #
 # Ablation: mỗi cấu hình bỏ hoặc thay đúng một module của hệ đầy đủ.
 #
-# | Cấu hình | Text | Ngữ cảnh | Audio | Câu hỏi |
+# | Cấu hình | Text | Ngữ cảnh | Audio | Dòng trong report |
 # |---|---|---|---|---|
-# | `asr_ctx_e2v` | transcript ASR | 3 câu trước | có | **hệ đầy đủ** |
+# | `asr_ctx_audio` | transcript ASR | 3 câu trước | có | **hệ đầy đủ** |
 # | `asr_ctx` | transcript ASR | 3 câu trước | không | bỏ audio |
-# | `asr_e2v` | transcript ASR | không | có | bỏ ngữ cảnh |
-# | `e2v_only` | không | không | có | bỏ text |
-# | `gt_ctx` | text đúng | 3 câu trước | không | cận trên: lỗi ASR làm mất bao nhiêu |
-# | `gt_ctx_e2v` | text đúng | 3 câu trước | có | cận trên của hệ đầy đủ |
+# | `asr_audio` | transcript ASR | không | có | bỏ ngữ cảnh |
+# | `audio_only` | không | không | có | bỏ text |
+# | `gt_ctx` | text đúng | 3 câu trước | không | text đúng, không audio |
+# | `gt_ctx_audio` | text đúng | 3 câu trước | có | text đúng, hệ đầy đủ |
 #
-# Thay encoder audio (Whisper so với WavLM) bằng cách chạy lại `asr_ctx_e2v` với `AUDIO="wavlm"`.
-# Trong tên kết quả, `e2v` được thay bằng tên encoder thật (ví dụ `asr_ctx_whisper`).
+# Hai so sánh còn lại chạy lại `asr_ctx_audio` với tham số khác:
+# - encoder audio WavLM (Bảng IV): `AUDIO="wavlm"`;
+# - transcript SenseVoice-FT thay cho Whisper-FT: `ASR="sensevoice"` (cần notebook 10 và 20 của fold đó).
 #
-# Class-weighted cross-entropy, chọn epoch theo **dev UA**, mỗi cấu hình chạy một lần với `SEED`.
+# Tên kết quả: `audio` được thay bằng tên encoder (`asr_ctx_whisper_turbo`), transcript Whisper-FT thêm tiền tố `w`
+# (`combined_wasr_ctx_whisper_turbo`). Class-weighted cross-entropy, chọn epoch theo **dev UA**.
 
 # %%
 DATASET = "iemocap"
-ASR = "sensevoice"     # nguồn transcript: "sensevoice" (notebook 20) hoặc "whisper" (Whisper turbo FT, notebook 15)
+ASR = "whisper"        # nguồn transcript: "whisper" (notebook 15) hoặc "sensevoice" (notebook 20)
 TEXT_MODEL = "roberta-large"
-E2V = "emotion2vec/emotion2vec_plus_large"
-AUDIO = "whisper"      # "e2v", "wavlm", "whisper" (large-v3) hoặc "whisper_turbo" (encoder của large-v3-turbo)
+AUDIO = "whisper_turbo"  # "whisper_turbo" (encoder của large-v3-turbo) hoặc "wavlm"
 WAVLM = "microsoft/wavlm-large"
-WHISPER = {"whisper": "openai/whisper-large-v3", "whisper_turbo": "openai/whisper-large-v3-turbo"}.get(AUDIO)
+WHISPER = "openai/whisper-large-v3-turbo"
 CTX = 3
 MAX_LEN = 192
 EPOCHS = 5
@@ -38,10 +39,10 @@ BATCH = 16
 LR = 1e-5
 HEAD_LR = 1e-4
 SEED = 42
-RUNS = ["asr_ctx_e2v", "asr_ctx", "asr_e2v", "e2v_only", "gt_ctx"]
-TEST_SESSION = 5      # IEMOCAP: session để test (cross-validation 5 fold chạy lần lượt 1..5)
-FOLD = "" if DATASET == "meld" or TEST_SESSION == 5 else f"_f{TEST_SESSION}"
-# IEMOCAP: ngữ cảnh dựng từ timestamp trong manifest (xem tools/prep_iemocap_official.py).
+RUNS = ["asr_ctx_audio", "asr_ctx", "asr_audio", "audio_only", "gt_ctx", "gt_ctx_audio"]
+TEST_SESSION = 5      # session để test; chạy lần lượt 5, 1, 2, 3, 4 cho 5 fold
+FOLD = "" if TEST_SESSION == 5 else f"_f{TEST_SESSION}"
+# Ngữ cảnh dựng từ timestamp trong manifest (xem tools/prep_iemocap_official.py).
 
 # %%
 import os, sys
@@ -52,10 +53,10 @@ if NB_ROOT.startswith("/content/drive"):
 sys.path.insert(0, NB_ROOT)
 
 # %%
-!pip -q install -U transformers funasr whisper-normalizer soundfile
+!pip -q install -U transformers whisper-normalizer soundfile
 
 # %%
-import json, subprocess, time
+import json, time
 
 import numpy as np
 import pandas as pd
@@ -63,7 +64,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from eaasr.common import CACHE_DIR, LABELS, RESULTS_DIR, evaluate, get_splits, gpu_info, ser_metrics, set_seed, stage_dataset
+from eaasr.common import (CACHE_DIR, CKPT_DIR, LABELS, evaluate, get_splits, gpu_info, load_wav, ser_metrics, set_seed,
+                          stage_dataset)
 
 gpu_info()
 labels = LABELS[DATASET]
@@ -84,22 +86,17 @@ print({k: len(v) for k, v in idx.items()})
 # %% [markdown]
 # ## 1. Embedding audio
 #
-# - `e2v`: emotion2vec+ large, một vector cho mỗi câu. Chỉ dùng cho MELD: emotion2vec+ đã thấy IEMOCAP lúc train
-#   (zero-shot UA 86).
-# - `wavlm`: WavLM-large, chỉ học tự giám sát trên sách nói, **chưa từng thấy nhãn cảm xúc**. Lưu trung bình theo
-#   thời gian của **mọi layer**, model tự học trọng số từng layer (kiểu SUPERB).
-# - `whisper`: encoder Whisper large v3, cùng cách lưu mọi layer như `wavlm`. EmoBox đo cùng protocol: Whisper UA 73.54,
-#   WavLM 69.47. Không rõ dữ liệu train của Whisper có IEMOCAP hay không.
+# - `whisper_turbo`: encoder của Whisper large-v3-turbo gốc (không phải bản fine-tune ASR). Lưu trung bình theo
+#   thời gian của **mọi layer**, model tự học trọng số từng layer (kiểu SUPERB). EmoBox đo cùng protocol:
+#   Whisper UA 73.54, WavLM 69.47.
+# - `wavlm`: WavLM-large, chỉ học tự giám sát trên sách nói, **chưa từng thấy nhãn cảm xúc**. Cùng cách lưu mọi layer.
+#
+# Embedding tính một lần rồi lưu cache, các fold và cấu hình sau dùng lại.
 
 # %%
-from funasr import AutoModel
-
-ecache = cache / {"e2v": "e2v_plus_large_utt.npz", "wavlm": "wavlm_large_layers.npz",
-                  "whisper": "whisper_large_v3_layers.npz",
-                  "whisper_turbo": "whisper_large_v3_turbo_layers.npz"}[AUDIO]
-if AUDIO in ("whisper", "whisper_turbo") and not ecache.exists():
+ecache = cache / {"wavlm": "wavlm_large_layers.npz", "whisper_turbo": "whisper_large_v3_turbo_layers.npz"}[AUDIO]
+if AUDIO == "whisper_turbo" and not ecache.exists():
     from transformers import AutoFeatureExtractor, WhisperModel
-    from eaasr.common import load_wav
     fe = AutoFeatureExtractor.from_pretrained(WHISPER)
     wm = WhisperModel.from_pretrained(WHISPER, torch_dtype=torch.float16).encoder.cuda().eval()
     paths, embs, t0 = allu.path.tolist(), [], time.time()
@@ -121,7 +118,6 @@ if AUDIO in ("whisper", "whisper_turbo") and not ecache.exists():
     del wm; torch.cuda.empty_cache()
 if AUDIO == "wavlm" and not ecache.exists():
     from transformers import AutoFeatureExtractor, WavLMModel
-    from eaasr.common import load_wav
     fe = AutoFeatureExtractor.from_pretrained(WAVLM)
     wl = WavLMModel.from_pretrained(WAVLM, torch_dtype=torch.float16).cuda().eval()
     embs, t0 = [], time.time()
@@ -137,23 +133,10 @@ if AUDIO == "wavlm" and not ecache.exists():
                 print(f"wavlm {i}/{len(allu)} {time.time() - t0:.0f}s", flush=True)
     np.savez(ecache, ids=np.array(allu.id.tolist()), emb=np.stack(embs))
     del wl; torch.cuda.empty_cache()
-if ecache.exists():
-    z = np.load(ecache, allow_pickle=True)
-    e2v_ids, e2v_emb = list(z["ids"]), z["emb"]
-else:
-    e2v = AutoModel(model=E2V, hub="hf", disable_update=True)
-    embs, t0 = [], time.time()
-    for i, p in enumerate(allu.path):
-        r = e2v.generate(p, granularity="utterance", extract_embedding=True)[0]
-        embs.append(np.asarray(r["feats"], dtype=np.float32).reshape(-1))
-        if i % 2000 == 0:
-            print(f"e2v {i}/{len(allu)} {time.time() - t0:.0f}s", flush=True)
-    e2v_ids, e2v_emb = allu.id.tolist(), np.stack(embs)
-    np.savez(ecache, ids=np.array(e2v_ids), emb=e2v_emb)
-    del e2v; torch.cuda.empty_cache()
+z = np.load(ecache, allow_pickle=True)
 # The cache is shared across folds, whose row order differs, so align by id.
-pos = {u: i for i, u in enumerate(e2v_ids)}
-audio_all = torch.tensor(e2v_emb[[pos[u] for u in allu.id]], dtype=torch.float32)
+pos = {u: i for i, u in enumerate(z["ids"])}
+audio_all = torch.tensor(z["emb"][[pos[u] for u in allu.id]], dtype=torch.float32)
 print(AUDIO, tuple(audio_all.shape))
 
 # %% [markdown]
@@ -169,25 +152,15 @@ tok.truncation_side = "left"
 
 def build_inputs(source, ctx):
     text = allu.text if source == "gt" else allu.hyp_text
-    # IEMOCAP speaker ids are per session and the test session's speakers never appear in train,
-    # so a name prefix carries no information there.
-    if DATASET == "meld":
-        turns = (allu.speaker.astype(str) + ": " + text.astype(str)).tolist()
-    else:
-        turns = text.astype(str).tolist()
+    # Speaker ids are per session and the test session's speakers never appear in train,
+    # so a name prefix would carry no information.
+    turns = text.astype(str).tolist()
     hist = [[] for _ in range(len(allu))]
-    if ctx and DATASET == "meld":
-        utt = allu.id.str.extract(r"utt(\d+)$")[0].astype(int)
-        order = allu.assign(_utt=utt).sort_values(["_split", "dialogue_id", "_utt"]).index
-        for key, g in allu.loc[order].groupby(["_split", "dialogue_id"], sort=False):
-            rows = list(g.index)
-            for j, r in enumerate(rows):
-                hist[r] = [turns[k] for k in rows[max(0, j - ctx):j]]
-    elif ctx:
-        assert "start" in man.columns, "IEMOCAP context needs the official release (timestamps)"
+    if ctx:
+        assert "start" in man.columns, "context needs the official release (timestamps)"
         # Context runs over every turn of the dialogue, labeled or not, in time order: half of IEMOCAP's turns
         # fall outside the 4 classes, and skipping them would glue together turns that were not adjacent.
-        full = man[man.duration <= 60].merge(asr_all[["id", "hyp_text"]], on="id", how="inner", validate="one_to_one")
+        full = man.merge(asr_all[["id", "hyp_text"]], on="id", how="inner", validate="one_to_one")
         full = full.assign(_t=(full.text if source == "gt" else full.hyp_text).astype(str))
         prev_of = {}
         for _, g in full.sort_values(["dialogue_id", "start"]).groupby("dialogue_id", sort=False):
@@ -224,12 +197,12 @@ print(tok.decode(get_inputs("asr", CTX if any("ctx" in r for r in RUNS) else 0)[
 
 # %%
 CONFIGS = {
-    "asr_ctx_e2v": dict(train="asr", eval="asr", ctx=CTX, audio=True, text=True),
-    "asr_ctx":     dict(train="asr", eval="asr", ctx=CTX, audio=False, text=True),
-    "asr_e2v":     dict(train="asr", eval="asr", ctx=0, audio=True, text=True),
-    "e2v_only":    dict(train="asr", eval="asr", ctx=0, audio=True, text=False),
-    "gt_ctx":      dict(train="gt", eval="gt", ctx=CTX, audio=False, text=True),
-    "gt_ctx_e2v":  dict(train="gt", eval="gt", ctx=CTX, audio=True, text=True),
+    "asr_ctx_audio": dict(train="asr", eval="asr", ctx=CTX, audio=True, text=True),
+    "asr_ctx":       dict(train="asr", eval="asr", ctx=CTX, audio=False, text=True),
+    "asr_audio":     dict(train="asr", eval="asr", ctx=0, audio=True, text=True),
+    "audio_only":    dict(train="asr", eval="asr", ctx=0, audio=True, text=False),
+    "gt_ctx":        dict(train="gt", eval="gt", ctx=CTX, audio=False, text=True),
+    "gt_ctx_audio":  dict(train="gt", eval="gt", ctx=CTX, audio=True, text=True),
 }
 
 class TextAudio(nn.Module):
@@ -292,7 +265,7 @@ def predict(model, rows, inputs):
 def ua_of(rows, prob):
     return ser_metrics([labels[i] for i in y_all[rows]], [labels[i] for i in prob.argmax(1)], labels)["ua"]
 
-def train_one(name, seed):
+def train_one(name, seed, keep_state=False):
     cfg = CONFIGS[name]
     set_seed(seed)
     tr_in, ev_in = get_inputs(cfg["train"], cfg["ctx"]), get_inputs(cfg["eval"], cfg["ctx"])
@@ -315,7 +288,7 @@ def train_one(name, seed):
                 logits, _, aux = model(ids, mask, a)
             loss = F.cross_entropy(logits.float(), y[b], weight=w)
             # Without per-branch losses the gate locked onto the fast-learning audio projection
-            # (gate 0.88 audio, test UA = audio-only probe) and RoBERTa got too little gradient to learn.
+            # and RoBERTa got too little gradient to learn.
             for x in aux:
                 loss = loss + F.cross_entropy(x.float(), y[b], weight=w)
             opt.zero_grad(); loss.backward()
@@ -331,31 +304,51 @@ def train_one(name, seed):
         # Test probabilities are kept only for the epoch chosen on dev; test UA per epoch is logged, never used to pick.
         if best is None or dua > best["dev_ua"]:
             best = {"dev_ua": dua, "epoch": ep, "dev_prob": dev_p, "test_prob": test_p, "gate": gate}
+            if keep_state:
+                best["state"] = {k: v.detach().to("cpu", copy=True) for k, v in model.state_dict().items()}
     del model, opt; torch.cuda.empty_cache()
     return best, hist
 
 # %% [markdown]
 # ## 4. Chạy từng cấu hình
-#
-# Mỗi lần chạy lưu ra một file riêng, nên chạy lại notebook sẽ bỏ qua cấu hình đã xong (khi VM bị thu hồi giữa chừng).
 
 # %%
 OUT = cache / "combined"
 OUT.mkdir(parents=True, exist_ok=True)
 
 def tag(name):
-    t = name.replace("e2v", AUDIO) if CONFIGS[name]["audio"] else name
-    # Keeps the SenseVoice-transcript results under their old names next to the Whisper-transcript ones (wasr_*).
+    t = name.replace("audio", AUDIO) if CONFIGS[name]["audio"] else name
+    # SenseVoice-FT and Whisper-FT transcripts give results with the same config name, so the
+    # Whisper-FT ones get a "w" prefix (wasr_*) to sit next to the SenseVoice-FT ones (asr_*).
     if ASR == "whisper" and t.startswith("asr"):
         t = "w" + t
     return t + FOLD
 
+def save_weights(name, best, hist):
+    """Weights of the full system, in the layout notebook 30 loads (model.safetensors, tokenizer, config.json)."""
+    from safetensors.torch import save_file
+    d = CKPT_DIR / f"ser_{tag(name)}"
+    d.mkdir(parents=True, exist_ok=True)
+    save_file({k: v.contiguous() for k, v in best.pop("state").items()}, str(d / "model.safetensors"))
+    tok.save_pretrained(d)
+    cfg = {"class": "TextAudio (notebooks/src/21_combined.py)", "config": name, **CONFIGS[name], "labels": labels,
+           "text_model": TEXT_MODEL, "max_len": MAX_LEN, "context_turns": CTX, "asr": ASR_NAME,
+           # Inference must rebuild the audio features as in section 1: every layer, per-frame layer norm,
+           # mean over real frames, first 20 s of audio.
+           "audio_encoder": WHISPER if AUDIO == "whisper_turbo" else WAVLM, "audio_feature_shape": list(audio_all.shape[1:]),
+           "test_session": TEST_SESSION, "seed": SEED, "best_epoch": best["epoch"], "dev_ua": best["dev_ua"],
+           "gate_text_audio": best["gate"], "hist": hist}
+    with open(d / "config.json", "w") as fh:
+        json.dump(cfg, fh, indent=2)
+    print("saved", d)
+
 for name in RUNS:
     f = OUT / f"{tag(name)}_s{SEED}.npz"
-    if f.exists():
-        continue
     print(f"== {name} | {time.strftime('%H:%M:%S')}", flush=True)
-    best, hist = train_one(name, SEED)
+    keep = name == "asr_ctx_audio"
+    best, hist = train_one(name, SEED, keep_state=keep)
+    if keep:
+        save_weights(name, best, hist)
     np.savez(f, dev_prob=best["dev_prob"], test_prob=best["test_prob"],
              meta=json.dumps({"best_epoch": best["epoch"], "dev_ua": best["dev_ua"], "gate": best["gate"], "hist": hist}))
     print(f"== {name} best ep{best['epoch']} dev UA {best['dev_ua'] * 100:.2f} "
@@ -382,13 +375,27 @@ for name in RUNS:
                  notes=f"{ASR_NAME} ASR; {text_desc}; ctx {cfg['ctx']}; "
                        f"audio {AUDIO if cfg['audio'] else 'none'}; seed {SEED}"
                        + ("; GROUND-TRUTH text (upper bound)" if cfg["eval"] == "gt" else ""))
+    if name == "asr_ctx_audio":
+        with open(CKPT_DIR / f"ser_{tag(name)}" / "metrics_test.json", "w") as fh:
+            json.dump(m, fh, indent=2, ensure_ascii=False)
     summary.append({"system": tag(name), "UA": m["ser"]["ua"] * 100, "WA": m["ser"]["wa"] * 100,
                     "wF1": m["ser"]["weighted_f1"] * 100,
                     "gate audio": meta["gate"][1] if meta["gate"] else None})
 print(pd.DataFrame(summary).round(2).to_string())
 
+# %% [markdown]
+# ## 6. (Tùy chọn) Đẩy weight hệ đầy đủ lên Hugging Face Hub
+#
+# Bỏ comment để chạy: nhập HF token có quyền write, rồi weight của fold này lên `fold_s{TEST_SESSION}/ser`
+# (layout notebook 30 đọc). Repo phải private: license IEMOCAP cấm phát tán dữ liệu.
+
 # %%
-# Single archive so results survive even if the VM is reclaimed right after the job.
-subprocess.run(f"tar -czf /content/combined_out.tgz -C {RESULTS_DIR.parent} {RESULTS_DIR.name}/{DATASET} "
-               f"-C {CACHE_DIR.parent} {CACHE_DIR.name}/{DATASET}/combined", shell=True, check=True)
-print("archive /content/combined_out.tgz")
+# from huggingface_hub import HfApi, get_token, notebook_login
+# HUB_REPO = "master-122025/eaasr-iemocap"
+# if get_token() is None:
+#     notebook_login()
+# api = HfApi()
+# api.create_repo(HUB_REPO, private=True, exist_ok=True)
+# assert api.model_info(HUB_REPO).private, f"{HUB_REPO} is public, refusing to upload"
+# api.upload_folder(folder_path=str(CKPT_DIR / f"ser_{tag('asr_ctx_audio')}"), path_in_repo=f"fold_s{TEST_SESSION}/ser",
+#                   repo_id=HUB_REPO, commit_message=f"SER full system, test session {TEST_SESSION}")

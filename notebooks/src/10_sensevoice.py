@@ -1,25 +1,25 @@
 # gpu: A100
 # %% [markdown]
-# # 10. Baseline SenseVoice-Small (an-2024-sensevoice)
+# # 10. ASR Bước 1-2: SenseVoice-Small zero-shot và fine-tune (an-2024-sensevoice)
 #
 # SenseVoice-Small là một model duy nhất, trong một lần chạy sinh ra cả transcript lẫn token cảm xúc
 # (`<|HAPPY|>`, `<|SAD|>`, ...). Kiến trúc: encoder non-autoregressive, train bằng CTC, khoảng 234M tham số.
+# Report chỉ dùng WER của notebook này (Bảng III); transcript của bản fine-tune do notebook 20 sinh ra.
 #
 # Hai thí nghiệm:
 # - **A. Zero-shot**: dùng model gốc, không train thêm.
-# - **B. Fine-tune** trên tập train của dataset (dùng công cụ train của FunASR), chọn checkpoint theo dev, đánh giá trên test.
+# - **B. Fine-tune** trên tập train của fold (dùng công cụ train của FunASR), đánh giá trên test.
 #
-# Số trong paper (IEMOCAP, zero-shot): UA 70.5 (Small). Paper không báo số trên MELD cho bản Small.
-# Runtime: GPU (A100 hoặc L4 đều được).
+# Runtime: GPU L4.
 
 # %%
-DATASET = "meld"      # "meld" hoặc "iemocap"
+DATASET = "iemocap"
 RUN_FINETUNE = True
 MAX_EPOCH = 10
-LR = 2e-4             # mặc định của finetune.sh chính thức; nếu dev bị tệ đi sau epoch 1, thử 5e-5
+LR = 2e-4             # mặc định của finetune.sh chính thức
 SEED = 42
-TEST_SESSION = 5      # IEMOCAP: session để test (cross-validation 5 fold chạy lần lượt 1..5)
-FOLD = "" if DATASET == "meld" or TEST_SESSION == 5 else f"_f{TEST_SESSION}"
+TEST_SESSION = 5      # session để test; chạy lần lượt 5, 1, 2, 3, 4 cho 5 fold
+FOLD = "" if TEST_SESSION == 5 else f"_f{TEST_SESSION}"
 
 # %%
 import os, sys
@@ -97,8 +97,7 @@ test_zs["raw"].str.extract(r"<\|[^|]*\|><\|([^|]*)\|>")[0].value_counts()
 # `target` (transcript), `emo_target` (token cảm xúc), ...
 
 # %%
-TO_TAG = {"neutral": "<|NEUTRAL|>", "joy": "<|HAPPY|>", "anger": "<|ANGRY|>", "sadness": "<|SAD|>",
-          "fear": "<|FEARFUL|>", "disgust": "<|DISGUSTED|>", "surprise": "<|SURPRISED|>"}
+TO_TAG = {"neutral": "<|NEUTRAL|>", "joy": "<|HAPPY|>", "anger": "<|ANGRY|>", "sadness": "<|SAD|>"}
 WORK = Path(f"/content/sv_ft_{DATASET}{FOLD}")
 WORK.mkdir(exist_ok=True)
 
@@ -155,6 +154,7 @@ m_ft = evaluate(f"sensevoice_small_finetune{FOLD}", DATASET, test_ft,
                 notes=f"SenseVoice-Small fine-tuned {MAX_EPOCH} ep, lr {LR}, seed {SEED}, ckpt {pick.name}")
 
 # %%
+# Notebook 20 loads this checkpoint to transcribe every turn of the fold.
 dst = CKPT_DIR / f"sensevoice_{DATASET}{FOLD}"
 dst.mkdir(parents=True, exist_ok=True)
 shutil.copy(pick, dst / pick.name)

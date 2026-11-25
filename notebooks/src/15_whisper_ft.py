@@ -1,15 +1,13 @@
 # gpu: L4
 # %% [markdown]
-# # 15. Whisper large-v3-turbo: zero-shot và fine-tune
+# # 15. ASR Bước 1-2: Whisper large-v3-turbo zero-shot và fine-tune (khối ASR của hệ đề xuất)
 #
 # So WER với SenseVoice-Small (notebook 10) cho công bằng: cùng train/dev/test (`get_splits`), cùng Whisper normalizer.
 #
-# - **A. Zero-shot**: model gốc, cách giải mã giống notebook 12 (pipeline, chunk 30 s, tiếng Anh).
+# - **A. Zero-shot**: model gốc, giải mã bằng pipeline (chunk 30 s, tiếng Anh).
 # - **B. Fine-tune** toàn bộ model trên tập train, chọn epoch theo **dev WER**, rồi giải mã test giống hệt A.
 # - **C. Transcript cho mọi câu** (train, dev, test và câu không nhãn) bằng model đã fine-tune, cho notebook 21
-#   (`ASR="whisper"`). Đầu ra: `cache/<dataset>/asr_whisper_ft{FOLD}.csv` (id, split, hyp_text), cùng dạng notebook 20.
-#
-# Không lưu checkpoint: transcript ở C là tất cả những gì notebook 21 cần.
+#   (`ASR="whisper"`). Đầu ra: `cache/iemocap/asr_whisper_ft{FOLD}.csv` (id, split, hyp_text), cùng dạng notebook 20.
 
 # %%
 DATASET = "iemocap"
@@ -19,10 +17,10 @@ LR = 1e-5
 BATCH = 8
 ACCUM = 2             # batch hiệu dụng 16, bằng notebook 21
 SEED = 42
-ZERO_SHOT = True      # False khi đã có kết quả zero-shot của fold này
+ZERO_SHOT = True
 TRANSCRIBE_ALL = True
-TEST_SESSION = 5      # IEMOCAP: session để test (cross-validation 5 fold chạy lần lượt 1..5)
-FOLD = "" if DATASET == "meld" or TEST_SESSION == 5 else f"_f{TEST_SESSION}"
+TEST_SESSION = 5      # session để test; chạy lần lượt 5, 1, 2, 3, 4 cho 5 fold
+FOLD = "" if TEST_SESSION == 5 else f"_f{TEST_SESSION}"
 
 # %%
 import os, sys
@@ -145,15 +143,15 @@ for ep in range(EPOCHS):
         best = {"epoch": ep, "dev_wer": w, "state": {k: v.detach().to("cpu", copy=True) for k, v in model.state_dict().items()}}
 
 # %%
-# AdamW state for 809M parameters is ~6.5 GB; left on the GPU it ran MELD's train-set decoding out of memory.
+# AdamW state for 809M parameters is ~6.5 GB; left on the GPU it runs train-set decoding out of memory.
 del opt, sched
 model.zero_grad(set_to_none=True)
 torch.cuda.empty_cache()
 model.load_state_dict(best["state"])
 del best["state"]
-# Kept on the VM so a different decoding setting can be re-run without fine-tuning again.
-model.save_pretrained(CKPT_DIR / f"whisper_turbo_{DATASET}{FOLD}")
 model = model.half().eval()
+# The fine-tuned ASR weights of each fold (published on the Hugging Face Hub). Saved in fp16, the dtype decoding uses.
+model.save_pretrained(CKPT_DIR / f"whisper_turbo_{DATASET}{FOLD}")
 model.config.use_cache = True
 test = splits["test"].copy()
 test["hyp_text"] = transcribe(model, test)
@@ -173,9 +171,9 @@ if TRANSCRIBE_ALL:
         hyps = transcribe(model, df)
         rows += [{"id": i, "split": split, "hyp_text": h} for i, h in zip(df.id, hyps)]
         print(split, len(df), "WER", round(100 * asr_metrics(df.text.tolist(), hyps)["wer"], 2), flush=True)
-    # Unlabeled turns only serve as dialogue context; same 60 s cap as notebook 20.
+    # Unlabeled turns only serve as dialogue context.
     seen = set(r["id"] for r in rows)
-    rest = man[~man.id.isin(seen) & (man.duration <= 60)]
+    rest = man[~man.id.isin(seen)]
     if len(rest):
         rows += [{"id": i, "split": "unlabeled", "hyp_text": h} for i, h in zip(rest.id, transcribe(model, rest))]
         print("unlabeled", len(rest))
@@ -183,3 +181,25 @@ if TRANSCRIBE_ALL:
     dst.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(rows).to_csv(dst, index=False)
     print("saved", dst, len(rows))
+
+# %% [markdown]
+# ## D. (Tùy chọn) Đẩy checkpoint lên Hugging Face Hub
+#
+# Bỏ comment để chạy: nhập HF token có quyền write, rồi checkpoint của fold này lên `fold_s{TEST_SESSION}/asr`
+# (layout notebook 30 đọc). Repo phải private: license IEMOCAP cấm phát tán dữ liệu.
+
+# %%
+# import shutil
+# from huggingface_hub import HfApi, get_token, notebook_login
+# from eaasr.common import RESULTS_DIR
+# HUB_REPO = "master-122025/eaasr-iemocap"
+# if get_token() is None:
+#     notebook_login()
+# ckpt = CKPT_DIR / f"whisper_turbo_{DATASET}{FOLD}"
+# proc.save_pretrained(ckpt)
+# shutil.copy(RESULTS_DIR / DATASET / f"whisper_turbo_finetune{FOLD}" / "metrics_test.json", ckpt / "metrics_test.json")
+# api = HfApi()
+# api.create_repo(HUB_REPO, private=True, exist_ok=True)
+# assert api.model_info(HUB_REPO).private, f"{HUB_REPO} is public, refusing to upload"
+# api.upload_folder(folder_path=str(ckpt), path_in_repo=f"fold_s{TEST_SESSION}/asr", repo_id=HUB_REPO,
+#                   commit_message=f"Whisper turbo FT, test session {TEST_SESSION}")

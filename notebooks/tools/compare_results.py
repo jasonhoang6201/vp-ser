@@ -1,33 +1,49 @@
-"""Final comparison tables from results/<dataset>/*/metrics_test.json (runs locally, stdlib only).
+"""Rebuild every result table of the report from results/iemocap/*/metrics_test.json (runs locally, stdlib only).
 
   python3 notebooks/tools/compare_results.py      writes notebooks/results/summary.md
 
-Per dataset: one row per system (WER, WA, UA, macro-F1, weighted-F1, UA mean±std over seeds), WER and recall by
-emotion. For IEMOCAP also leave-one-session-out cross-validation: fold k is stored with suffix `_f<k>`, fold 5 has
-no suffix. Two CV tables: the mean over each fold's seeds, the headline number, and seed 0 only. Seed counts differ
-between systems, so the seed 0 table is the one where every system gets the same number of runs per fold.
+Fold k (test session k) is stored with suffix `_f<k>`, fold 5 has no suffix. Every number is the mean over the
+5 folds. Delta UA is taken between the rounded means, so it equals the difference of the printed values.
 """
 import json
-import re
 import statistics
 from pathlib import Path
 
-NB = Path(__file__).resolve().parents[1]
-RES = NB / "results"
-LABELS = {"meld": ["neutral", "joy", "surprise", "anger", "sadness", "disgust", "fear"],
-          "iemocap": ["neutral", "joy", "anger", "sadness"]}
-FOLD = re.compile(r"_f([1-4])$")
+RES = Path(__file__).resolve().parents[1] / "results" / "iemocap"
+LABELS = ["neutral", "joy", "anger", "sadness"]
+HEAD = ["Neutral", "Happy", "Angry", "Sad"]
+FOLDS = [1, 2, 3, 4, 5]
+
+FULL = "combined_wasr_ctx_whisper_turbo"
+WAVLM = "combined_wasr_ctx_wavlm"
+NO_AUDIO = "combined_wasr_ctx"
+NO_CTX = "combined_wasr_whisper_turbo"
+NO_TEXT = "combined_whisper_turbo_only"
+GT_FULL = "combined_gt_ctx_whisper_turbo"
+GT_NO_AUDIO = "combined_gt_ctx"
+SV_FULL = "combined_asr_ctx_whisper_turbo"
+ASR = {"SenseVoice-Small": "sensevoice_small", "Whisper large-v3-turbo": "whisper_turbo"}
 
 
-def load(dataset):
-    out = {}
-    for p in sorted((RES / dataset).glob("*/metrics_test.json")):
-        out[p.parent.name] = json.loads(p.read_text())
-    return out
+def folds(system):
+    return [json.loads((RES / (system if k == 5 else f"{system}_f{k}") / "metrics_test.json").read_text())
+            for k in FOLDS]
 
 
-def pct(x):
-    return "" if x is None else f"{x * 100:.2f}"
+def mean(system, get):
+    return statistics.mean(get(m) for m in folds(system))
+
+
+def ser(system, key):
+    return round(mean(system, lambda m: m["ser"][key] * 100), 2)
+
+
+def wer(system):
+    return round(mean(system, lambda m: m["asr"]["wer"] * 100), 2)
+
+
+def gate(system):
+    return round(mean(system, lambda m: m["gate"][1]), 2)
 
 
 def table(head, rows):
@@ -36,80 +52,62 @@ def table(head, rows):
     return "\n".join(lines)
 
 
-def system_table(ms):
+def delta(a, b):
+    return f"{a - b:+.2f}"
+
+
+def ser_rows(systems, ref):
     rows = []
-    for name, m in ms.items():
-        if FOLD.search(name):
-            continue
-        a, s = m.get("asr", {}), m.get("ser", {})
-        spread = f"{m['ua_mean'] * 100:.2f}±{m['ua_std'] * 100:.2f}" if "ua_std" in m else ""
-        rows.append([name, pct(a.get("wer")), pct(s.get("wa")), pct(s.get("ua")), pct(s.get("macro_f1")),
-                     pct(s.get("weighted_f1")), spread, len(m.get("seeds", [])) or ""])
-    rows.sort(key=lambda r: -float(r[3]) if r[3] else 1)
-    return table(["system", "WER", "WA", "UA", "macro-F1", "wF1", "UA mean±std", "seeds"], rows)
-
-
-def by_emotion(ms, labels, part, key):
-    rows = [[n] + [f"{m[part][key][l] * 100:.1f}" if l in m[part][key] else "" for l in labels]
-            for n, m in ms.items() if not FOLD.search(n) and key in m.get(part, {})]
-    return table(["system"] + labels, rows)
-
-
-def seed0(m, key):
-    seeds = [s for s in m.get("seeds", []) if s["seed"] == 0]
-    if seeds:
-        return seeds[0][key]
-    return m["ser"]["ua" if key == "test_ua" else "weighted_f1"]
-
-
-def seed_mean(m, key):
-    seeds = m.get("seeds", [])
-    return statistics.mean(s[key] for s in seeds) if seeds else seed0(m, key)
-
-
-def cv_table(ms, per_fold):
-    folded = {}
-    for name in ms:
-        f = FOLD.search(name)
-        if f:
-            folded.setdefault(name[:f.start()], {})[int(f[1])] = ms[name]
-    rows = []
-    for base, folds in sorted(folded.items()):
-        if base in ms:
-            folds[5] = ms[base]
-        ks = sorted(folds)
-        if not all("ser" in folds[k] or folds[k].get("seeds") for k in ks):
-            continue
-        ua = [per_fold(folds[k], "test_ua") for k in ks]
-        wf1 = [per_fold(folds[k], "test_wf1") for k in ks]
-        wer = [folds[k]["asr"]["wer"] for k in ks if "asr" in folds[k]]
-        sd = lambda v: statistics.stdev(v) * 100 if len(v) > 1 else 0.0
-        counts = " ".join(str(len(folds[k].get("seeds", [])) or 1) for k in ks)
-        rows.append([base, len(ks), counts, " ".join(f"{u * 100:.1f}" for u in ua),
-                     f"{statistics.mean(ua) * 100:.2f}±{sd(ua):.2f}", f"{statistics.mean(wf1) * 100:.2f}±{sd(wf1):.2f}",
-                     f"{statistics.mean(wer) * 100:.2f}" if wer else ""])
-    rows.sort(key=lambda r: -float(r[4].split("±")[0]))
-    head = ["system", "folds", "seeds available", "UA per fold (1..5)", "UA mean±std", "wF1 mean±std", "WER mean"]
-    return table(head, rows) if rows else ""
+    for label, s in systems:
+        ua = ser(s, "ua")
+        rows.append([label, f"{ua:.2f}", f"{ser(s, 'wa'):.2f}", f"{ser(s, 'weighted_f1'):.2f}",
+                     "" if s == ref else delta(ua, ser(ref, "ua"))])
+    return rows
 
 
 def main():
-    out = ["# Tổng hợp kết quả (sinh tự động bởi tools/compare_results.py)", ""]
-    for ds in ["meld", "iemocap"]:
-        ms = load(ds)
-        if not ms:
-            continue
-        out += [f"## {ds.upper()} test", "", system_table(ms), "",
-                "### WER theo cảm xúc (%)", "", by_emotion(ms, LABELS[ds], "asr", "wer_by_emotion"), "",
-                "### Recall theo cảm xúc (%)", "", by_emotion(ms, LABELS[ds], "ser", "recall_by_emotion"), ""]
-        cv = cv_table(ms, seed_mean) if ds == "iemocap" else ""
-        if cv:
-            out += ["### IEMOCAP leave-one-session-out (trung bình các seed mỗi fold)", "",
-                    "Std là độ lệch giữa các fold. Số seed khác nhau giữa các hệ thống, xem cột seeds available.", "", cv, "",
-                    "### IEMOCAP leave-one-session-out (chỉ seed 0, mọi hệ thống cùng số lần chạy)", "",
-                    cv_table(ms, seed0), ""]
-    (RES / "summary.md").write_text("\n".join(out))
-    print(RES / "summary.md")
+    out = ["# IEMOCAP results (generated by tools/compare_results.py)", "",
+           "Mean over the 5 leave-one-session-out folds, in %.", ""]
+
+    rows = []
+    for label, p in ASR.items():
+        zs, ft = wer(f"{p}_zeroshot"), wer(f"{p}_finetune")
+        rows.append([label, f"{zs:.2f}", f"{ft:.2f}", delta(ft, zs)])
+    out += ["## Steps 1-2: ASR, WER", "", table(["ASR model", "Original", "Finetuned", "Change"], rows), ""]
+
+    rows = [[h] + [f"{mean(f'{p}_finetune', lambda m: m['asr']['wer_by_emotion'][l] * 100):.1f}" for p in ASR.values()]
+            for h, l in zip(HEAD, LABELS)]
+    out += ["## WER by emotion after finetuning", "", table(["Emotion"] + list(ASR), rows), ""]
+
+    rows = ser_rows([("WavLM-large", WAVLM), ("Whisper turbo", FULL)], FULL)
+    for r, s in zip(rows, [WAVLM, FULL]):
+        r.append(f"{gate(s):.2f}")
+    out += ["## Step 3: audio encoder", "", table(["Audio encoder", "UA", "WA", "W-F1", "Delta UA", "Gate audio"], rows),
+            "", f"Gate audio per fold (S1..S5), our system: "
+            + " ".join(f"{m['gate'][1]:.2f}" for m in folds(FULL)) + f"; without context: {gate(NO_CTX):.2f}", ""]
+
+    ablation = [("Our system", FULL), ("Without audio", NO_AUDIO), ("Without context", NO_CTX), ("Without text", NO_TEXT)]
+    out += ["## Step 4: ablation", "", table(["System", "UA", "WA", "W-F1", "Delta UA"], ser_rows(ablation, FULL)), ""]
+
+    gt = ser(GT_FULL, "ua")
+    rows = [["Ground truth", "0", f"{gt:.2f}", ""]]
+    for label, s, w in [("Whisper, finetuned", FULL, "whisper_turbo_finetune"),
+                        ("SenseVoice, finetuned", SV_FULL, "sensevoice_small_finetune")]:
+        rows.append([label, f"{wer(w):.2f}", f"{ser(s, 'ua'):.2f}", delta(ser(s, "ua"), gt)])
+    out += ["## Transcript source, our system", "", table(["Transcript", "WER", "UA", "Delta UA"], rows), "",
+            f"Without audio: ground truth {ser(GT_NO_AUDIO, 'ua'):.2f} vs Whisper-FT {ser(NO_AUDIO, 'ua'):.2f} UA "
+            f"({delta(ser(NO_AUDIO, 'ua'), ser(GT_NO_AUDIO, 'ua'))}).", ""]
+
+    rows = [[label] + [f"{mean(s, lambda m: m['ser']['recall_by_emotion'][l] * 100):.1f}" for l in LABELS]
+            for label, s in ablation]
+    out += ["## Recall per class", "", table(["System"] + HEAD, rows), ""]
+
+    per_fold = ablation[:1] + [("WavLM encoder", WAVLM)] + ablation[1:]
+    rows = [[label] + [f"{m['ser']['ua'] * 100:.2f}" for m in folds(s)] for label, s in per_fold]
+    out += ["## UA per test session", "", table(["System"] + [f"S{k}" for k in FOLDS], rows), ""]
+
+    (RES.parent / "summary.md").write_text("\n".join(out))
+    print("\n".join(out))
 
 
 if __name__ == "__main__":

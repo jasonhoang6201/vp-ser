@@ -15,8 +15,8 @@ approved. Results as tables, not charts.
 | 6 | Step 1: ASR zero-shot | SenseVoice 11.20 vs Whisper turbo 13.19 WER | Table III, zero-shot column |
 | 7 | Step 2: ASR fine-tuned | Whisper turbo 9.56 vs SenseVoice 9.73: Whisper becomes the ASR module | Table III, both columns |
 | 8 | Step 3: audio encoder | Whisper large-v3-turbo encoder 81.17 vs WavLM 79.93 UA; one Whisper for both roles | Table IV |
-| 9 | Step 4: ablation | Full 81.17; w/o text −8.58, w/o context −5.29, w/o audio −3.27 | Table V |
-| 10 | How much do ASR errors cost? | Ground truth vs Whisper-FT transcripts: 0.72 UA with audio, 0.66 without, at 9.6% WER, vs audio +3.27, context +5.29 | 2 tables |
+| 9 | Step 4: ablation | Full 81.17; w/o text −8.57, w/o context −5.28, w/o audio −3.26 | Table V |
+| 10 | How much do ASR errors cost? | Ground truth vs Whisper-FT transcripts: 0.72 UA with audio, 0.66 without, at 9.6% WER, vs audio +3.26, context +5.28 | 2 tables |
 | 11 | What each module helps | Gate on audio 0.51; audio helps angry (+7.4), context helps happy (+9.8) | Table VI |
 | 12 | Comparison with published work | Table I with protocol caveat | Table I |
 | 13 | Conclusion | 3 takeaways: Whisper FT 9.56 WER; 81.17 UA with one Whisper; text > context > audio, ASR errors cost < 1 UA. One line of future work: spontaneous speech (MSP-Podcast) | 3 boxes + 1 line |

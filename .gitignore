@@ -4,7 +4,7 @@ node_modules/
 __pycache__/
 .ipynb_checkpoints/
 
-# Datasets: IEMOCAP license forbids redistribution, MELD is large
+# Datasets: IEMOCAP license forbids redistribution
 dataset/
 notebooks/data_backup/
 notebooks/results/**/predictions*.csv

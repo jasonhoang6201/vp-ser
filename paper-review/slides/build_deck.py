@@ -250,7 +250,7 @@ notes(s)
 s = deck.slide(P3, 'Choosing the audio encoder')
 y0, rh = tall_table(s, 0.667, 2.55, [4.3, 1.2, 1.2, 1.6, 1.65, 2.0],
                     ['Frozen audio encoder (%)', 'UA', 'WA', 'Weighted F1', 'Change in UA', 'Audio gate weight'],
-                    [['WavLM-large', '79.93', '78.89', '78.55', '−1.25', '0.28'],
+                    [['WavLM-large', '79.93', '78.89', '78.55', '−1.24', '0.28'],
                      ['Whisper large-v3-turbo', '**81.17**', '**79.98**', '**79.88**', '', '**0.51**']],
                     5.9, size=22, head_size=14)
 row_tag(s, 3.9, y0 + rh, rh)
@@ -261,11 +261,11 @@ s = deck.slide(P3, 'Ablation study')
 grid(s, 1.0, 2.05, [4.6, 1.6, 1.6, 1.9, 1.6], [
     ['System (%)', 'UA', 'WA', 'Weighted F1', 'Change in UA'],
     ['Our system', '**81.17**', '**79.98**', '**79.88**', ''],
-    ['Without audio', '77.91', '76.70', '76.67', '−3.27'],
-    ['Without context', '75.89', '74.64', '74.34', '−5.29'],
-    ['Without text', '72.60', '71.10', '70.50', '[[mauve|**−8.58**]]']],
+    ['Without audio', '77.91', '76.70', '76.67', '−3.26'],
+    ['Without context', '75.89', '74.64', '74.34', '−5.28'],
+    ['Without text', '72.60', '71.10', '70.50', '[[mauve|**−8.57**]]']],
     row_h=0.72, size=22, head_size=15, aligns=['l', 'c', 'c', 'c', 'c'])
-for k, (t, col) in enumerate([('text  −8.58', MAUVE), ('context  −5.29', TEAL), ('audio  −3.27', TEAL2)]):
+for k, (t, col) in enumerate([('text  −8.57', MAUVE), ('context  −5.28', TEAL), ('audio  −3.26', TEAL2)]):
     pill(s, 1.0 + k * 3.85, 6.15, 3.5, 0.55, t, col, 17)
 notes(s)
 

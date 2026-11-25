@@ -206,7 +206,7 @@ Chữ trên slide viết đơn giản: không viết tắt (finetune, without), 
 - Bảng: Our system, Without audio, Without context, Without text; UA, WA, weighted F1, change in UA
 
 **Lời nói**
-"Em bỏ từng phần ra khỏi hệ đầy đủ. Bỏ text mất nhiều nhất, 8.58 UA. Bỏ ngữ cảnh mất 5.29. Bỏ audio mất 3.27. Phần nào cũng có đóng góp: text nhiều nhất, rồi ngữ cảnh, rồi audio."
+"Em bỏ từng phần ra khỏi hệ đầy đủ. Bỏ text mất nhiều nhất, 8.57 UA. Bỏ ngữ cảnh mất 5.28. Bỏ audio mất 3.26. Phần nào cũng có đóng góp: text nhiều nhất, rồi ngữ cảnh, rồi audio."
 
 **Nguồn**: report, Table V.
 
@@ -228,7 +228,7 @@ Chữ trên slide viết đơn giản: không viết tắt (finetune, without), 
 - Bảng hệ đầy đủ với ba nguồn transcript: ground truth (WER 0, UA 81.89), Whisper finetune (9.56, UA 81.17, −0.72), SenseVoice finetune (9.73, UA 81.29, −0.60)
 
 **Lời nói**
-"Lỗi ASR tốn bao nhiêu? Em giữ nguyên hệ đầy đủ và chỉ đổi transcript. Với transcript đúng, WER bằng 0, hệ đạt 81.89. Với Whisper finetune, WER 9.56, hệ đạt 81.17, thấp hơn 0.72. Với SenseVoice finetune, WER 9.73, hệ đạt 81.29, thấp hơn 0.60. Nếu bỏ audio, chỉ dùng text và ngữ cảnh, thì text đúng được 78.57 so với 77.91 của transcript Whisper, mất 0.66 UA. Như vậy có hay không có audio, lỗi ASR ở mức WER khoảng 10% chỉ làm mất dưới một điểm UA, ít hơn nhiều so với phần audio đóng góp, 3.27, hay ngữ cảnh, 5.29. Hai transcript finetune chênh nhau 0.12 UA, nhỏ hơn nhiều so với độ dao động giữa các fold, nên UA không phân biệt được hai ASR; em chọn ASR theo WER, đúng tác vụ của nó."
+"Lỗi ASR tốn bao nhiêu? Em giữ nguyên hệ đầy đủ và chỉ đổi transcript. Với transcript đúng, WER bằng 0, hệ đạt 81.89. Với Whisper finetune, WER 9.56, hệ đạt 81.17, thấp hơn 0.72. Với SenseVoice finetune, WER 9.73, hệ đạt 81.29, thấp hơn 0.60. Nếu bỏ audio, chỉ dùng text và ngữ cảnh, thì text đúng được 78.57 so với 77.91 của transcript Whisper, mất 0.66 UA. Như vậy có hay không có audio, lỗi ASR ở mức WER khoảng 10% chỉ làm mất dưới một điểm UA, ít hơn nhiều so với phần audio đóng góp, 3.26, hay ngữ cảnh, 5.28. Hai transcript finetune chênh nhau 0.12 UA, nhỏ hơn nhiều so với độ dao động giữa các fold, nên UA không phân biệt được hai ASR; em chọn ASR theo WER, đúng tác vụ của nó."
 
 **Nguồn**: report, Analysis; Table V; PROGRESS.md (đợt encoder turbo, `combined_gt_ctx_whisper_turbo*`); Li et al. 2024.
 

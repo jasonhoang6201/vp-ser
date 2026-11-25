@@ -8,29 +8,36 @@
 \usepackage{cite}
 \usepackage[hidelinks]{hyperref}
 
+% Compact tables so that they stay inside one IEEE column.
+\newcommand{\tabstyle}{\footnotesize\setlength{\tabcolsep}{3.5pt}}
+
 \begin{document}
 
 \title{Emotion-Aware Speech Recognition with Separate ASR and Emotion Models}
 
-\author{\IEEEauthorblockN{Author Name}
-\IEEEauthorblockA{Voice Processing, Master's Program\\
-Student ID}}
+\author{\IEEEauthorblockN{Hoang Thien Nhan}
+\IEEEauthorblockA{25C11054\\
+25C1105417@student.hcmus.edu.vn}
+\and
+\IEEEauthorblockN{Lam Thinh Phat}
+\IEEEauthorblockA{25C11058\\
+25C1105836@student.hcmus.edu.vn}}
 
 \maketitle
 
 \begin{abstract}
-Emotion-aware speech recognition must output both what a speaker says and how they feel. Training one model for
-both tasks lets their conflicting objectives interfere, while a pipeline that recognizes emotion from automatic
-transcripts inherits recognition errors. We study a system that keeps the two tasks in separate models: a finetuned
-speech recognizer produces the transcript, and an emotion classifier combines that transcript, the preceding dialogue
-turns and a frozen speech encoder through a gated fusion. Each component is chosen by a controlled comparison, from
-the recognizer to the audio encoder, and every part of the emotion model is then removed in turn. On IEMOCAP with
-leave-one-session-out evaluation, finetuning changes which recognizer is best, the Whisper encoder is a better audio
-branch than WavLM, and text, context and audio each improve emotion recognition, with text the most important.
-One Whisper model serves as both the recognizer and the audio encoder. Replacing automatic transcripts with ground
-truth changes emotion recognition only slightly, with or without the audio branch, and far less than removing audio
-or context, which suggests that at the error rates of a finetuned recognizer, adding audio and context matters more
-than further ASR improvements.
+Emotion-aware speech recognition has to output what a speaker says and how the speaker feels. When one model is
+trained for both tasks, the two objectives compete. When emotion is recognized from automatic transcripts, every
+recognition error is passed on to the emotion classifier. We keep the two tasks in separate models. A finetuned
+Whisper model transcribes the speech. A second model predicts the emotion from that transcript, the previous
+turns of the dialogue and the audio, which a frozen speech encoder turns into features. A gated fusion combines
+the text and audio features. We choose each component with a controlled comparison and then remove each part of the
+emotion model to measure what it adds. On IEMOCAP with leave-one-session-out evaluation, finetuning changes which
+recognizer is best, and the Whisper encoder works better than WavLM as the audio branch. Text, dialogue context and
+audio each improve emotion recognition, and text helps the most. One Whisper model serves as both the recognizer and
+the audio encoder. Replacing automatic transcripts with ground-truth text improves emotion recognition only slightly,
+with or without the audio branch, and much less than adding audio or dialogue context does. At the error rate of a
+finetuned recognizer, audio and context are therefore worth more than a further reduction in word error rate.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -39,50 +46,50 @@ speech emotion recognition, automatic speech recognition, Whisper, multimodal fu
 
 \section{Introduction}
 
-Emotion-aware speech recognition takes one utterance and returns two outputs: the words (automatic speech
-recognition, ASR) and the speaker's emotion (speech emotion recognition, SER). Two families of systems address
-this. The first trains one model for both tasks, for example a speech encoder with an ASR head and an emotion head
-\cite{cai2021mtl,shen2024ent,chen2025vibemo}. The second runs ASR first and recognizes emotion from the transcript,
-often together with the audio \cite{li2024asrtranscripts,he2024mfaedaec}.
+Emotion-aware speech recognition takes one utterance and returns two outputs, the words (automatic speech
+recognition, ASR) and the speaker's emotion (speech emotion recognition, SER). Existing systems follow one of two
+designs. The first trains a single model for both tasks, for example a speech encoder with an ASR head and an emotion
+head \cite{cai2021mtl,shen2024ent,chen2025vibemo}. The second runs ASR first and recognizes emotion from the
+transcript, usually together with the audio \cite{li2024asrtranscripts,he2024mfaedaec}.
 
-Both families have a known weakness. In joint training the two objectives are different, their gradients often
-conflict, and the shared network tends to focus on ASR \cite{gao2023twostage}. In a pipeline, ASR errors reach the
-emotion classifier, and the damage grows with the word error rate (WER) \cite{li2024asrtranscripts}.
+Each design has a weakness. In joint training, the two tasks pull the shared network in different directions, and
+the network tends to favor ASR \cite{gao2023twostage}. In the pipeline, ASR errors reach the emotion classifier, and
+the damage grows with the word error rate (WER) \cite{li2024asrtranscripts}.
 
-We build a system with two separate models and measure each design choice. The input audio goes to two branches in
-parallel: an ASR module that produces the transcript, and a frozen speech encoder that produces an audio
-representation. An emotion model combines the transcript, the previous dialogue turns and the audio representation
-with a gated fusion. Our contributions are:
+We build a system from two separate models and measure each design choice. The audio goes to two branches in
+parallel. The text branch transcribes the audio with an ASR model and reads the transcript together with the previous
+dialogue turns. The audio branch encodes the same audio with a frozen speech encoder. A gated fusion combines the two
+branches and a classifier predicts the emotion. Our contributions are:
 \begin{itemize}
-  \item a controlled comparison of two ASR models, original and finetuned, on the same folds;
-  \item an SER system on ASR transcripts that uses text, audio and dialogue context;
-  \item an ablation that measures every module of the emotion model and the cost of ASR errors.
+  \item a controlled comparison of two ASR models, before and after finetuning, on the same folds;
+  \item an SER system that reads ASR transcripts, dialogue context and audio;
+  \item an ablation of every part of the emotion model, and a measurement of what ASR errors cost.
 \end{itemize}
 
 \section{Background}
 
 \textbf{Joint models.} Cai et al.\ \cite{cai2021mtl} add a CTC head for ASR next to the emotion classifier on
 wav2vec 2.0. The Emotion Neural Transducer \cite{shen2024ent} extends an RNN-T with an emotion joint network.
-VIB-Emo \cite{chen2025vibemo} finetunes an LLM for joint SER, speech descriptor prediction and ASR. Gao et al.\
-\cite{gao2023twostage} report that multi-task training suffers from gradient conflict and propose to learn ASR in a
-first stage and emotion in a second.
+VIB-Emo \cite{chen2025vibemo} finetunes an LLM to predict emotion, speech descriptors and the transcript together.
+Gao et al.\ \cite{gao2023twostage} report that multi-task training suffers from gradient conflict. They learn ASR in
+a first stage and emotion in a second.
 
 \textbf{SER from ASR transcripts.} Li et al.\ \cite{li2024asrtranscripts} benchmark eleven ASR systems and several
-fusion methods on IEMOCAP and two other corpora, and find that transcripts with about 10\% WER give results close to
-ground-truth text. MF-AED-AEC \cite{he2024mfaedaec} adds ASR error detection and correction as auxiliary losses to an
-audio-text model.
+fusion methods on IEMOCAP and two other corpora. Transcripts with about 10\% WER give results close to ground-truth
+text. MF-AED-AEC \cite{he2024mfaedaec} adds ASR error detection and correction as auxiliary losses to an audio-text
+model.
 
-\textbf{Speech encoders and context.} In the EmoBox benchmark \cite{ma2024emobox}, the Whisper large-v3 encoder gives
-higher UA on IEMOCAP than WavLM-large (73.54 vs 69.47) under the same probe. Systems in the GenSEC challenge show that
-previous dialogue turns improve text-only emotion recognition \cite{zhang2024contextual}.
+\textbf{Speech encoders and context.} In the EmoBox benchmark \cite{ma2024emobox}, the Whisper large-v3 encoder
+reaches a higher UA on IEMOCAP than WavLM-large under the same probe (73.54 vs 69.47). Systems in the GenSEC
+challenge show that previous dialogue turns improve text-only emotion recognition \cite{zhang2024contextual}.
 
-Table~\ref{tab:related} lists published systems on IEMOCAP. Data splits, validation sets and metrics differ between
-papers, so the numbers are not directly comparable.
+Table~\ref{tab:related} lists published systems on IEMOCAP. Their data splits, validation sets and metrics differ, so
+the numbers are not directly comparable.
 
-\begin{table*}[t]
+\begin{table*}[!t]
 \centering
-\caption{Published systems on IEMOCAP (4 classes). ``Transcript'': the emotion model reads automatic transcripts.
-Data splits and metrics differ between papers, so the numbers are not directly comparable.}
+\caption{Published systems on IEMOCAP (4 classes). ``Transcript'' means that the emotion model reads automatic
+transcripts. Data splits and metrics differ between papers, so the numbers are not directly comparable.}
 \label{tab:related}
 \begin{tabular}{llccccc}
 \toprule
@@ -101,82 +108,124 @@ Our system & ASR first, then SER & \checkmark & \checkmark & \checkmark & \textb
 \end{tabular}
 \end{table*}
 
-\textbf{Implications for our study.} (1) Joint training suffers from gradient conflict and drifts toward ASR
-\cite{gao2023twostage}, so we keep ASR and SER in separate models and choose each on its own metric. (2) Whisper-style
-encoders beat WavLM in EmoBox, so we compare both inside our system. (3) Previous turns help text-based emotion
-recognition, so the text branch reads them. (4) We train on one GPU, so the audio encoder stays frozen.
+\textbf{Implications for our study.} Joint training suffers from gradient conflict \cite{gao2023twostage}, so we keep ASR
+and SER in separate models and choose each one on its own metric. Whisper-style encoders beat WavLM in EmoBox, so we
+compare both inside our system. Previous turns help text-based emotion recognition, so the text branch reads them.
+We train on one GPU, so the audio encoder stays frozen.
 
 \section{Method}
 
-Fig.~\ref{fig:overview} shows the modules. The input audio goes to two branches in parallel.
+\subsection{Overview}
 
-\begin{figure*}[t]
+The system has two separate models. One is the ASR model. The other predicts emotion from three inputs, the ASR
+transcript, the previous dialogue turns and the audio. Fig.~\ref{fig:overview} shows how they connect. The audio goes
+into two branches in parallel. The text branch turns it into a transcript and encodes the transcript with its
+dialogue context. The audio branch encodes the signal directly with a frozen encoder. A gated fusion combines the two
+vectors, and a classifier predicts one of four emotions. The transcript is also the first output of the system.
+
+\begin{figure*}[!t]
 \centering
 \includegraphics[width=0.85\textwidth]{figures/fig_overview.png}
-\caption{System overview. The ASR module produces the transcript; the text branch reads it with the previous turns;
-the audio branch encodes the same audio; a gated fusion combines both branches. Auxiliary heads are used only in
-training.}
+\caption{System overview. The text branch consists of the ASR model, the dialogue history and RoBERTa-large. The
+audio branch is the frozen Whisper encoder. A gated fusion combines the two branches. The auxiliary heads are used
+only in training.}
 \label{fig:overview}
 \end{figure*}
 
-\begin{enumerate}
-  \item \textbf{ASR module.} Whisper large-v3-turbo \cite{radford2023whisper}, fully finetuned on the training
-  sessions of each fold. Turbo keeps the 32-layer encoder of Whisper large-v3 and reduces the decoder from 32 to 4
-  layers (809M parameters), which makes decoding faster. It transcribes every turn of the corpus.
-  \item \textbf{Context.} The current turn and the three previous turns of the same dialogue, from all speakers and
-  including turns outside the four classes, in time order. They form a sentence pair (context, current turn) for the
-  text encoder, truncated from the left to 192 tokens. Speaker names are not used, because test speakers never appear
-  in training.
-  \item \textbf{Text branch.} RoBERTa-large \cite{liu2019roberta}, finetuned on ASR transcripts (not ground truth).
-  The [CLS] output gives $h_{\text{text}} \in \mathbb{R}^{1024}$.
-  \item \textbf{Audio branch.} The encoder of the pre-trained Whisper large-v3-turbo, frozen. It returns 33 hidden states (embedding and 32
-  layers) of 1280 dimensions at 50 frames per second. Each state is layer-normalized and averaged over the real
-  frames (padding excluded). Learned softmax weights $w_l$ combine the 33 layers, and a projection (LayerNorm,
-  Linear, tanh) gives $h_{\text{audio}} \in \mathbb{R}^{1024}$. Only the encoder is loaded; its features are extracted
-  once and cached.
-  \item \textbf{Gated fusion.}
-  \begin{equation}
-    g = \operatorname{softmax}\big(W [h_{\text{text}}; h_{\text{audio}}]\big), \quad
-    z = g_{\text{text}}\, h_{\text{text}} + g_{\text{audio}}\, h_{\text{audio}}.
-  \end{equation}
-  \item \textbf{Classifier and loss.} A linear layer maps $z$ to four classes. The loss is a class-weighted
-  cross-entropy on $z$ plus the same loss on two auxiliary heads, one on $h_{\text{text}}$ and one on
-  $h_{\text{audio}}$:
-  \begin{equation}
-    \mathcal{L} = \mathrm{CE}(z) + \mathrm{CE}(h_{\text{text}}) + \mathrm{CE}(h_{\text{audio}}).
-  \end{equation}
-\end{enumerate}
+\subsection{Text branch}
 
-One Whisper checkpoint plays both roles: its finetuned copy is the ASR module chosen in step 2 of
-Section~\ref{sec:results}, and the encoder of the original checkpoint is the frozen audio encoder chosen in step 3.
-Fig.~\ref{fig:flow} follows one utterance through the model with tensor sizes.
+The text branch has three steps, shown on the left of Fig.~\ref{fig:flow}.
 
-\begin{figure}[t]
+\textbf{Transcript.} We use Whisper large-v3-turbo \cite{radford2023whisper}, fully finetuned on the training sessions
+of each fold. Turbo keeps the 32-layer encoder of Whisper large-v3 and cuts the decoder from 32 to 4 layers (809M
+parameters in total) to speedup the decoding. In each fold, Whisper is finetuned only on the four training sessions and
+then transcribes every turn of the corpus. The test session is therefore never seen by the model that transcribes it.
+
+\textbf{Dialogue context.} One sentence is often not enough to tell the emotion. A short ``Yes.'' can be happy, angry
+or sad depending on what was said before it. The text input therefore contains the current turn and the three turns
+before it in the same dialogue. The previous turns come from all speakers, include unlabeled turns
+and are kept in time order. The encoder receives them as a sentence pair (context, current turn). If the pair is
+longer than 192 tokens, it is truncated from the left in order to keep most recent turns. Speaker names are not used,
+because test speakers never appear in training.
+
+\textbf{Text encoder.} RoBERTa-large \cite{liu2019roberta} reads the sentence pair. It is finetuned on ASR
+transcripts, not on ground-truth text. The [CLS] output, after a layer normalization, is the text vector
+$h_{\text{text}} \in \mathbb{R}^{1024}$.
+
+\subsection{Audio branch}
+
+A transcript keeps the words but loses how they were said. The audio branch reads the signal itself. It uses the
+encoder of the pre-trained Whisper large-v3-turbo. For one utterance the encoder returns 33 hidden
+states (the embedding output and 32 layers), each with 1280 dimensions per frame and 50 frames per second. We
+layer-normalize every state and average it over the real frames, excluding padding. This gives a $33 \times 1280$
+matrix per utterance. The encoder is frozen, so we extract these matrices once and cache them.
+
+Different layers carry different information, and we let the model choose which layer is best for emotion. Learned softmax weights $w_l$ combine the 33 layers into one vector, and a projection
+(LayerNorm, dropout, Linear, tanh) maps it to $h_{\text{audio}} \in \mathbb{R}^{1024}$, the same size as
+$h_{\text{text}}$.
+
+\subsection{Gated fusion}
+
+The two vectors have to be merged into one, but their usefulness changes from one utterance to the next. When the
+words are clear, as in ``I'm so angry'', the text vector is enough. When the words are neutral, as in ``Fine.'',
+only the voice shows the emotion. A fixed mixing ratio cannot handle both cases, so a gate sets the ratio for each
+utterance. It first computes two weights from the concatenated vectors,
+\begin{equation}
+  g = \operatorname{softmax}\!\big(W\,[h_{\text{text}};\,h_{\text{audio}}] + b\big),
+  \label{eq:gate}
+\end{equation}
+and then takes a weighted sum,
+\begin{equation}
+  z = g_{\text{text}}\,h_{\text{text}} + g_{\text{audio}}\,h_{\text{audio}}.
+  \label{eq:fuse}
+\end{equation}
+The softmax makes $g_{\text{text}}$ and $g_{\text{audio}}$ positive and sum to one, so $z \in
+\mathbb{R}^{1024}$ is a weighted average of the two vectors. Every utterance gets its own pair of weights.
+
+\subsection{Classifier and loss}
+
+A linear layer maps $z$ to four class scores, and a softmax turns them into probabilities. The loss is a
+class-weighted cross-entropy on $z$ plus the same loss on two auxiliary heads, one linear layer on $h_{\text{text}}$
+and one on $h_{\text{audio}}$:
+\begin{equation}
+  \mathcal{L} = \mathrm{CE}(z) + \mathrm{CE}(h_{\text{text}}) + \mathrm{CE}(h_{\text{audio}}).
+  \label{eq:loss}
+\end{equation}
+The class weights are inversely proportional to the class frequency, which matches UA because UA counts every class
+equally. The auxiliary heads are used only in training and are dropped at inference.
+
+The auxiliary losses are needed because the gate can otherwise put almost all weight on one branch. In our early
+runs without them, the gate collapsed onto the audio branch, and the text encoder received little gradient and
+stopped learning. With the auxiliary losses, $h_{\text{text}}$ and $h_{\text{audio}}$ each learn to classify the
+emotion on their own.
+
+\subsection{Trained and frozen parts}
+
+Whisper large-v3-turbo (the ASR model) and RoBERTa-large are finetuned from pre-trained weights. The layer weights,
+projection, gate, classifier and auxiliary heads are trained from scratch. The encoder of the pre-trained Whisper
+large-v3-turbo is frozen. The finetuned Whisper model and the frozen encoder come from the same checkpoint and play
+different roles. The finetuned copy is the ASR model chosen in Steps 1--2 of Section~\ref{sec:results}, and the
+encoder of the original checkpoint is the audio encoder chosen in Step 3.
+
+\begin{figure*}[!t]
 \centering
-\includegraphics[width=\columnwidth]{figures/fig_flow.png}
-\caption{One utterance through the model. $T$ is the number of encoder frames. A lock marks a frozen part, a flame a
-trained part.}
+\includegraphics[width=0.58\textwidth]{figures/fig_flow.png}
+\caption{One utterance through the model. $T$ is the number of encoder frames. A lock marks a frozen part and a flame
+a trained part.}
 \label{fig:flow}
-\end{figure}
-
-\textbf{Trained and frozen parts.} Whisper large-v3-turbo and RoBERTa-large are finetuned from pre-trained weights.
-The layer weights, projection, gate, classifier and auxiliary heads are trained from scratch. The encoder of the
-pre-trained Whisper large-v3-turbo is frozen. The auxiliary heads are dropped at inference.
-
-\textbf{Why auxiliary losses.} Without them, the gate can put almost all weight on one branch, and the other encoder
-then receives little gradient and stops learning. The auxiliary losses keep both $h_{\text{text}}$ and
-$h_{\text{audio}}$ discriminative on their own.
+\end{figure*}
 
 \section{Data and Setup}
 
-\textbf{Data.} IEMOCAP \cite{busso2008iemocap} contains about 12 hours of dyadic conversations by ten actors in five
-sessions, both scripted and improvised. We use the four standard classes, with excited merged into happy: 5531
-labeled turns out of 10039 (Table~\ref{tab:data}). The unlabeled turns are used only as context.
+\textbf{Data.} IEMOCAP \cite{busso2008iemocap} has about 12 hours of dyadic conversations between ten actors in five
+sessions, both scripted and improvised. We use the four standard classes, with excited merged into happy. This gives
+5531 labeled turns out of 10039. The unlabeled turns are used only as context.
 
-\begin{table}[t]
+\begin{table}[!t]
 \centering
 \caption{Labeled turns per session and class.}
 \label{tab:data}
+\tabstyle
 \begin{tabular}{lccccc}
 \toprule
 Session & Neutral & Happy & Angry & Sad & Total \\
@@ -192,41 +241,36 @@ Total & 1708 & 1636 & 1103 & 1084 & 5531 \\
 \end{tabular}
 \end{table}
 
-\textbf{Splitting.} Leave-one-session-out cross-validation with five folds, so test speakers never appear in
-training. In each fold, a random 10\% of the training sessions is the validation set, used to choose the best
-epoch. Each ASR model is finetuned again in every fold, so test transcripts never come from a model that heard the
-test session.
+\textbf{Splitting.} We use leave-one-session-out cross-validation with five folds, so test speakers never appear in
+training. In each fold, a random 10\% of the training sessions is the validation set that selects the best epoch.
 
-\textbf{Metrics.} WER uses the Whisper English normalizer on both reference and hypothesis. For SER we report
-unweighted accuracy (UA, the mean of per-class recall; primary metric), weighted accuracy (WA) and weighted F1. The
-epoch is chosen on validation UA for SER and validation WER for ASR. All results are means over the five folds.
+\textbf{Metrics.} WER is computed with the Whisper English normalizer on both reference and hypothesis. For SER we
+report unweighted accuracy (UA, the mean of per-class recall, our primary metric), weighted accuracy (WA) and weighted
+F1. The best epoch is chosen on validation UA for SER and on validation WER for ASR. All results are means over the
+five folds.
 
-\textbf{Training.} One NVIDIA L4 GPU. RoBERTa: learning rate $10^{-5}$, new layers $10^{-4}$, 5 epochs, batch 16.
-Each ASR model follows its standard finetuning recipe: SenseVoice-Small 10 epochs with learning rate
-$2\times10^{-4}$; Whisper large-v3-turbo full finetuning, 3 epochs, learning rate $10^{-5}$, batch 16. For Whisper,
-most of the validation WER gain comes in the first epoch and the validation WER plateaus after the second, so three
-epochs suffice.
+\textbf{Training.} We train on one NVIDIA L4 GPU. RoBERTa uses a learning rate of $10^{-5}$ and the new layers
+$10^{-4}$, for 5 epochs with batch size 16. Each ASR model follows its standard finetuning recipe. SenseVoice-Small
+trains for 10 epochs with a learning rate of $2\times10^{-4}$. Whisper large-v3-turbo is finetuned in full for 3
+epochs with a learning rate of $10^{-5}$ and batch size 16. For Whisper, most of the validation WER gain comes in the
+first epoch and the validation WER stops improving after the second, so three epochs are enough.
 
 \section{Results}
 \label{sec:results}
 
 We build the system in four steps. Each step keeps the better option and passes it to the next.
 
-\textbf{Steps 1--2: ASR.} Table~\ref{tab:asr} compares SenseVoice-Small \cite{an2024funaudiollm} and Whisper
-large-v3-turbo. Before finetuning, SenseVoice has the lower WER (11.20\% vs 13.19\%) although it is almost four
-times smaller, but Whisper gains more from finetuning ($-3.63$ vs $-1.47$) and ends slightly lower (9.56\% vs
-9.73\%). The ASR module is therefore Whisper large-v3-turbo, finetuned. We use SenseVoice-Small because
-SenseVoice-Large is described in the paper but its weights are not released. Table~\ref{tab:werEmo} splits the
-finetuned WER by emotion: happy turns are the hardest for both models and angry turns the easiest. Whisper is lower
-on every class except happy. Its happy WER is raised by a failure on non-speech turns: on four test turns that
-contain only laughter or breathing (two of them happy, in sessions 1 and 3), the finetuned model repeats one token
-until the length limit. These four turns account for the higher WER of Whisper on sessions 1 and 3 (12.73\% and
-14.37\%, against 4.72--8.27\% on the other sessions).
+\textbf{Steps 1--2: ASR model.} Table~\ref{tab:asr} compares SenseVoice-Small \cite{an2024funaudiollm} and Whisper
+large-v3-turbo. Before finetuning, SenseVoice has the lower WER, with less than a third of the parameters. Whisper
+gains much more from finetuning and ends lower, so the ASR model is finetuned Whisper large-v3-turbo. We use
+SenseVoice-Small because the weights of SenseVoice-Large are not released. Table~\ref{tab:werEmo} breaks the
+finetuned WER down by emotion. Happy turns are the hardest for both models and angry turns are the easiest. Whisper is lower on every class except happy. Its happy WER is raised by a failure on non-speech turns: on four test turns that contain only laughter or breathing (two of them happy, in sessions 1 and 3), the finetuned model repeats one token until the length limit. These four turns account for the higher WER of Whisper on sessions 1 and 3 (12.73\% and 14.37\%, against 4.72--8.27\% on the other sessions).
 
-\begin{table}[t]
+\begin{table}[!t]
 \centering
 \caption{Steps 1--2: WER (\%) before and after finetuning, on the test session, mean over 5 folds.}
 \label{tab:asr}
+\tabstyle
 \begin{tabular}{lcccc}
 \toprule
 ASR model & Parameters & Original & Finetuned & Change \\
@@ -237,10 +281,11 @@ Whisper large-v3-turbo & 809M & 13.19 & \textbf{9.56} & $-3.63$ \\
 \end{tabular}
 \end{table}
 
-\begin{table}[t]
+\begin{table}[!t]
 \centering
 \caption{WER (\%) by emotion after finetuning.}
 \label{tab:werEmo}
+\tabstyle
 \begin{tabular}{lcc}
 \toprule
 Emotion & SenseVoice-Small & Whisper large-v3-turbo \\
@@ -253,66 +298,68 @@ Sad & 8.4 & \textbf{7.8} \\
 \end{tabular}
 \end{table}
 
-\textbf{Step 3: audio encoder.} With Whisper transcripts and context fixed, Table~\ref{tab:enc} compares two frozen
-encoders in the audio branch. The Whisper large-v3-turbo encoder is higher on all three metrics, and the gate trusts
-it more: the average weight on the audio branch is 0.51, against 0.28 with WavLM. This agrees with the EmoBox
-benchmark \cite{ma2024emobox}. Using it also means that one Whisper checkpoint serves both the ASR module and the
-audio branch.
+\textbf{Step 3: audio encoder.} We fix the Whisper transcripts and the context, and compare two frozen encoders for
+the audio branch (Table~\ref{tab:enc}). The Whisper encoder is higher on all three metrics, and the gate gives it
+more weight. The average audio weight is 0.51 with the Whisper encoder and 0.28 with WavLM. This agrees with the EmoBox
+benchmark \cite{ma2024emobox}. It also means that one Whisper checkpoint serves both the ASR model and the audio
+branch.
 
-\begin{table}[t]
+\begin{table}[!t]
 \centering
-\caption{Step 3: frozen audio encoder in our system (\%). ``Gate'': mean gate weight on the audio branch.}
+\caption{Step 3: frozen audio encoder in our system (\%). ``Whisper turbo'' is Whisper large-v3-turbo. ``Gate'' is the mean gate weight on the audio branch.}
 \label{tab:enc}
+\tabstyle
 \begin{tabular}{lccccc}
 \toprule
-Audio encoder & UA & WA & Weighted F1 & Change in UA & Gate \\
+Audio encoder & UA & WA & W-F1 & $\Delta$UA & Gate \\
 \midrule
-WavLM-large \cite{chen2022wavlm} & 79.93 & 78.89 & 78.55 & $-1.25$ & 0.28 \\
-Whisper large-v3-turbo & \textbf{81.17} & \textbf{79.98} & \textbf{79.88} & -- & \textbf{0.51} \\
+WavLM-large \cite{chen2022wavlm} & 79.93 & 78.89 & 78.55 & $-1.24$ & 0.28 \\
+Whisper turbo & \textbf{81.17} & \textbf{79.98} & \textbf{79.88} & -- & \textbf{0.51} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{Step 4: ablation.} Table~\ref{tab:abl} removes one module at a time from our system.
+\textbf{Step 4: ablation.} We remove one module at a time from the full system and train the rest in the same way
+(Table~\ref{tab:abl}). Without audio, the model keeps only the text branch, RoBERTa-large with a classifier. Without context, the text input is the current turn alone and the audio branch is unchanged. Without text, the model keeps only the audio branch, which is the layer weights, the projection and the classifier.
 
-\begin{table}[t]
+\begin{table}[!t]
 \centering
-\caption{Step 4: ablation (\%). Change in UA is relative to our system.}
+\caption{Step 4: ablation (\%). W-F1 is weighted F1. $\Delta$UA is the change in UA relative to our system.}
 \label{tab:abl}
+\tabstyle
 \begin{tabular}{lcccc}
 \toprule
-System & UA & WA & Weighted F1 & Change in UA \\
+System & UA & WA & W-F1 & $\Delta$UA \\
 \midrule
 Our system & \textbf{81.17} & \textbf{79.98} & \textbf{79.88} & -- \\
-Without audio & 77.91 & 76.70 & 76.67 & $-3.27$ \\
-Without context & 75.89 & 74.64 & 74.34 & $-5.29$ \\
-Without text & 72.60 & 71.10 & 70.50 & $-8.58$ \\
+Without audio & 77.91 & 76.70 & 76.67 & $-3.26$ \\
+Without context & 75.89 & 74.64 & 74.34 & $-5.28$ \\
+Without text & 72.60 & 71.10 & 70.50 & $-8.57$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \section{Analysis}
 
-\textbf{Which module matters most?} Removing text costs the most (8.58 UA), then context (5.29), then audio (3.27).
-Every module contributes: text the most, then context, then audio.
+\textbf{Which module matters most?} Removing text costs the most (8.57 UA), then context (5.28), then audio (3.26). Every module contributes: text the most, then context, then audio.
 
-\textbf{How do ASR errors affect emotion recognition?} We keep our system fixed and change only the transcript
-(Table~\ref{tab:gt}). With ground-truth text (0\% WER) the system reaches 81.89 UA; with finetuned Whisper transcripts
-(9.56\% WER) it reaches 81.17, 0.72 lower; with finetuned SenseVoice transcripts (9.73\% WER) it reaches 81.29,
-0.60 lower. Without the audio branch the loss is similar: ground-truth text gives 78.57 UA against 77.91 with Whisper
-transcripts, 0.66 lower. ASR errors at about 10\% WER therefore cost less than one UA point, with or without audio,
-while the audio branch adds 3.27 UA and context 5.29 UA. The two finetuned transcripts differ by 0.12 UA, in the
-opposite direction of their WER gap of 0.17; both differences are small next to the spread across folds, so UA does
-not separate the two ASR models and we choose the ASR on WER, its own task. This agrees with Li et al.\
-\cite{li2024asrtranscripts}.
+\textbf{How do ASR errors affect emotion recognition?} We keep the system fixed and change only the transcript
+(Table~\ref{tab:gt}). Ground-truth text (0\% WER) gives 81.89 UA. Finetuned Whisper transcripts (9.56\% WER) give
+81.17, which is 0.72 lower. Finetuned SenseVoice transcripts (9.73\% WER) give 81.29, which is 0.60 lower. Without
+the audio branch the loss is similar. Ground-truth text gives 78.57 UA and Whisper transcripts give 77.91, a loss of
+0.66. ASR errors at about 10\% WER therefore cost less than one UA point, with or without audio, while the audio branch
+adds 3.26 UA and context adds 5.28. The two finetuned transcripts differ by 0.12 UA, in the opposite direction of their
+WER gap of 0.17. Both differences are small next to the spread across folds, so UA does not separate the two ASR models
+and we choose the ASR model on WER, which is its own task.
 
-\begin{table}[t]
+\begin{table}[!t]
 \centering
-\caption{Our system with three transcript sources (\%). Change in UA is relative to ground truth.}
+\caption{Our system with three transcript sources (\%). $\Delta$UA is the change in UA relative to ground truth.}
 \label{tab:gt}
+\tabstyle
 \begin{tabular}{lccc}
 \toprule
-Transcript & WER & UA & Change in UA \\
+Transcript & WER & UA & $\Delta$UA \\
 \midrule
 Ground truth & 0 & \textbf{81.89} & -- \\
 Whisper, finetuned & 9.56 & 81.17 & $-0.72$ \\
@@ -321,15 +368,16 @@ SenseVoice, finetuned & 9.73 & 81.29 & $-0.60$ \\
 \end{tabular}
 \end{table}
 
-\textbf{What does each branch contribute?} In our system the gate puts on average 0.51 of the weight on audio
-(0.44 to 0.63 across folds). Without context the text branch is weaker and the audio weight rises to 0.71; with the
-WavLM encoder it falls to 0.28. Table~\ref{tab:recall} shows recall per class. Audio mainly helps angry (+7.4);
-context mainly helps happy (+9.8) and angry (+6.2). Sad recall changes least in every ablation.
+\textbf{What does each branch contribute?} In our system the gate puts on average 0.51 of the weight on audio, and
+the value ranges from 0.44 to 0.63 across folds. Without context the text branch is weaker and the audio weight rises
+to 0.71. With the WavLM encoder it falls to 0.28. Table~\ref{tab:recall} gives recall per class. Audio mainly helps
+angry (+7.4). Context mainly helps happy (+9.8) and angry (+6.2). Sad recall changes least in every ablation.
 
-\begin{table}[t]
+\begin{table}[!t]
 \centering
 \caption{Recall per class (\%), mean over 5 folds.}
 \label{tab:recall}
+\tabstyle
 \begin{tabular}{lcccc}
 \toprule
 System & Neutral & Happy & Angry & Sad \\
@@ -342,14 +390,15 @@ Without text & 62.1 & 67.1 & 80.7 & 80.4 \\
 \end{tabular}
 \end{table}
 
-\textbf{Is the gain consistent across folds?} Table~\ref{tab:folds} gives UA per test session. Our system beats
-``without audio'', ``without context'' and ``without text'' in all five folds. The Whisper encoder beats WavLM in four of five
-folds (all but session 5).
+\textbf{Is the gain consistent across folds?} Table~\ref{tab:folds} gives UA for each test session. Our system beats
+``without audio'', ``without context'' and ``without text'' in all five folds. The Whisper encoder beats WavLM in
+four of the five folds, all except session 5.
 
-\begin{table}[t]
+\begin{table}[!t]
 \centering
 \caption{UA (\%) per test session.}
 \label{tab:folds}
+\tabstyle
 \begin{tabular}{lccccc}
 \toprule
 System & S1 & S2 & S3 & S4 & S5 \\
@@ -365,14 +414,14 @@ Without text & 70.05 & 75.49 & 71.06 & 70.76 & 75.63 \\
 
 \section{Conclusion}
 
-We built an emotion-aware speech recognition system from two separate models and chose each part by a controlled
+We built an emotion-aware speech recognition system from two separate models and chose each part with a controlled
 comparison. Finetuning reversed the ranking of the two ASR models, and Whisper large-v3-turbo reached 9.56\% WER. In
-the emotion model, the encoder of the same Whisper checkpoint was a better audio branch than WavLM, so one Whisper
-model serves both ASR and the audio branch. Text, context and audio each helped, with text the most, reaching
-81.17\% UA. ASR errors at this rate cost 0.72 UA against ground-truth transcripts (0.66 UA without audio), far less
-than the gain from the audio branch or from context. The finetuned Whisper still repeats tokens on turns with only
-laughter or breathing; detecting such turns before decoding is a simple next step. The system is evaluated on acted
-speech; spontaneous speech, for example MSP-Podcast, is left for future work.
+the emotion model, the encoder of the same Whisper checkpoint worked better than WavLM as the audio branch, so one
+Whisper model serves both ASR and the audio branch. Text, context and audio each helped, text the most, and the
+system reached 81.17\% UA. ASR errors at this rate cost 0.72 UA against ground-truth transcripts (0.66 UA without
+audio), far less than the gain from the audio branch or from context. The finetuned Whisper still repeats tokens on
+turns with only laughter or breathing, and detecting such turns before decoding is a simple next step. The system is evaluated on acted speech only. Spontaneous speech, for example MSP-Podcast, is left for future
+work.
 
 \bibliographystyle{IEEEtran}
 \bibliography{refs}

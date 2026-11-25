@@ -22,12 +22,8 @@ CACHE_DIR = DRIVE_ROOT / "cache"
 
 SR = 16000
 
-# IEMOCAP uses the common 4-class protocol (excited merged into happy), expressed
-# with MELD-style names so that one label space covers both corpora.
-LABELS = {
-    "meld": ["neutral", "joy", "surprise", "anger", "sadness", "disgust", "fear"],
-    "iemocap": ["neutral", "joy", "anger", "sadness"],
-}
+# 4-class protocol: excited is merged into happy (stored as "joy").
+LABELS = {"iemocap": ["neutral", "joy", "anger", "sadness"]}
 
 _SYNONYMS = {
     "neutral": "neutral", "neu": "neutral",
@@ -35,44 +31,26 @@ _SYNONYMS = {
     "excited": "joy", "excitement": "joy", "exc": "joy",
     "anger": "anger", "angry": "anger", "ang": "anger",
     "sadness": "sadness", "sad": "sadness",
-    "surprise": "surprise", "surprised": "surprise", "sur": "surprise",
-    "fear": "fear", "fearful": "fear", "scared": "fear", "afraid": "fear", "fea": "fear",
-    "disgust": "disgust", "disgusted": "disgust", "dis": "disgust",
 }
 
 
 def canon_emotion(name):
-    """Map a single label or tag (e.g. 'Joy', '<|HAPPY|>', '生气/angry') to a canonical name or None."""
+    """Map a single label or tag (e.g. 'Happy', '<|HAPPY|>', 'exc') to a canonical name or None."""
     if name is None or (isinstance(name, float) and np.isnan(name)):
         return None
     s = str(name).strip().lower().split("/")[-1]
     return _SYNONYMS.get(re.sub(r"[^a-z]", "", s))
 
 
-def emotion_from_text(text, labels):
-    """First emotion word in free-form text (LLM answers) that belongs to `labels`."""
-    for tok in re.findall(r"[a-z]+", str(text or "").lower()):
-        c = _SYNONYMS.get(tok)
-        if c in labels:
-            return c
-    return None
-
-
 _CHAR_FIX = {
-    "\x91": "'", "\x92": "'", "\x93": '"', "\x94": '"', "\x85": "...", "\x96": "-", "\x97": "-",
     "‘": "'", "’": "'", "“": '"', "”": '"', "…": "...",
     "–": "-", "—": "-", "\xa0": " ",
 }
 
 
 def clean_text(s):
-    """Repair the cp1252/utf-8 mojibake found in MELD subtitles."""
+    """Map typographic quotes and dashes that ASR models emit to ASCII before WER normalization."""
     s = "" if s is None or (isinstance(s, float) and np.isnan(s)) else str(s)
-    if "â€" in s or "Â" in s:
-        try:
-            s = s.encode("cp1252").decode("utf-8")
-        except (UnicodeEncodeError, UnicodeDecodeError):
-            s = s.replace("Â", "")
     for a, b in _CHAR_FIX.items():
         s = s.replace(a, b)
     return " ".join(s.split())
@@ -178,17 +156,6 @@ def evaluate(name, dataset, df, split="test", notes="", extra=None):
     return m
 
 
-def save_metrics(name, dataset, metrics, split="test"):
-    """For systems that only expose aggregate numbers (no per-utterance predictions)."""
-    out = RESULTS_DIR / dataset / name
-    out.mkdir(parents=True, exist_ok=True)
-    metrics = {"name": name, "dataset": dataset, "split": split, **metrics}
-    with open(out / f"metrics_{split}.json", "w") as f:
-        json.dump(metrics, f, indent=2, ensure_ascii=False)
-    print_metrics(metrics)
-    return metrics
-
-
 def print_metrics(m):
     print(f"== {m['name']} | {m['dataset']} / {m['split']}")
     if "asr" in m:
@@ -200,23 +167,6 @@ def print_metrics(m):
         s = m["ser"]
         print(f"   WA {s['wa'] * 100:.2f}  UA {s['ua'] * 100:.2f}  macro-F1 {s['macro_f1'] * 100:.2f}  "
               f"weighted-F1 {s['weighted_f1'] * 100:.2f}  (invalid preds: {s['n_invalid_pred']})")
-
-
-def load_results(dataset, split="test"):
-    rows = []
-    for p in sorted((RESULTS_DIR / dataset).glob(f"*/metrics_{split}.json")):
-        m = json.load(open(p))
-        row = {"system": m["name"], "notes": m.get("notes", "")}
-        if "asr" in m:
-            row["WER"] = m["asr"]["wer"] * 100
-        if "ser" in m:
-            for k in ["wa", "ua", "macro_f1", "weighted_f1"]:
-                row[k.upper() if k in ("wa", "ua") else k] = m["ser"][k] * 100
-        for k in ("wer_last", "wa_last", "ua_last"):
-            if k in m:
-                row[k] = m[k]
-        rows.append(row)
-    return pd.DataFrame(rows)
 
 
 def stage_dataset(dataset):
@@ -235,14 +185,9 @@ def stage_dataset(dataset):
 
 
 def get_splits(df, dataset, test_session=5, dev_frac=0.1, seed=42, labeled_only=True):
-    """MELD: official train/dev/test. IEMOCAP: one held-out session as test, random dev from the rest."""
+    """Leave-one-session-out: `test_session` is the test set, a random `dev_frac` of the other sessions is dev."""
     if labeled_only:
         df = df[df["emotion"].isin(LABELS[dataset])]
-    # Two MELD test clips (dia38_utt4, dia220_utt0) are minutes long but carry a few-word
-    # subtitle: the video cut is wrong, and the extra speech would swamp corpus WER.
-    df = df[df["duration"] <= 60]
-    if dataset == "meld":
-        return {s: df[df["split"] == s].reset_index(drop=True) for s in ["train", "dev", "test"]}
     test = df[df["session"] == test_session]
     rest = df[df["session"] != test_session]
     dev_mask = np.random.RandomState(seed).rand(len(rest)) < dev_frac

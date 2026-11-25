@@ -19,3 +19,6 @@ chạy lại sẽ tự tạo VM mới và restore, chỉ mất bước đang ch�
 nên repo HF không bao giờ được để public.
 
 **How to apply:** file lớn đưa lên VM qua HF (VM tải rất nhanh), không qua `colab upload`; job dài thì dùng mẫu script resume này.
+
+**Cập nhật 2026-11-25:** chain_lib.sh, vm_hf_sync.py, colab_run.py và mọi run_*.sh đã xóa khỏi repo để nộp bài
+(lấy lại bằng `git show ea5f57b:notebooks/tools/<file>` nếu cần chạy chuỗi dài lần nữa).
